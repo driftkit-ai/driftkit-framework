@@ -557,28 +557,24 @@ public class StrictPerson {
 
 ## 🗺️ Roadmap
 
-### Upcoming features and improvements
+### Ecosystem expansion
+- **Additional LLM providers** - Anthropic Claude, Google Gemini, Mistral AI, local Ollama models
+- **PostgreSQL backend** - Enterprise-grade persistence for context-engineering module  
+- **Extended vector storage** - Weaviate, Qdrant, Redis Vector, Elasticsearch support
 
-**Ecosystem Expansion**
-1. **🤖 Additional LLM providers support** - Anthropic Claude, Google Gemini, Mistral AI, local Ollama models
-2. **🗄️ PostgreSQL backend for context-engineering** - Enterprise-grade persistence with full SQL capabilities  
-3. **📦 Extended vector storage options** - Weaviate, Qdrant, Redis Vector, Elasticsearch support
+### Developer experience  
+- **Frontend upgrade** - Modern UI/UX for prompt engineering, real-time collaboration, advanced debugging
+- **Comprehensive testing** - Full test coverage, performance benchmarks, integration tests
+- **Documentation website** - Interactive examples, API references, best practices guide
+- **Open-source demos** - Production-ready reference implementations
 
-**Developer Experience**  
-4. **🎨 Frontend context-engineering upgrade** - Modern UI/UX, real-time collaboration, advanced prompt debugging
-   - 4.1. **🧪 Comprehensive testing suite** - Edge case coverage, performance testing, integration tests
-5. **📚 Full documentation website** - Interactive examples, API references, best practices guide
-6. **🎯 Open-source demo projects** - Production-ready reference implementations for common use cases
+### Advanced capabilities
+- **Enhanced evaluations** - More metrics, custom evaluators, industry benchmarks
+- **Text-to-speech** - OpenAI TTS, ElevenLabs, local TTS models
+- **OpenTelemetry** - Full observability for model calls and agent workflows
+- **Docker deployment** - One-click containerized deployment
 
-**Advanced Features**
-7. **📊 Enhanced evaluation framework** - More evaluation metrics, custom evaluators, benchmark comparisons
-8. **🔊 Text-to-speech integration** - OpenAI TTS, ElevenLabs, local TTS models support
-9. **📈 OpenTelemetry integration** - Full observability for model calls, agent workflows, and performance metrics
-
-**Production Readiness**
-10. **🐳 Docker containerization** - One-click deployment for prompt engineering service with all dependencies
-
-**Have suggestions or want to contribute?** Open an issue on GitHub or join our community discussions!
+**Want to contribute or have suggestions?** Open an issue on GitHub!
 
 ## 📄 License
 
