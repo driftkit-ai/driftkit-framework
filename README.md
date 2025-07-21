@@ -4,7 +4,7 @@
 
 ## 🚀 Why choose DriftKit?
 
-### Comprehensive framework comparison
+### Framework comparison
 
 | Feature | DriftKit                                                                         | Spring AI                       | LangChain4j                     | [Google ADK](https://github.com/google/adk-java) |
 |---------|----------------------------------------------------------------------------------|---------------------------------|---------------------------------|-------------------------------------------------|
