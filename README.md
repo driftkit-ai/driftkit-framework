@@ -6,24 +6,24 @@
 
 ### Comprehensive framework comparison
 
-| Feature | DriftKit                                                                         | Spring AI                        | LangChain4j                      | [Google ADK](https://github.com/google/adk-java) |
-|---------|----------------------------------------------------------------------------------|----------------------------------|----------------------------------|--------------------------------------------------|
-| **Text embedding** | ✅ Multiple providers                                                             | ✅ Multiple providers             | ✅ Multiple providers             | ✅ Multiple providers                             |
-| **Vector storage** | ✅ In-memory, File, Pinecone                                                      | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                                |
-| **Structured output** | ✅ Java Pojo/Json based                                                           | ✅                     | ✅                    | ✅                                                |
-| **Tool calling** | ✅ Type-safe with auto/manual-execution: function calling, tools, agents as tools | ✅ Function calling               | ✅ Tool integration               | ✅ Function calling, tools, agents as tools                      |
-| **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                                        | ❌                                | ❌                                | ❌                                                |
-| **Visual prompt IDE** | ✅ Full web platform                                                              | ❌ Code only                      | ❌ Code only                      | ❌                                                |
-| **Production prompt testing** | ✅ Test sets + evaluation                                                         | ❌                                | ❌                                | ❌                                                |
-| **Prompt versioning** | ✅ Built-in                                                                       | ❌ Manual                         | ❌ Manual                         | ❌                                                |
-| **A/B testing** | ✅ Native                                                                         | ❌                                | ❌                                | ❌                                                |
-| **Test automation** | ✅ Comprehensive                                                                  | ❌                                | ⚠️ Basic                         | ❌                                                |
-| **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls                       | ❌                                | ⚠️ Limited                       | ✅ Built-in                                       |
-| **Workflow as graph** | ✅ Full graph with cross-workflow calls                                           | ❌                                | ⚠️ Chain only                    | ⚠️ Basic                                         |
-| **Simplified LLM SDK** | ✅ High-level Agent API                                                           | ⚠️ Low-level                     | ⚠️ Complex                       | ✅ Good                                           |
-| **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                  | ❌ Code rewrite                   | ⚠️ Limited                                       |
-| **Audio processing** | ✅ VAD + Transcription                                                            | ❌                                | ❌                                | ❌                                                |
-| **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers             | ❌                                | ❌                                                |
+| Feature | DriftKit                                                                         | Spring AI                       | LangChain4j                     | [Google ADK](https://github.com/google/adk-java) |
+|---------|----------------------------------------------------------------------------------|---------------------------------|---------------------------------|-------------------------------------------------|
+| **Text embedding** | ✅ Multiple providers                                                             | ✅ Multiple providers            | ✅ Multiple providers            | ❌                            |
+| **Vector storage** | ✅ In-memory, File, Pinecone                                                      | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                               |
+| **Structured output** | ✅ Java Pojo/Json based                                                           | ✅                    | ✅                   | ✅                                               |
+| **Tool calling** | ✅ Type-safe with auto/manual-execution: function calling, tools, agents as tools | ✅               | ✅               | ✅                      |
+| **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                                        | ❌                               | ❌                               | ❌                                               |
+| **Visual prompt IDE** | ✅ Full web platform                                                              | ❌ Code only                     | ❌ Code only                     | ❌                                               |
+| **Production prompt testing** | ✅ Test sets + evaluation                                                         | ❌                               | ❌                               | ❌                                               |
+| **Prompt versioning** | ✅ Built-in                                                                       | ❌ Manual                        | ❌ Manual                        | ❌                                               |
+| **A/B testing** | ✅ Native                                                                         | ❌                               | ❌                               | ❌                                               |
+| **Test automation** | ✅ Comprehensive                                                                  | ❌                               | ⚠️ Basic                        | ❌                                               |
+| **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls                       | ❌                               | ⚠️ Limited                      | ✅ Built-in                                      |
+| **Workflow as graph** | ✅ Full graph with cross-workflow calls                                           | ❌                               | ⚠️ Chain only                   | ⚠️ Basic                                        |
+| **Simplified LLM SDK** | ✅ High-level Agent API                                                           | ⚠️ Low-level                    | ⚠️ Complex                      | ✅ Good                                          |
+| **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                 | ❌ Code rewrite                  | ⚠️ Limited                                      |
+| **Audio processing** | ✅ VAD + Transcription                                                            | ❌                               | ❌                               | ❌                                               |
+| **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers            | ❌                               | ❌                                               |
 
 ### 🎯 Unique features
 
@@ -555,10 +555,50 @@ public class StrictPerson {
 }
 ```
 
+## 🗺️ Roadmap
+
+### Upcoming features and improvements
+
+**Ecosystem Expansion**
+1. **🤖 Additional LLM providers support** - Anthropic Claude, Google Gemini, Mistral AI, local Ollama models
+2. **🗄️ PostgreSQL backend for context-engineering** - Enterprise-grade persistence with full SQL capabilities  
+3. **📦 Extended vector storage options** - Weaviate, Qdrant, Redis Vector, Elasticsearch support
+
+**Developer Experience**  
+4. **🎨 Frontend context-engineering upgrade** - Modern UI/UX, real-time collaboration, advanced prompt debugging
+   - 4.1. **🧪 Comprehensive testing suite** - Edge case coverage, performance testing, integration tests
+5. **📚 Full documentation website** - Interactive examples, API references, best practices guide
+6. **🎯 Open-source demo projects** - Production-ready reference implementations for common use cases
+
+**Advanced Features**
+7. **📊 Enhanced evaluation framework** - More evaluation metrics, custom evaluators, benchmark comparisons
+8. **🔊 Text-to-speech integration** - OpenAI TTS, ElevenLabs, local TTS models support
+9. **📈 OpenTelemetry integration** - Full observability for model calls, agent workflows, and performance metrics
+
+**Production Readiness**
+10. **🐳 Docker containerization** - One-click deployment for prompt engineering service with all dependencies
+
+**Have suggestions or want to contribute?** Open an issue on GitHub or join our community discussions!
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+Apache License 2.0 - see [LICENSE](LICENSE) file for details.
+
+```
+Copyright 2024 DriftKit Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
 ## 🤝 Get Started Today
 
