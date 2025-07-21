@@ -1,0 +1,3 @@
+ai.driftkit.vector.core.filebased.FileBasedVectorStore
+ai.driftkit.vector.core.inmemory.InMemoryVectorStore
+ai.driftkit.vector.core.pinecone.client.PineconeVectorStore

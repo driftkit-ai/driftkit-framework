@@ -1,0 +1,50 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js (Frontend)
+node_modules/
+node/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build output
+build/
+out/
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Cache directories
+.cache/
+.npm/
+.yarn/

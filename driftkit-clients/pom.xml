@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.driftkit</groupId>
+        <artifactId>driftkit-parent</artifactId>
+        <version>0.5.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>driftkit-clients</artifactId>
+    <packaging>pom</packaging>
+
+    <name>DriftKit Clients</name>
+    <description>Client implementations for various language models</description>
+
+    <modules>
+        <module>driftkit-clients-core</module>
+        <module>driftkit-clients-spring-boot-starter</module>
+        <module>driftkit-clients-openai</module>
+    </modules>
+</project>

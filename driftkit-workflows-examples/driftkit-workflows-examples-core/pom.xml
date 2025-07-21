@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.driftkit</groupId>
+        <artifactId>driftkit-workflows-examples</artifactId>
+        <version>0.5.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>driftkit-workflows-examples-core</artifactId>
+
+    <name>DriftKit Workflows Examples Core</name>
+    <description>Core workflow example implementations</description>
+
+    <dependencies>
+        <!-- DriftKit Dependencies -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflows-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-context-engineering-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-vector-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-embedding-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflows-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-vector-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- Jackson -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Commons -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

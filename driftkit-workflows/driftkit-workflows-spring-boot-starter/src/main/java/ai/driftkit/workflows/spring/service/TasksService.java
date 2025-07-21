@@ -1,0 +1,163 @@
+package ai.driftkit.workflows.spring.service;
+
+import ai.driftkit.common.domain.*;
+import ai.driftkit.common.domain.Language;
+import ai.driftkit.workflows.spring.repository.ChatRepository;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
+import javax.validation.constraints.NotNull;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+@Service
+public class TasksService {
+
+    @Autowired
+    private MessageTaskRepository messageTaskRepository;
+
+    @Autowired
+    private ChatRepository chatRepository;
+
+    @Autowired
+    private AIService aiService;
+
+    private ExecutorService exec;
+
+    @PostConstruct
+    public void init() {
+        this.exec = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+    }
+
+    public LLMTaskFuture addTask(MessageTask messageTask) {
+        Chat chat = null;
+        if (messageTask.getChatId() != null) {
+            Optional<Chat> chatOpt = chatRepository.findById(messageTask.getChatId());
+            if (chatOpt.isPresent()) {
+                chat = chatOpt.get();
+            }
+        }
+
+        String systemMessage = messageTask.getSystemMessage() != null || chat == null ? messageTask.getSystemMessage() : chat.getSystemMessage();
+
+        Language language = messageTask.getLanguage() != null || chat == null ? messageTask.getLanguage() : chat.getLanguage();
+        if (language == null) {
+            language = Language.SPANISH; // default
+        }
+
+        messageTask.setSystemMessage(systemMessage);
+        messageTask.setLanguage(language);
+        messageTaskRepository.save(messageTask);
+
+        return new LLMTaskFuture(
+                messageTask.getMessageId(),
+                exec.submit(() -> aiService.chat(messageTask))
+        );
+    }
+
+    public MessageTask rate(String messageId, Grade grade, String comment) {
+        MessageTask message = messageTaskRepository.findById(messageId).orElse(null);
+
+        if (message == null) {
+            return null;
+        }
+
+        message.setGradeComment(comment);
+        message.setGrade(grade);
+        messageTaskRepository.save(message);
+        return message;
+    }
+
+    public Optional<MessageTask> getTaskByMessageId(String messageId) {
+        return messageTaskRepository.findById(messageId);
+    }
+
+    public List<MessageTask> getTasksByChatId(String chatId, int skip, int limit, Direction direction) {
+        int page = skip / limit;
+        PageRequest pageRequest = PageRequest.of(page, limit, Sort.by(direction, "createdTime"));
+        Page<MessageTask> messageTaskPage = messageTaskRepository.findByChatId(chatId, pageRequest);
+        return messageTaskPage.getContent();
+    }
+
+    public List<MessageTask> getTasks(int skip, int limit, Direction direction) {
+        int page = skip / limit;
+        PageRequest pageRequest = PageRequest.of(page, limit, Sort.by(direction, "createdTime"));
+        Page<MessageTask> messageTaskPage = messageTaskRepository.findAll(pageRequest);
+        return messageTaskPage.getContent();
+    }
+
+    @NotNull
+    public List<Message> getMessagesList(String chatId, Integer skip, Integer limit, Direction direction) {
+        return getTasksByChatId(chatId, skip, limit, direction)
+                .stream()
+                .flatMap(TasksService::toMessages)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @org.jetbrains.annotations.NotNull
+    private static Stream<Message> toMessages(MessageTask e) {
+        Message result = null;
+
+        if (e.getResult() == null) {
+            if (e.getImageTaskId() != null) {
+                result = new Message(
+                        e.getMessageId(),
+                        null,
+                        ChatMessageType.AI,
+                        MessageType.IMAGE,
+                        e.getImageTaskId(),
+                        e.getGrade(),
+                        e.getGradeComment(),
+                        e.getWorkflow(),
+                        e.getContextJson(),
+                        e.getResponseTime(),
+                        e.getCreatedTime(),
+                        e.getResponseTime(),
+                        null // Image messages don't have tokenLogprobs
+                );
+            }
+        } else {
+            result = new Message(
+                    e.getMessageId(),
+                    e.getResult(),
+                    ChatMessageType.AI,
+                    MessageType.TEXT,
+                    e.getImageTaskId(),
+                    e.getGrade(),
+                    e.getGradeComment(),
+                    e.getWorkflow(),
+                    e.getContextJson(),
+                    e.getResponseTime(),
+                    e.getCreatedTime(),
+                    e.getResponseTime(),
+                    e.getLogProbs()
+            );
+        }
+
+        return Stream.of(
+                e.toUserMessage(),
+                result
+        );
+    }
+
+    public void saveTasks(String chatId, List<MessageTask> messages) {
+        for (MessageTask message : messages) {
+            message.setChatId(chatId);
+        }
+
+        messageTaskRepository.saveAll(messages);
+    }
+}

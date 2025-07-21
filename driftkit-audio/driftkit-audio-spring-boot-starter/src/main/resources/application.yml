@@ -1,0 +1,97 @@
+# Audio Processing Library Default Configuration
+audio:
+  processing:
+    # Engine Selection
+    engine: "assemblyai"              # Transcription engine: "assemblyai" or "deepgram"
+    processing-mode: "batch"          # Processing mode: "batch" or "streaming"
+    
+    # AssemblyAI Configuration
+    assemblyai:
+      api-key: ${ASSEMBLYAI_API_KEY}
+      language-code: ENGLISH             # Language for transcription
+    
+    # Deepgram Configuration
+    deepgram:
+      api-key: ${DEEPGRAM_API_KEY}
+      language: MULTI                  # Primary language for transcription
+      model: "nova-3"                 # Deepgram model: "nova-2", "nova", "enhanced", "base"
+      punctuate: true                 # Add punctuation to transcriptions
+      interim-results: true           # Enable interim results for streaming
+      detect-language: true          # Enable automatic language detection
+      diarize: false                  # Enable speaker diarization
+      diarize-version: 2              # Number of speakers for diarization
+      profanity-filter: false         # Enable profanity filtering
+      redact: false                   # Enable redaction of sensitive information
+      smart-format: false             # Enable smart formatting
+    
+    # Audio Format Settings
+    sample-rate: 16000      # Sample rate in Hz (optimal for speech)
+    buffer-size: 4096       # Buffer size in bytes
+    buffer-size-ms: 100     # Buffer size in milliseconds
+    
+    # Chunk Duration Settings (in seconds)
+    max-chunk-duration-seconds: 60    # Maximum duration for a single audio chunk
+    min-chunk-duration-seconds: 2     # Minimum duration before processing chunk
+    
+    # Voice Activity Detection (VAD) Settings
+    vad:
+      enabled: true                   # Enable/disable VAD
+      threshold: 0.005                # Energy threshold for speech detection (0.0-1.0)
+      min-speech-duration-ms: 250     # Minimum duration of speech to consider
+      silence-duration-ms: 1000       # Duration of silence before finalizing chunk
+      adaptive-threshold: true        # Enable adaptive threshold adjustment
+      noise-level: 0.001              # Base noise level for adaptive threshold
+    
+    
+    # Debug and Development Settings
+    debug:
+      enabled: false                  # Enable debug mode
+      output-path: "./debug/audio"    # Path for saving debug audio files
+      save-raw-audio: false           # Save raw PCM audio chunks
+      save-processed-audio: true      # Save processed/converted audio
+      
+    # Performance and Resource Settings
+    max-chunk-size-kb: 1024           # Maximum audio chunk size in KB
+    max-buffer-size-mb: 10            # Maximum buffer size in MB
+    processing-timeout-ms: 30000      # Processing timeout in milliseconds
+    
+
+# Spring Boot Configuration for the library
+spring:
+  main:
+    banner-mode: "off"               # Disable banner for library usage
+
+# Logging configuration for the library
+logging:
+  level:
+    ai.driftkit.audio: INFO             # Default logging level for audio processing
+    ai.driftkit.audio.engine: DEBUG    # Engine-specific logging
+    ai.driftkit.audio.service: INFO    # Service layer logging
+    com.assemblyai: WARN                     # Reduce AssemblyAI SDK logging
+    okhttp3: WARN                            # Reduce OkHttp logging for Deepgram WebSocket
+    ws.schild.jave: WARN                     # Reduce JAVE library logging
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Example configurations for different use cases:
+
+# Real-time streaming with Deepgram:
+# audio.processing.engine: "deepgram"
+# audio.processing.processing-mode: "streaming"
+# audio.processing.deepgram.interim-results: true
+
+# High-quality batch transcription with AssemblyAI:
+# audio.processing.engine: "assemblyai"
+# audio.processing.processing-mode: "batch"
+# audio.processing.vad.threshold: 0.003
+
+# Multilingual streaming with Deepgram:
+# audio.processing.engine: "deepgram"
+# audio.processing.processing-mode: "streaming"
+# audio.processing.deepgram.language: "ru"
+# audio.processing.deepgram.detect-language: true
+
+# Development and debugging:
+# audio.processing.debug.enabled: true
+# audio.processing.debug.save-raw-audio: true
+# logging.level.ai.driftkit.audio: DEBUG

@@ -1,0 +1,161 @@
+{
+  "groups": [
+    {
+      "name": "audio.processing",
+      "type": "ai.driftkit.audio.config.AudioProcessingConfig",
+      "description": "Configuration properties for audio stream processing with AssemblyAI integration."
+    }
+  ],
+  "properties": [
+    {
+      "name": "audio.processing.assemblyai-api-key",
+      "type": "java.lang.String",
+      "description": "AssemblyAI API key for transcription services. Can be set via ASSEMBLYAI_API_KEY environment variable.",
+      "defaultValue": "YOUR_ASSEMBLYAI_API_KEY"
+    },
+    {
+      "name": "audio.processing.sample-rate",
+      "type": "java.lang.Integer",
+      "description": "Audio sample rate in Hz. 16000 Hz is optimal for AssemblyAI.",
+      "defaultValue": 16000
+    },
+    {
+      "name": "audio.processing.buffer-size",
+      "type": "java.lang.Integer",
+      "description": "Audio buffer size in bytes for processing.",
+      "defaultValue": 4096
+    },
+    {
+      "name": "audio.processing.max-chunk-duration-seconds",
+      "type": "java.lang.Integer",
+      "description": "Maximum duration in seconds for a single audio chunk before forcing transcription.",
+      "defaultValue": 60
+    },
+    {
+      "name": "audio.processing.min-chunk-duration-seconds",
+      "type": "java.lang.Integer",
+      "description": "Minimum duration in seconds before an audio chunk can be processed.",
+      "defaultValue": 2
+    },
+    {
+      "name": "audio.processing.silence-threshold",
+      "type": "java.lang.Integer",
+      "description": "RMS amplitude threshold below which audio is considered silent.",
+      "defaultValue": 30
+    },
+    {
+      "name": "audio.processing.silence-duration-ms",
+      "type": "java.lang.Integer",
+      "description": "Duration of silence in milliseconds before ending an audio chunk.",
+      "defaultValue": 500
+    },
+    {
+      "name": "audio.processing.voice-activity-threshold",
+      "type": "java.lang.Integer",
+      "description": "RMS amplitude threshold above which voice activity is detected.",
+      "defaultValue": 50
+    },
+    {
+      "name": "audio.processing.adaptive-sensitivity",
+      "type": "java.lang.Boolean",
+      "description": "Enable adaptive sensitivity adjustment based on voice activity patterns.",
+      "defaultValue": false
+    },
+    {
+      "name": "audio.processing.max-silence-before-boost",
+      "type": "java.lang.Long",
+      "description": "Duration in milliseconds after which sensitivity is boosted if no voice is detected.",
+      "defaultValue": 3000
+    },
+    {
+      "name": "audio.processing.boosted-silence-threshold",
+      "type": "java.lang.Integer",
+      "description": "More sensitive silence threshold used when sensitivity is boosted.",
+      "defaultValue": 8
+    },
+    {
+      "name": "audio.processing.boosted-voice-threshold",
+      "type": "java.lang.Integer",
+      "description": "More sensitive voice activity threshold used when sensitivity is boosted.",
+      "defaultValue": 15
+    },
+    {
+      "name": "audio.processing.debug-enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable debug logging and save processed audio files to disk.",
+      "defaultValue": false
+    },
+    {
+      "name": "audio.processing.debug-output-dir",
+      "type": "java.lang.String",
+      "description": "Directory path where debug audio files will be saved when debug is enabled.",
+      "defaultValue": "/tmp/audio-debug/"
+    },
+    {
+      "name": "audio.processing.language-code",
+      "type": "java.lang.String",
+      "description": "Language code for transcription (en, ru, es, fr, etc.). Determines the language model used by AssemblyAI.",
+      "defaultValue": "en"
+    }
+  ],
+  "hints": [
+    {
+      "name": "audio.processing.language-code",
+      "values": [
+        {
+          "value": "en",
+          "description": "English"
+        },
+        {
+          "value": "ru",
+          "description": "Russian"
+        },
+        {
+          "value": "es",
+          "description": "Spanish"
+        },
+        {
+          "value": "fr",
+          "description": "French"
+        },
+        {
+          "value": "de",
+          "description": "German"
+        },
+        {
+          "value": "it",
+          "description": "Italian"
+        },
+        {
+          "value": "pt",
+          "description": "Portuguese"
+        },
+        {
+          "value": "hi",
+          "description": "Hindi"
+        },
+        {
+          "value": "ja",
+          "description": "Japanese"
+        },
+        {
+          "value": "ko",
+          "description": "Korean"
+        },
+        {
+          "value": "zh",
+          "description": "Chinese"
+        }
+      ]
+    },
+    {
+      "name": "audio.processing.assemblyai-api-key",
+      "values": [
+        {
+          "value": "YOUR_ASSEMBLYAI_API_KEY",
+          "description": "Placeholder - replace with your actual AssemblyAI API key"
+        }
+      ]
+    }
+  ]
+}
