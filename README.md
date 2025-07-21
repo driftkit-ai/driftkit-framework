@@ -6,19 +6,24 @@
 
 ### Comprehensive framework comparison
 
-| Feature | DriftKit                                                   | Spring AI | LangChain4j | [Google ADK](https://github.com/google/adk-java) |
-|---------|------------------------------------------------------------|-----------|-------------|---------------|
-| **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                  | ❌ | ❌ | ❌ |
-| **Visual prompt IDE** | ✅ Full web platform                                        | ❌ Code only | ❌ Code only | ❌ |
-| **Production prompt testing** | ✅ Test sets + evaluation                                   | ❌ | ❌ | ❌ |
-| **Prompt versioning** | ✅ Built-in                                                 | ❌ Manual | ❌ Manual | ❌ |
-| **A/B testing** | ✅ Native                                                   | ❌ | ❌ | ❌ |
-| **Test automation** | ✅ Comprehensive                                            | ❌ | ⚠️ Basic | ❌ |
-| **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls | ❌ | ⚠️ Limited | ✅ Built-in |
-| **Workflow as graph** | ✅ Full graph with cross-workflow calls                     | ❌ | ⚠️ Chain only | ⚠️ Basic |
-| **Simplified LLM SDK** | ✅ High-level Agent API                                     | ⚠️ Low-level | ⚠️ Complex | ✅ Good |
-| **Model hot-swap** | ✅ Config change only                                       | ✅ Config change | ❌ Code rewrite | ⚠️ Limited |
-| **Audio processing** | ✅ VAD + Transcription                                      | ❌ | ❌ | ❌ |
+| Feature | DriftKit                                                                         | Spring AI                        | LangChain4j                      | [Google ADK](https://github.com/google/adk-java) |
+|---------|----------------------------------------------------------------------------------|----------------------------------|----------------------------------|--------------------------------------------------|
+| **Text embedding** | ✅ Multiple providers                                                             | ✅ Multiple providers             | ✅ Multiple providers             | ✅ Multiple providers                             |
+| **Vector storage** | ✅ In-memory, File, Pinecone                                                      | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                                |
+| **Structured output** | ✅ Java Pojo/Json based                                                           | ✅                     | ✅                    | ✅                                                |
+| **Tool calling** | ✅ Type-safe with auto/manual-execution: function calling, tools, agents as tools | ✅ Function calling               | ✅ Tool integration               | ✅ Function calling, tools, agents as tools                      |
+| **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                                        | ❌                                | ❌                                | ❌                                                |
+| **Visual prompt IDE** | ✅ Full web platform                                                              | ❌ Code only                      | ❌ Code only                      | ❌                                                |
+| **Production prompt testing** | ✅ Test sets + evaluation                                                         | ❌                                | ❌                                | ❌                                                |
+| **Prompt versioning** | ✅ Built-in                                                                       | ❌ Manual                         | ❌ Manual                         | ❌                                                |
+| **A/B testing** | ✅ Native                                                                         | ❌                                | ❌                                | ❌                                                |
+| **Test automation** | ✅ Comprehensive                                                                  | ❌                                | ⚠️ Basic                         | ❌                                                |
+| **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls                       | ❌                                | ⚠️ Limited                       | ✅ Built-in                                       |
+| **Workflow as graph** | ✅ Full graph with cross-workflow calls                                           | ❌                                | ⚠️ Chain only                    | ⚠️ Basic                                         |
+| **Simplified LLM SDK** | ✅ High-level Agent API                                                           | ⚠️ Low-level                     | ⚠️ Complex                       | ✅ Good                                           |
+| **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                  | ❌ Code rewrite                   | ⚠️ Limited                                       |
+| **Audio processing** | ✅ VAD + Transcription                                                            | ❌                                | ❌                                | ❌                                                |
+| **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers             | ❌                                | ❌                                                |
 
 ### 🎯 Unique features
 
