@@ -446,9 +446,6 @@ The LLMAgent provides a simplified, type-safe interface for AI interactions:
 - **RAGModifyWorkflow** - Document ingestion for RAG systems
 - **RAGSearchWorkflow** - Vector similarity search with re-ranking
 - **ReasoningWorkflow** - Multi-step reasoning and validation
-- **EnhancedReasoningWorkflow** - Advanced reasoning with quality control
-- **PromptEngineerWorkflow** - Automated prompt creation and testing
-
 
 ## 🛠️ Production Features
 
