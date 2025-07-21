@@ -14,7 +14,7 @@
 | **Prompt versioning** | ✅ Built-in | ❌ Manual | ❌ Manual | ❌ |
 | **A/B testing** | ✅ Native | ❌ | ❌ | ❌ |
 | **Test automation** | ✅ Comprehensive | ❌ | ⚠️ Basic | ❌ |
-| **Workflow as graph** | ✅ Full graph with cross-workflow calls | ⚠️ Basic | ⚠️ Chain only | ❌ |
+| **Workflow as graph** | ✅ Full graph with cross-workflow calls | ❌ | ⚠️ Chain only | ⚠️ Basic |
 | **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical | ❌ | ⚠️ Limited | ✅ Built-in |
 | **Simplified LLM SDK** | ✅ High-level Agent API | ⚠️ Low-level | ⚠️ Complex | ✅ Good |
 | **Model hot-swap** | ✅ Config change only | ✅ Config change | ❌ Code rewrite | ⚠️ Limited |
