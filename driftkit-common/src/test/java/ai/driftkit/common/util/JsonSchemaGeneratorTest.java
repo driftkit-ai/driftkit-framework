@@ -120,7 +120,7 @@ class JsonSchemaGeneratorTest {
         ResponseFormat responseFormat = ResponseFormat.jsonSchema(Person.class);
         
         assertNotNull(responseFormat);
-        assertEquals("json_schema", responseFormat.getType());
+        assertEquals(ResponseFormat.ResponseType.JSON_SCHEMA, responseFormat.getType());
         
         ResponseFormat.JsonSchema schema = responseFormat.getJsonSchema();
         assertNotNull(schema);
@@ -133,7 +133,7 @@ class JsonSchemaGeneratorTest {
         ResponseFormat responseFormat = ResponseFormat.jsonObject(Person.class);
         
         assertNotNull(responseFormat);
-        assertEquals("json_schema", responseFormat.getType());
+        assertEquals(ResponseFormat.ResponseType.JSON_SCHEMA, responseFormat.getType());
         
         ResponseFormat.JsonSchema schema = responseFormat.getJsonSchema();
         assertNotNull(schema);
@@ -145,7 +145,7 @@ class JsonSchemaGeneratorTest {
         ResponseFormat responseFormat = ResponseFormat.jsonObject();
         
         assertNotNull(responseFormat);
-        assertEquals("json_object", responseFormat.getType());
+        assertEquals(ResponseFormat.ResponseType.JSON_OBJECT, responseFormat.getType());
         assertNull(responseFormat.getJsonSchema());
     }
 }

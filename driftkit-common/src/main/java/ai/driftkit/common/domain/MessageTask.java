@@ -2,6 +2,7 @@ package ai.driftkit.common.domain;
 
 import ai.driftkit.common.domain.client.LogProbs;
 import ai.driftkit.common.domain.client.ModelTextResponse;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -46,6 +47,7 @@ public class MessageTask extends AITask {
             Map<String, Object> variables,
             boolean jsonRequest,
             boolean jsonResponse,
+            ResponseFormat responseFormat,
             Object workflowStopEvent,
             Boolean logprobs,
             Integer topLogprobs,
@@ -54,7 +56,7 @@ public class MessageTask extends AITask {
             List<String> imageBase64,
             String imageMimeType
     ) {
-        super(messageId, chatId, message, systemMessage, gradeComment, grade, createdTime, responseTime, workflow, context, workflowStopEvent, language, jsonRequest, jsonResponse, modelId, promptIds, variables, logprobs, topLogprobs, purpose, imageBase64, imageMimeType);
+        super(messageId, chatId, message, systemMessage, gradeComment, grade, createdTime, responseTime, workflow, context, workflowStopEvent, language, jsonRequest, jsonResponse, responseFormat, modelId, promptIds, variables, logprobs, topLogprobs, purpose, imageBase64, imageMimeType);
         this.result = result;
         this.imageTaskId = imageTaskId;
         this.temperature = temperature;

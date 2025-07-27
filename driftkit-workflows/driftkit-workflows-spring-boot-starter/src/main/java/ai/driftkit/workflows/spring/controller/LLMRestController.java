@@ -4,7 +4,6 @@ import ai.driftkit.common.domain.*;
 import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.context.core.service.PromptService;
-import ai.driftkit.context.core.domain.PromptRequest;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
@@ -126,6 +125,7 @@ public class LLMRestController {
                         .chatId(request.getChatId())
                         .workflow(request.getWorkflow())
                         .jsonResponse(request.isJsonResponse())
+                        .responseFormat(request.getResponseFormat())
                         .systemMessage(request.getSystemMessage())
                         .variables(request.getVariables())
                         .modelId(request.getModel())
@@ -156,6 +156,7 @@ public class LLMRestController {
                         .chatId(request.getChatId())
                         .workflow(request.getWorkflow())
                         .jsonResponse(request.isJsonResponse())
+                        .responseFormat(request.getResponseFormat())
                         .systemMessage(request.getSystemMessage())
                         .variables(request.getVariables())
                         .logprobs(request.getLogprobs())

@@ -1,5 +1,6 @@
 package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -31,6 +32,7 @@ public class Prompt {
     private Double temperature;
     private boolean jsonRequest;
     private boolean jsonResponse;
+    private ResponseFormat responseFormat;
     private long createdTime;
     private long updatedTime;
     private long approvedTime;

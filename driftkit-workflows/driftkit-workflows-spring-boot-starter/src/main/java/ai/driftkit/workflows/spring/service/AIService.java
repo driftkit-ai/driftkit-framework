@@ -6,6 +6,7 @@ import ai.driftkit.common.domain.MessageTask;
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.client.ModelImageResponse;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VaultConfig;
@@ -188,7 +189,20 @@ public class AIService {
             throw e;
         }
 
-        if (task.isJsonResponse() || JsonUtils.isJSON(result)) {
+        // Determine if we should attempt JSON fixing
+        boolean shouldFixJson = false;
+        
+        if (task.getResponseFormat() != null) {
+            // If responseFormat is specified, only fix JSON for JSON response types
+            ResponseFormat.ResponseType responseType = task.getResponseFormat().getType();
+            shouldFixJson = responseType == ResponseFormat.ResponseType.JSON_OBJECT || 
+                           responseType == ResponseFormat.ResponseType.JSON_SCHEMA;
+        } else {
+            // Fall back to the old behavior if no responseFormat is specified
+            shouldFixJson = task.isJsonResponse() || JsonUtils.isJSON(result);
+        }
+        
+        if (shouldFixJson && result != null) {
             result = JsonUtils.fixIncompleteJSON(result);
         }
 

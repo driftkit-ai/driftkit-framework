@@ -162,7 +162,7 @@ public class ImageModelService {
                 String workflow,
                 int images
         ) {
-            super(chatId, message, promptIds, systemMessage, workflow, false, null, null, null, null, null, null, null, null);
+            super(chatId, message, promptIds, systemMessage, workflow, false, null, null, null, null, null, null, null, null, null);
             this.images = images;
         }
     }

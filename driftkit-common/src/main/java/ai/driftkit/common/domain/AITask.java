@@ -1,5 +1,6 @@
 package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.AllArgsConstructor;
@@ -47,6 +48,7 @@ public class AITask {
 
     private boolean jsonRequest;
     private boolean jsonResponse;
+    private ResponseFormat responseFormat;
     private String modelId;
     private List<String> promptIds;
     private Map<String, Object> variables;

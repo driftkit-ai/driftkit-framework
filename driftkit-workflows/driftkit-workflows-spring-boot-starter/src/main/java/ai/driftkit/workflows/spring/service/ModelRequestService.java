@@ -3,6 +3,7 @@ package ai.driftkit.workflows.spring.service;
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.MessageTask;
 import ai.driftkit.common.domain.client.*;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.common.domain.client.ModelTextRequest.ModelTextRequestBuilder;
@@ -38,9 +39,9 @@ public class ModelRequestService {
             resolvedPrompt = PromptUtils.applyVariables(resolvedPrompt, context.getVariables());
         }
         
-        // Build request with context messages, temperature, and model if they exist
+        // Build request with context messages, temperature, model, and responseFormat if they exist
         ModelTextRequest request = buildTextRequest(modelClient, resolvedPrompt, context.getContextMessages(),
-                                                  context.getTemperature(), context.getModel());
+                                                  context.getTemperature(), context.getModel(), context.getResponseFormat());
         
         ModelTextResponse response;
         try {
@@ -142,21 +143,29 @@ public class ModelRequestService {
     }
     
     private ModelTextRequest buildTextRequest(ModelClient modelClient, String text) {
-        return buildTextRequest(modelClient, text, null, null);
+        return buildTextRequest(modelClient, text, null, null, null, null);
     }
     
     private ModelTextRequest buildTextRequest(ModelClient modelClient, String text, List<ModelImageResponse.ModelContentMessage> contextMessages) {
-        return buildTextRequest(modelClient, text, contextMessages, null);
+        return buildTextRequest(modelClient, text, contextMessages, null, null, null);
     }
     
     private ModelTextRequest buildTextRequest(ModelClient modelClient, String text, List<ModelImageResponse.ModelContentMessage> contextMessages, Double temperature) {
-        return buildTextRequest(modelClient, text, contextMessages, temperature, null);
+        return buildTextRequest(modelClient, text, contextMessages, temperature, null, null);
     }
     
     private ModelTextRequest buildTextRequest(ModelClient modelClient, String text, List<ModelImageResponse.ModelContentMessage> contextMessages, Double temperature, String model) {
+        return buildTextRequest(modelClient, text, contextMessages, temperature, model, null);
+    }
+    
+    private ModelTextRequest buildTextRequest(ModelClient modelClient, String text, List<ModelImageResponse.ModelContentMessage> contextMessages, Double temperature, String model, ResponseFormat responseFormat) {
         ModelTextRequestBuilder builder = ModelTextRequest.builder()
                 .model(StringUtils.isNotBlank(model) ? model : Optional.ofNullable(modelClient.getModel()).orElse(OpenAIModelClient.GPT_DEFAULT))
                 .temperature(temperature != null ? temperature : modelClient.getTemperature());
+                
+        if (responseFormat != null) {
+            builder.responseFormat(responseFormat);
+        }
                 
         if (CollectionUtils.isNotEmpty(contextMessages)) {
             List<ModelImageResponse.ModelContentMessage> messages = new ArrayList<>(contextMessages);

@@ -3,7 +3,7 @@ package ai.driftkit.chat.framework.model;
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema;
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema.AIFunctionProperty;
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema.PropertyType;
-import ai.driftkit.chat.framework.ai.domain.MaterialLanguage;
+import ai.driftkit.common.domain.Language;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.AllArgsConstructor;
@@ -79,7 +79,7 @@ public class ChatDomain {
         protected String id;
         protected String chatId;
         protected MessageType type;
-        protected MaterialLanguage language;
+        protected Language language;
         protected Long timestamp;
         protected List<DataProperty> properties = new ArrayList<>();
         protected String userId;
@@ -178,11 +178,11 @@ public class ChatDomain {
         private String workflowId;
         private Boolean composable;
 
-        public ChatRequest(String chatId, Map<String, String> properties, MaterialLanguage language, String workflowId) {
+        public ChatRequest(String chatId, Map<String, String> properties, Language language, String workflowId) {
             this(chatId, properties, language, workflowId, null);
         }
 
-        public ChatRequest(String chatId, Map<String, String> properties, MaterialLanguage language, String workflowId, String requestSchemaName) {
+        public ChatRequest(String chatId, Map<String, String> properties, Language language, String workflowId, String requestSchemaName) {
             super(UUID.randomUUID().toString(), chatId, MessageType.USER);
             this.language = language;
             this.workflowId = workflowId;
@@ -272,12 +272,12 @@ public class ChatDomain {
         private Integer percentComplete;
         private boolean required = true;
 
-        public ChatResponse(String responseId, String chatId, String workflowId, MaterialLanguage language, 
+        public ChatResponse(String responseId, String chatId, String workflowId, Language language, 
                             boolean completed, Integer percentComplete, String userId, Map<String, String> props) {
             this(responseId, chatId, workflowId, language, completed, percentComplete, true, userId, props);
         }
         
-        public ChatResponse(String responseId, String chatId, String workflowId, MaterialLanguage language, 
+        public ChatResponse(String responseId, String chatId, String workflowId, Language language, 
                             boolean completed, Integer percentComplete, boolean required, String userId, Map<String, String> props) {
             super(responseId, chatId, MessageType.AI, userId);
             this.workflowId = workflowId;
@@ -291,17 +291,17 @@ public class ChatDomain {
             }
         }
 
-        public ChatResponse(String responseId, String chatId, String workflowId, MaterialLanguage language, String userId, Map<String, String> props) {
+        public ChatResponse(String responseId, String chatId, String workflowId, Language language, String userId, Map<String, String> props) {
             this(responseId, chatId, workflowId, language, true, 100, userId, props);
         }
 
-        public ChatResponse(String chatId, String workflowId, MaterialLanguage language,
+        public ChatResponse(String chatId, String workflowId, Language language,
                             AIFunctionSchema nextRequestSchema,
                             String responseId, boolean completed, Integer percentComplete, String userId) {
             this(responseId, chatId, workflowId, language, completed, percentComplete, userId, null);
         }
 
-        public ChatResponse(String responseId, String chatId, String workflowId, MaterialLanguage language, AIFunctionSchema nextRequestSchema,
+        public ChatResponse(String responseId, String chatId, String workflowId, Language language, AIFunctionSchema nextRequestSchema,
                             boolean completed, Integer percentComplete, String userId) {
             this(responseId, chatId, workflowId, language, completed, percentComplete, userId, null);
         }

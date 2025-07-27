@@ -1,8 +1,8 @@
 package ai.driftkit.chat.framework.model;
 
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema;
-import ai.driftkit.chat.framework.ai.domain.MaterialLanguage;
 import ai.driftkit.chat.framework.ai.utils.AIUtils;
+import ai.driftkit.common.domain.Language;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.type.CollectionType;
 import lombok.AllArgsConstructor;
@@ -25,7 +25,7 @@ public class WorkflowContext {
     private String contextId;
     private String currentResponseId;
     private String userId;
-    private MaterialLanguage language;
+    private Language language;
     private String workflowId;
     private String currentStepId;
     private WorkflowSessionState state;

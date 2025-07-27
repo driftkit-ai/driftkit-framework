@@ -1,5 +1,6 @@
 package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.*;
@@ -30,9 +31,10 @@ public class ImageMessageTask extends AITask {
             List<String> promptIds,
             boolean jsonRequest,
             boolean jsonResponse,
+            ResponseFormat responseFormat,
             Map<String, Object> variables
     ) {
-        super(messageId, chatId, message, systemMessage, gradeComment, grade, createdTime, responseTime, null, null, null, Language.GENERAL, jsonRequest, jsonResponse, modelId, promptIds, variables, null, null, null, null, null);
+        super(messageId, chatId, message, systemMessage, gradeComment, grade, createdTime, responseTime, null, null, null, Language.GENERAL, jsonRequest, jsonResponse, responseFormat, modelId, promptIds, variables, null, null, null, null, null);
     }
 
     @Data

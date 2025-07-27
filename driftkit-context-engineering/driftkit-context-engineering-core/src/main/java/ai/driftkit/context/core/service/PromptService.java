@@ -1,16 +1,13 @@
 package ai.driftkit.context.core.service;
 
-import ai.driftkit.common.domain.Language;
-import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.common.domain.*;
+import ai.driftkit.common.domain.PromptRequest.PromptIdRequest;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
 import ai.driftkit.context.core.util.PromptUtils;
-import ai.driftkit.common.domain.DictionaryItem;
-import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.common.domain.Prompt.ResolveStrategy;
 import ai.driftkit.common.domain.Prompt.State;
-import ai.driftkit.context.core.domain.PromptRequest;
-import ai.driftkit.context.core.domain.PromptRequest.PromptIdRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -105,6 +102,7 @@ public class PromptService implements PromptServiceBase {
                 null,
                 false,
                 jsonResponse,
+                null, // responseFormat
                 System.currentTimeMillis(),
                 System.currentTimeMillis(),
                 System.currentTimeMillis()
@@ -225,6 +223,7 @@ public class PromptService implements PromptServiceBase {
                             promptIdRequest.getTemperature(),
                             false,
                             false, // jsonResponse - can be parameterized in the future
+                            null, // responseFormat
                             System.currentTimeMillis(),
                             System.currentTimeMillis(),
                             System.currentTimeMillis()
@@ -247,7 +246,9 @@ public class PromptService implements PromptServiceBase {
         String workflow = request.getWorkflow();
         boolean skipWorkflow = "skip".equals(workflow);
 
-        boolean jsonResponse = false;
+        // If request explicitly sets jsonResponse, use that; otherwise default to false
+        boolean jsonResponse = request.getJsonResponse() != null ? request.getJsonResponse() : false;
+        ResponseFormat responseFormat = request.getResponseFormat();
 
         for (Prompt prompt : prompts) {
             PromptIdRequest promptId = ids2req.get(prompt.getMethod());
@@ -256,7 +257,15 @@ public class PromptService implements PromptServiceBase {
                 temperature = Optional.ofNullable(promptId.getTemperature()).orElse(prompt.getTemperature());
             }
 
-            jsonResponse = jsonResponse || prompt.isJsonResponse();
+            // Only override jsonResponse from prompt if not explicitly set in request
+            if (request.getJsonResponse() == null) {
+                jsonResponse = jsonResponse || prompt.isJsonResponse();
+            }
+            
+            // Override responseFormat from prompt if not already set in request
+            if (responseFormat == null && prompt.getResponseFormat() != null) {
+                responseFormat = prompt.getResponseFormat();
+            }
 
             if (!skipWorkflow && workflow == null && prompt.getWorkflow() != null) {
                 workflow = prompt.getWorkflow();
@@ -318,6 +327,7 @@ public class PromptService implements PromptServiceBase {
                 .workflow(workflow)
                 .temperature(temperature)
                 .jsonResponse(jsonResponse)
+                .responseFormat(responseFormat)
                 .systemMessage(systemMessageBuilder.isEmpty() ? null : systemMessageBuilder.toString())
                 .variables(variables)
                 .logprobs(request.getLogprobs())

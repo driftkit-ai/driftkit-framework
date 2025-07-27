@@ -1,6 +1,7 @@
 package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace.ContextType;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace.RequestType;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace.WorkflowInfo;
@@ -34,6 +35,7 @@ public class ModelRequestContext {
     private String model;
     private String purpose;
     private String chatId;
+    private ResponseFormat responseFormat;
     
     public static ModelRequestContextBuilder builder() {
         return new CustomModelRequestContextBuilder();
@@ -67,6 +69,9 @@ public class ModelRequestContext {
                 }
                 if (StringUtils.isEmpty(context.getChatId())) {
                     context.setChatId(task.getChatId());
+                }
+                if (context.getResponseFormat() == null) {
+                    context.setResponseFormat(task.getResponseFormat());
                 }
             }
             

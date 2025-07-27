@@ -1,5 +1,6 @@
-package ai.driftkit.chat.framework.ai.domain;
+package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,32 +18,38 @@ import java.util.stream.Collectors;
 public class PromptRequest {
     private String chatId;
     private List<PromptIdRequest> promptIds;
-    private Map<String, String> variables;
-    private String modelId;
+    private Map<String, Object> variables;
     private String workflow;
-    private String language;
+    private String modelId;
+    private String checkerPrompt;
+    private Language language;
+    private boolean savePrompt;
+    private Boolean logprobs;
+    private Integer topLogprobs;
     private String purpose;
     private List<String> imageBase64;
     private String imageMimeType;
+    private Boolean jsonResponse;
+    private ResponseFormat responseFormat;
 
-    public PromptRequest(List<String> promptIds, String chatId, Map<String, String> variables, MaterialLanguage language) {
+    public PromptRequest(List<String> promptIds, String chatId, Map<String, Object> variables, Language language) {
         this(promptIds, null, "reasoning-lite", null, chatId, variables, language, null);
     }
 
-    public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, String> variables, MaterialLanguage language) {
+    public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, Object> variables, Language language) {
         this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, null);
     }
     
-    public PromptRequest(List<String> promptIds, String chatId, Map<String, String> variables, MaterialLanguage language, String purpose) {
+    public PromptRequest(List<String> promptIds, String chatId, Map<String, Object> variables, Language language, String purpose) {
         this(promptIds, null, "reasoning-lite", null, chatId, variables, language, purpose);
     }
 
-    public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, String> variables, MaterialLanguage language, String purpose) {
+    public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, Object> variables, Language language, String purpose) {
         this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, purpose);
     }
 
     @Builder
-    public PromptRequest(List<String> promptIds, List<PromptIdRequest> idRequests, String workflow, String modelId, String chatId, Map<String, String> variables, MaterialLanguage language, String purpose) {
+    public PromptRequest(List<String> promptIds, List<PromptIdRequest> idRequests, String workflow, String modelId, String chatId, Map<String, Object> variables, Language language, String purpose) {
         this.workflow = workflow;
         this.modelId = modelId;
         this.chatId = chatId;
@@ -50,7 +57,7 @@ public class PromptRequest {
                 .map(promptId -> new PromptIdRequest(promptId, null, null))
                 .collect(Collectors.toList()) : idRequests;
         this.variables = variables;
-        this.language = language == null ? null : language.toString().toLowerCase();
+        this.language = language;
         this.purpose = purpose;
     }
 

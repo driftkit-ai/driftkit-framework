@@ -137,7 +137,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         Integer topLogprobs = Optional.ofNullable(prompt.getTopLogprobs()).orElse(getTopLogprobs());
 
         ChatCompletionRequest.ResponseFormat responseFormat = !jsonObjectSupport || prompt.getResponseFormat() == null ? null : new ChatCompletionRequest.ResponseFormat(
-            prompt.getResponseFormat().getType(),
+            prompt.getResponseFormat().getType().getValue(),
             convertModelJsonSchema(prompt.getResponseFormat().getJsonSchema())
         );
 

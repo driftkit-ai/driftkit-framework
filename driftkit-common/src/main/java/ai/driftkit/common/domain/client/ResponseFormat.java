@@ -1,7 +1,9 @@
 package ai.driftkit.common.domain.client;
 
 import ai.driftkit.common.utils.JsonSchemaGenerator;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,13 +15,44 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResponseFormat {
-    private String type;
+    private ResponseType type;
 
     private JsonSchema jsonSchema;
+    
+    public enum ResponseType {
+        TEXT("text"),
+        JSON_OBJECT("json_object"),
+        JSON_SCHEMA("json_schema");
+        
+        private final String value;
+        
+        ResponseType(String value) {
+            this.value = value;
+        }
+        
+        public String getValue() {
+            return value;
+        }
+        
+        @JsonValue
+        public String toString() {
+            return value;
+        }
+        
+        @JsonCreator
+        public static ResponseType fromValue(String value) {
+            for (ResponseType type : values()) {
+                if (type.value.equals(value)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Unknown ResponseType: " + value);
+        }
+    }
 
     public static <T> ResponseFormat jsonObject(T obj) {
         if (obj == null) {
-            return new ResponseFormat("json_object", null);
+            return new ResponseFormat(ResponseType.JSON_OBJECT, null);
         }
 
         Class<?> clazz;
@@ -30,19 +63,19 @@ public class ResponseFormat {
             clazz = obj.getClass();
         }
 
-        return new ResponseFormat("json_schema", JsonSchemaGenerator.generateSchema(clazz));
+        return new ResponseFormat(ResponseType.JSON_SCHEMA, JsonSchemaGenerator.generateSchema(clazz));
     }
 
     public static <T> ResponseFormat jsonSchema(Class<T> clazz) {
-        return new ResponseFormat("json_schema", JsonSchemaGenerator.generateSchema(clazz));
+        return new ResponseFormat(ResponseType.JSON_SCHEMA, JsonSchemaGenerator.generateSchema(clazz));
     }
 
     public static ResponseFormat jsonObject() {
-        return new ResponseFormat("json_object", null);
+        return new ResponseFormat(ResponseType.JSON_OBJECT, null);
     }
 
     public static ResponseFormat text() {
-        return new ResponseFormat("text", null);
+        return new ResponseFormat(ResponseType.TEXT, null);
     }
 
     @Data

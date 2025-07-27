@@ -1,5 +1,6 @@
 package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,7 @@ public class LLMRequest {
     private String systemMessage;
     private String workflow;
     private boolean jsonResponse;
+    private ResponseFormat responseFormat;
     private Language language;
     private Map<String, Object> variables;
     private Boolean logprobs;

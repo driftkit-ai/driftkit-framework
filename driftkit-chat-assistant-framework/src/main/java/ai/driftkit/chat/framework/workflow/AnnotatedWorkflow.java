@@ -38,6 +38,7 @@ import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -594,8 +595,8 @@ public abstract class AnnotatedWorkflow implements ChatWorkflow {
             // Find the async step metadata
             AsyncStepMetadata asyncMetadata = getAsyncStepMetadata(event);
 
-            // Execute the async method in a new thread
-            CompletableFuture.runAsync(() -> {
+            // Create a supplier for the async task
+            Supplier<ChatResponse> asyncTask = () -> {
                 try {
                     // Prepare arguments for the async method based on parameter types
                     Map<String, Object> stringProps = new HashMap<>();
@@ -679,7 +680,13 @@ public abstract class AnnotatedWorkflow implements ChatWorkflow {
                     historyService.updateResponse(response);
                     log.debug("Explicitly updated error async response in history: {}", responseId);
                 }
-            });
+                
+                // Return the updated response
+                return response;
+            };
+            
+            // Execute the async task with proper tracking
+            asyncResponseTracker.executeAsync(responseId, response, asyncTask);
             
             // Set session state
             session.setState(WorkflowContext.WorkflowSessionState.WAITING_FOR_USER_INPUT);

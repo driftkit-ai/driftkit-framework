@@ -1,5 +1,7 @@
 package ai.driftkit.chat.framework.ai.domain;
 
+import ai.driftkit.common.domain.Language;
+import ai.driftkit.common.domain.client.ResponseFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,7 +18,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageRequest {
     private String message;
-    private MaterialLanguage language;
+    private Language language;
     private String chatId;
     private String workflow;
     private Boolean jsonResponse;
@@ -29,4 +31,5 @@ public class MessageRequest {
     private String purpose;
     private List<String> imageBase64;
     private String imageMimeType;
+    private ResponseFormat responseFormat;
 }
