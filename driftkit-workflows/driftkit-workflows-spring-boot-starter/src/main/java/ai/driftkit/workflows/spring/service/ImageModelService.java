@@ -5,6 +5,7 @@ import ai.driftkit.common.domain.ImageMessageTask;
 import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
 import ai.driftkit.common.domain.LLMRequest;
 import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.client.ModelImageRequest;
@@ -59,7 +60,8 @@ public class ImageModelService {
         task.setResponseTime(imageTask.getResponseTime());
         task.setImageTaskId(imageTask.getMessageId());
 
-        messageTaskRepository.save(task);
+        MessageTaskEntity entity = MessageTaskEntity.fromMessageTask(task);
+        messageTaskRepository.save(entity);
         return task;
     }
 

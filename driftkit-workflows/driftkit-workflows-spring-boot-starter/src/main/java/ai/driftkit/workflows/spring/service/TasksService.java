@@ -1,6 +1,7 @@
 package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.*;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
@@ -59,7 +60,8 @@ public class TasksService {
 
         messageTask.setSystemMessage(systemMessage);
         messageTask.setLanguage(language);
-        messageTaskRepository.save(messageTask);
+        MessageTaskEntity entity = MessageTaskEntity.fromMessageTask(messageTask);
+        messageTaskRepository.save(entity);
 
         return new LLMTaskFuture(
                 messageTask.getMessageId(),
@@ -68,34 +70,39 @@ public class TasksService {
     }
 
     public MessageTask rate(String messageId, Grade grade, String comment) {
-        MessageTask message = messageTaskRepository.findById(messageId).orElse(null);
+        MessageTaskEntity entity = messageTaskRepository.findById(messageId).orElse(null);
 
-        if (message == null) {
+        if (entity == null) {
             return null;
         }
 
-        message.setGradeComment(comment);
-        message.setGrade(grade);
-        messageTaskRepository.save(message);
-        return message;
+        entity.setGradeComment(comment);
+        entity.setGrade(grade);
+        messageTaskRepository.save(entity);
+        return MessageTaskEntity.toMessageTask(entity);
     }
 
     public Optional<MessageTask> getTaskByMessageId(String messageId) {
-        return messageTaskRepository.findById(messageId);
+        return messageTaskRepository.findById(messageId)
+                .map(MessageTaskEntity::toMessageTask);
     }
 
     public List<MessageTask> getTasksByChatId(String chatId, int skip, int limit, Direction direction) {
         int page = skip / limit;
         PageRequest pageRequest = PageRequest.of(page, limit, Sort.by(direction, "createdTime"));
-        Page<MessageTask> messageTaskPage = messageTaskRepository.findByChatId(chatId, pageRequest);
-        return messageTaskPage.getContent();
+        Page<MessageTaskEntity> messageTaskPage = messageTaskRepository.findByChatId(chatId, pageRequest);
+        return messageTaskPage.getContent().stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
     }
 
     public List<MessageTask> getTasks(int skip, int limit, Direction direction) {
         int page = skip / limit;
         PageRequest pageRequest = PageRequest.of(page, limit, Sort.by(direction, "createdTime"));
-        Page<MessageTask> messageTaskPage = messageTaskRepository.findAll(pageRequest);
-        return messageTaskPage.getContent();
+        Page<MessageTaskEntity> messageTaskPage = messageTaskRepository.findAll(pageRequest);
+        return messageTaskPage.getContent().stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
     }
 
     @NotNull
@@ -154,10 +161,13 @@ public class TasksService {
     }
 
     public void saveTasks(String chatId, List<MessageTask> messages) {
-        for (MessageTask message : messages) {
-            message.setChatId(chatId);
-        }
+        List<MessageTaskEntity> entities = messages.stream()
+                .map(message -> {
+                    message.setChatId(chatId);
+                    return MessageTaskEntity.fromMessageTask(message);
+                })
+                .collect(Collectors.toList());
 
-        messageTaskRepository.saveAll(messages);
+        messageTaskRepository.saveAll(entities);
     }
 }

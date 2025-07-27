@@ -6,6 +6,7 @@ import ai.driftkit.common.domain.Language;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
 import ai.driftkit.workflows.spring.service.ChatService;
 import ai.driftkit.workflows.spring.service.ImageModelService;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.constraints.NotNull;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.stream.Collectors;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -61,7 +63,9 @@ public class LLMRestController {
     ) {
         List<MessageTask> messageTasks = messageTaskRepository.findMessageTasksWithFixes(
                 PageRequest.of(page, limit)
-        );
+        ).stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
 
         return new RestResponse<>(
                 true,
@@ -224,7 +228,10 @@ public class LLMRestController {
     ) {
         // Since contextId is the same as messageId, we can use it directly
         String[] messageIds = contextIds.split(",");
-        List<MessageTask> tasks = messageTaskRepository.findAllById(List.of(messageIds));
+        List<MessageTask> tasks = messageTaskRepository.findAllById(List.of(messageIds))
+                .stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
 
         return new RestResponse<>(
                 true,

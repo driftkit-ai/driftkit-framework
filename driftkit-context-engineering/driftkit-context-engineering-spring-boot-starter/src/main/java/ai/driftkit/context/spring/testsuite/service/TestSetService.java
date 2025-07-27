@@ -11,6 +11,7 @@ import ai.driftkit.context.spring.testsuite.repository.TestSetRepository;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.workflows.spring.repository.ModelRequestTraceRepository;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -93,7 +94,10 @@ public class TestSetService {
         
         // Process message tasks if provided
         if (messageTaskIds != null && !messageTaskIds.isEmpty()) {
-            List<MessageTask> messageTasks = messageTaskRepository.findAllById(messageTaskIds);
+            List<MessageTask> messageTasks = messageTaskRepository.findAllById(messageTaskIds)
+                .stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(java.util.stream.Collectors.toList());
             
             for (MessageTask messageTask : messageTasks) {
                 boolean isImageMessage = messageTask.getMessage() != null && 

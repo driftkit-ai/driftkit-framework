@@ -3,6 +3,7 @@ package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
@@ -176,7 +177,10 @@ public class AnalyticsService {
      * @return List of TaskVariables objects containing task data
      */
     public List<TaskVariables> getMessageTasksByContextIds(List<String> contextIds) {
-        List<MessageTask> tasks = messageTaskRepository.findAllByMessageIdIn(contextIds);
+        List<MessageTaskEntity> entities = messageTaskRepository.findAllByMessageIdIn(contextIds);
+        List<MessageTask> tasks = entities.stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
         
         return tasks.stream()
                 .map(task -> TaskVariables.builder()
@@ -224,7 +228,10 @@ public class AnalyticsService {
         // Query message tasks
         Criteria taskCriteria = Criteria.where("createdTime").gte(startTimestamp).lte(endTimestamp);
         Query taskQuery = Query.query(taskCriteria);
-        List<MessageTask> tasks = mongoTemplate.find(taskQuery, MessageTask.class);
+        List<MessageTaskEntity> entities = mongoTemplate.find(taskQuery, MessageTaskEntity.class);
+        List<MessageTask> tasks = entities.stream()
+                .map(MessageTaskEntity::toMessageTask)
+                .collect(Collectors.toList());
         
         // Query model request traces for token usage data
         // The contextId in trace equals messageId in MessageTask

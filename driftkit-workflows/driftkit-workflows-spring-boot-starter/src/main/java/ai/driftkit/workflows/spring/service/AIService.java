@@ -3,6 +3,7 @@ package ai.driftkit.workflows.spring.service;
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.client.ModelImageResponse;
@@ -208,7 +209,8 @@ public class AIService {
 
         task.setResponseTime(System.currentTimeMillis());
         task.setResult(result);
-        messageTaskRepository.save(task);
+        MessageTaskEntity entity = MessageTaskEntity.fromMessageTask(task);
+        messageTaskRepository.save(entity);
 
         log.info("[llm] Result for message with id [{}] in chat [{}]: [{}]", task.getMessageId(), task.getChatId(), result);
 

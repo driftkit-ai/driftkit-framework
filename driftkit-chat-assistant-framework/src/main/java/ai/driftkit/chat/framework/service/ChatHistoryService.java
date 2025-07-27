@@ -1,7 +1,10 @@
 package ai.driftkit.chat.framework.service;
 
+import ai.driftkit.chat.framework.model.ChatDomain.ChatMessage;
 import ai.driftkit.chat.framework.model.ChatDomain.ChatRequest;
 import ai.driftkit.chat.framework.model.ChatDomain.ChatResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Service interface for managing chat history.
@@ -28,9 +31,31 @@ public interface ChatHistoryService {
     void updateResponse(ChatResponse response);
     
     /**
-     * Get the chat history for a specific chat ID
-     * @param chatId The chat ID
-     * @return List of chat messages (requests and responses)
+     * Get a request by ID
+     * @param requestId The request ID
+     * @return The request if found, null otherwise
      */
-    // List<ChatMessage> getChatHistory(String chatId);
+    ChatRequest getRequest(String requestId);
+    
+    /**
+     * Get a response by ID
+     * @param responseId The response ID
+     * @return The response if found, null otherwise
+     */
+    ChatResponse getResponse(String responseId);
+    
+    /**
+     * Get a message by ID
+     * @param messageId The message ID
+     * @return The message if found, null otherwise
+     */
+    ChatMessage getMessage(String messageId);
+    
+    /**
+     * Get all messages for a chat, ordered by timestamp (newest first)
+     * @param chatId The chat ID
+     * @param pageable Pagination information
+     * @return Page of chat messages
+     */
+    Page<ChatMessage> getMessages(String chatId, Pageable pageable);
 }
