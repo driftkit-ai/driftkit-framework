@@ -33,6 +33,8 @@ public class ModelRequestContext {
     private List<ModelContentMessage> contextMessages;
     private Double temperature;
     private String model;
+    private String quality;
+    private String size;
     private String purpose;
     private String chatId;
     private ResponseFormat responseFormat;

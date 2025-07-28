@@ -64,6 +64,13 @@ public class AgentResponse<T> {
             .build();
     }
     
+    public static AgentResponse<ModelContentElement.ImageData> image(ModelContentElement.ImageData image) {
+        return AgentResponse.<ModelContentElement.ImageData>builder()
+            .images(List.of(image))
+            .type(ResponseType.IMAGES)
+            .build();
+    }
+    
     public static AgentResponse<List<ModelContentElement.ImageData>> images(List<ModelContentElement.ImageData> images) {
         return AgentResponse.<List<ModelContentElement.ImageData>>builder()
             .images(images)

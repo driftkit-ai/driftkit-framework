@@ -74,7 +74,12 @@ public class ModelRequestService {
             resolvedPrompt = PromptUtils.applyVariables(resolvedPrompt, context.getVariables());
         }
         
-        ModelImageRequest request = buildImageRequest(modelClient, resolvedPrompt);
+        // Extract model, quality, and size from context if available
+        String model = context.getModel();
+        String quality = context.getQuality();
+        String size = context.getSize();
+        
+        ModelImageRequest request = buildImageRequest(modelClient, resolvedPrompt, model, quality, size);
         
         return textToImage(modelClient, request, context);
     }
@@ -181,9 +186,15 @@ public class ModelRequestService {
     }
     
     private ModelImageRequest buildImageRequest(ModelClient modelClient, String prompt) {
+        return buildImageRequest(modelClient, prompt, null, null, null);
+    }
+    
+    private ModelImageRequest buildImageRequest(ModelClient modelClient, String prompt, String model, String quality, String size) {
         return ModelImageRequest.builder()
-                .model(modelClient.getModel())
+                .model(StringUtils.isNotBlank(model) ? model : modelClient.getModel())
                 .prompt(prompt)
+                .quality(quality)
+                .size(size)
                 .build();
     }
     

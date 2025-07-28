@@ -8,6 +8,7 @@ import ai.driftkit.context.spring.testsuite.domain.TestSetItem;
 import ai.driftkit.context.spring.testsuite.domain.archive.TestSetItemImpl;
 import ai.driftkit.context.spring.testsuite.repository.TestSetItemRepository;
 import ai.driftkit.context.spring.testsuite.repository.TestSetRepository;
+import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
@@ -131,7 +132,7 @@ public class TestSetService {
         
         // Process image tasks if provided
         if (imageTaskIds != null && !imageTaskIds.isEmpty()) {
-            List<ImageMessageTask> imageTasks = imageTaskRepository.findAllById(imageTaskIds);
+            List<ImageMessageTaskEntity> imageTasks = imageTaskRepository.findAllById(imageTaskIds);
             
             for (ImageMessageTask imageTask : imageTasks) {
                 TestSetItemImpl testSetItem = TestSetItemImpl.builder()

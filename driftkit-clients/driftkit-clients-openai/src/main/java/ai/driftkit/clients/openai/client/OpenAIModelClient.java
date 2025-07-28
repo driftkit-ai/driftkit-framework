@@ -26,25 +26,45 @@ import ai.driftkit.clients.openai.utils.OpenAIUtils.ImageData;
 import ai.driftkit.common.domain.client.LogProbs.TokenLogProb;
 import ai.driftkit.common.domain.client.LogProbs.TopLogProb;
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class OpenAIModelClient extends ModelClient implements ModelClientInit {
     public static final String GPT_DEFAULT = "gpt-4o";
     public static final String GPT_SMART_DEFAULT = "o3-mini";
     public static final String GPT_MINI_DEFAULT = "gpt-4o-mini";
+    public static final String IMAGE_MODEL_DEFAULT = "dall-e-3";
 
     public static final String OPENAI_PREFIX = "openai";
-    public static final String IMAGE_MODEL = "gpt-image-1";
+    public static final String GPT_IMAGE_1 = "gpt-image-1";
+    
+    // Shared HttpClient for downloading images
+    private static final HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
 
     OpenAIApiClient client;
+    VaultConfig config;
 
     @Override
     public ModelClient init(VaultConfig config) {
+        this.config = config;
         this.client = OpenAIClientFactory.createClient(
                 config.getApiKey(),
                 Optional.ofNullable(config.getBaseUrl()).orElse("https://api.openai.com")
@@ -87,29 +107,106 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         super.textToImage(prompt);
 
         String message = prompt.getPrompt();
+        
+        // Determine which model to use
+        String imageModel = prompt.getModel();
+        if (StringUtils.isBlank(imageModel)) {
+            imageModel = config.getImageModel();
+            if (StringUtils.isBlank(imageModel)) {
+                imageModel = IMAGE_MODEL_DEFAULT;
+            }
+        }
+        
+        // Determine quality
+        String qualityStr = prompt.getQuality();
+        if (StringUtils.isBlank(qualityStr)) {
+            qualityStr = config.getImageQuality();
+            if (StringUtils.isBlank(qualityStr)) {
+                qualityStr = "low";
+            }
+        }
+        
+        // Convert quality string to enum
+        Quality quality;
+        try {
+            quality = Quality.valueOf(qualityStr);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid image quality value: {}, using 'low' as default", qualityStr);
+            quality = Quality.low;
+        }
+        
+        // Determine size
+        String outputFormat = null;
+        Integer compression = null;
+        String size;
+        if (GPT_IMAGE_1.equals(imageModel)) {
+            // For gpt-image-1, always use "auto"
+            size = "auto";
+            outputFormat = "jpeg";
+            compression = 90;
+        } else {
+            // For other models, use size from request or config
+            size = prompt.getSize();
+            if (StringUtils.isBlank(size)) {
+                size = config.getImageSize();
+                if (StringUtils.isBlank(size)) {
+                    size = "1024x1024";
+                }
+            }
+
+            switch (quality) {
+                case low:
+                case medium:
+                    quality = Quality.standard;
+                    break;
+                case high:
+                    quality = Quality.hd;
+                    break;
+            }
+        }
 
         CreateImageRequestBuilder style = CreateImageRequest.builder()
                 .prompt(message)
-                .quality(Quality.valueOf(prompt.getQuality().name()))
-                //.size(prompt.getSize())
-                .size("auto")
-                .outputFormat("jpeg")
-                .compression(90)
+                .quality(quality)
+                .size(size)
+                .outputFormat(outputFormat)
+                .compression(compression)
                 .n(prompt.getN())
-                .model(IMAGE_MODEL);
+                .model(imageModel);
 
         CreateImageResponse imageResponse = client.createImage(style.build());
 
-        List<ModelContentElement.ImageData> image = imageResponse.getData()
+        // Process images in parallel for performance
+        List<CompletableFuture<ModelContentElement.ImageData>> imageFutures = imageResponse.getData()
                 .stream()
-                .map(e -> {
-                    ImageData openAIImage = OpenAIUtils.base64toBytes("image/jpeg", e.getB64Json());
-                    return new ModelContentElement.ImageData(openAIImage.getImage(), openAIImage.getMimeType());
-                })
+                .map(e -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        if (StringUtils.isNotBlank(e.getB64Json())) {
+                            // Handle base64 encoded image
+                            ImageData openAIImage = OpenAIUtils.base64toBytes("image/jpeg", e.getB64Json());
+                            return new ModelContentElement.ImageData(openAIImage.getImage(), openAIImage.getMimeType());
+                        } else if (StringUtils.isNotBlank(e.getUrl())) {
+                            // Handle URL - download the image
+                            return downloadImage(e.getUrl());
+                        } else {
+                            log.warn("Image data has neither base64 nor URL");
+                            return null;
+                        }
+                    } catch (Exception ex) {
+                        log.error("Error processing image data", ex);
+                        return null;
+                    }
+                }))
+                .toList();
+        
+        // Wait for all downloads to complete
+        List<ModelContentElement.ImageData> image = imageFutures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
                 .toList();
 
         return ModelImageResponse.builder()
-                .model(IMAGE_MODEL)
+                .model(imageModel)
                 .bytes(image)
                 .createdTime(imageResponse.getCreated())
                 .revisedPrompt(imageResponse.getData().getFirst().getRevisedPrompt())
@@ -430,5 +527,37 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                 }).filter(Objects::nonNull).toList();
 
         return new ContentMessage(message.getRole().name(), message.getName(), elements);
+    }
+    
+    /**
+     * Download image from URL asynchronously
+     */
+    private static ModelContentElement.ImageData downloadImage(String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build();
+            
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            
+            if (response.statusCode() == 200) {
+                // Detect MIME type from Content-Type header
+                String contentType = response.headers().firstValue("Content-Type")
+                        .orElse("image/jpeg");
+                
+                return new ModelContentElement.ImageData(response.body(), contentType);
+            } else {
+                log.error("Failed to download image from URL: {}, status: {}", url, response.statusCode());
+                return null;
+            }
+        } catch (IOException | InterruptedException e) {
+            log.error("Error downloading image from URL: {}", url, e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new CompletionException("Failed to download image", e);
+        }
     }
 }

@@ -24,7 +24,8 @@ public class ModelImageRequest {
     // Size of the image, e.g., "1024x1024"
     private String size = "1024x1024";
 
-    private Quality quality;
+    // Quality as string to support different models with different quality enums
+    private String quality;
 
     public enum Quality {
         standard, hd, low, high, medium;

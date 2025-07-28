@@ -5,6 +5,8 @@ import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.Message;
 import ai.driftkit.common.domain.MessageType;
 import ai.driftkit.common.domain.client.*;
+import ai.driftkit.common.domain.client.ModelImageRequest;
+import ai.driftkit.common.domain.client.ModelImageResponse;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest;
@@ -51,6 +53,7 @@ public class LLMAgent implements Agent {
     private final Double temperature;
     private final Integer maxTokens;
     private final String model;
+    private final String imageModel;
     
     // Unique agent identifier
     private final String agentId;
@@ -71,7 +74,7 @@ public class LLMAgent implements Agent {
     
     // Constructor
     protected LLMAgent(ModelClient modelClient, String name, String description, String systemMessage,
-                       Double temperature, Integer maxTokens, String model, String agentId,
+                       Double temperature, Integer maxTokens, String model, String imageModel, String agentId,
                        ChatMemory chatMemory, PromptService promptService, ToolRegistry toolRegistry,
                        RequestTracingProvider tracingProvider, boolean autoExecuteTools) {
         this.modelClient = modelClient;
@@ -81,6 +84,7 @@ public class LLMAgent implements Agent {
         this.temperature = temperature;
         this.maxTokens = maxTokens;
         this.model = model;
+        this.imageModel = imageModel;
         this.agentId = agentId != null ? agentId : AIUtils.generateId();
         this.chatMemory = chatMemory;
         this.promptService = promptService;
@@ -394,6 +398,45 @@ public class LLMAgent implements Agent {
         } catch (Exception e) {
             log.error("Error in executeWithPrompt", e);
             throw new RuntimeException("Failed to execute with prompt", e);
+        }
+    }
+    
+    /**
+     * Execute image generation using the agent's imageModel field
+     */
+    public AgentResponse<ModelContentElement.ImageData> executeImageGeneration(String prompt) {
+        try {
+            // Build image request using agent's imageModel field
+            ModelImageRequest request = ModelImageRequest.builder()
+                .prompt(prompt)
+                .model(imageModel)  // Use the agent's imageModel field!
+                .build();
+            
+            // Execute request
+            ModelImageResponse response = modelClient.textToImage(request);
+            
+            // Trace if provider is available
+            RequestTracingProvider provider = getTracingProvider();
+            if (provider != null) {
+                String contextType = buildContextType("IMAGE_GEN");
+                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
+                    .contextId(agentId)
+                    .contextType(contextType)
+                    .build();
+                provider.traceImageRequest(request, response, traceContext);
+            }
+            
+            // Extract first image
+            if (response != null && response.getBytes() != null && !response.getBytes().isEmpty()) {
+                ModelContentElement.ImageData imageData = response.getBytes().get(0);
+                return AgentResponse.image(imageData);
+            }
+            
+            throw new RuntimeException("No image generated");
+            
+        } catch (Exception e) {
+            log.error("Error generating image", e);
+            throw new RuntimeException("Failed to generate image", e);
         }
     }
     
@@ -829,6 +872,7 @@ public class LLMAgent implements Agent {
         private Double temperature;
         private Integer maxTokens;
         private String model;
+        private String imageModel;
         private String agentId;
         private ChatMemory chatMemory;
         private PromptService promptService;
@@ -875,6 +919,11 @@ public class LLMAgent implements Agent {
         
         public CustomLLMAgentBuilder model(String model) {
             this.model = model;
+            return this;
+        }
+        
+        public CustomLLMAgentBuilder imageModel(String imageModel) {
+            this.imageModel = imageModel;
             return this;
         }
         
@@ -940,7 +989,7 @@ public class LLMAgent implements Agent {
             }
             
             return new LLMAgent(modelClient, name, description, systemMessage,
-                    temperature, maxTokens, model, agentId,
+                    temperature, maxTokens, model, imageModel, agentId,
                     chatMemory, promptService, toolRegistry,
                     tracingProvider, autoExecuteTools);
         }

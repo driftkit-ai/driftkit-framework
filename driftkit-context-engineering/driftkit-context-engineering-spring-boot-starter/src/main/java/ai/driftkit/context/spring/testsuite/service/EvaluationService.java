@@ -6,6 +6,7 @@ import ai.driftkit.common.domain.MessageTask;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.context.spring.testsuite.domain.*;
 import ai.driftkit.context.spring.testsuite.repository.*;
+import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
 import ai.driftkit.workflows.spring.service.ImageModelService;
 import ai.driftkit.workflows.spring.service.AIService;
@@ -485,7 +486,7 @@ public class EvaluationService {
             }
             
             String imageTaskId = item.getOriginalImageTaskId();
-            Optional<ImageMessageTask> originalImageTask = imageTaskRepository.findById(imageTaskId);
+            Optional<ImageMessageTaskEntity> originalImageTask = imageTaskRepository.findById(imageTaskId);
             
             if (originalImageTask.isEmpty()) {
                 throw new IllegalArgumentException("Original image task not found: " + imageTaskId);

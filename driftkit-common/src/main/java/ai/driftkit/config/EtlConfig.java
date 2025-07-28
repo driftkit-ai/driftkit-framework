@@ -100,6 +100,9 @@ public class EtlConfig {
         private String name;
         private String model;
         private String modelMini;
+        private String imageModel;
+        private String imageQuality;
+        private String imageSize;
         private String baseUrl;
         private List<String> stop;
         private int maxTokens;

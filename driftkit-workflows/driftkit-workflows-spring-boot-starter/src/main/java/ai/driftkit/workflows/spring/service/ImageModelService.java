@@ -6,10 +6,10 @@ import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
 import ai.driftkit.common.domain.LLMRequest;
 import ai.driftkit.common.domain.MessageTask;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
+import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.client.ModelImageRequest;
-import ai.driftkit.common.domain.client.ModelImageRequest.Quality;
 import ai.driftkit.common.domain.client.ModelImageResponse;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
@@ -76,7 +76,8 @@ public class ImageModelService {
                     .createdTime(System.currentTimeMillis())
                     .build();
 
-            imageTaskRepository.save(imageMessageTask);
+            ImageMessageTaskEntity entity = ImageMessageTaskEntity.fromImageMessageTask(imageMessageTask);
+            imageTaskRepository.save(entity);
 
             return generate(task, imageMessageTask, Math.max(1, images));
         } catch (Exception e) {
@@ -86,38 +87,47 @@ public class ImageModelService {
     }
 
     public ImageMessageTask rate(String messageId, Grade grade, String comment) {
-        ImageMessageTask message = getImageMessageById(messageId).orElse(null);
-
-        if (message == null) {
+        Optional<ImageMessageTaskEntity> entityOpt = imageTaskRepository.findById(messageId);
+        
+        if (entityOpt.isEmpty()) {
             return null;
         }
-
-        message.setGradeComment(comment);
-        message.setGrade(grade);
-        imageTaskRepository.save(message);
-        return message;
+        
+        ImageMessageTaskEntity entity = entityOpt.get();
+        entity.setGradeComment(comment);
+        entity.setGrade(grade);
+        imageTaskRepository.save(entity);
+        return entity.toImageMessageTask();
     }
 
     public Optional<ImageMessageTask> getImageMessageById(String messageId) {
-        return imageTaskRepository.findById(messageId);
+        return imageTaskRepository.findById(messageId)
+                .map(ImageMessageTaskEntity::toImageMessageTask);
     }
 
     public void describe(byte[] image) {
     }
 
     public ImageMessageTask generate(MessageTask task, ImageMessageTask request, int images) {
+        // Get config for image model and quality
+        EtlConfig.VaultConfig vaultConfig = etlConfig.getVault().get(0);
+        
         // Create ModelImageRequest for the TraceableModelClient
         ModelImageRequest imageRequest = ModelImageRequest.builder()
                 .prompt(request.getMessage())
                 .n(images)
-                .quality(Quality.low)
+                .model(task.getModelId() != null ? task.getModelId() : vaultConfig.getImageModel())
+                .quality(vaultConfig.getImageQuality())
+                .size(vaultConfig.getImageSize())
                 .build();
                 
         // Create request context for tracing
         ModelRequestContext requestContext = ModelRequestContext.builder()
                 .contextId(request.getMessageId())
                 .promptText(request.getMessage())
-                .model(modelClient.getModel())
+                .model(imageRequest.getModel())
+                .quality(imageRequest.getQuality())
+                .size(imageRequest.getSize())
                 .chatId(task.getChatId())
                 .purpose(task.getPurpose() != null ? task.getPurpose() : "image_generation")
                 .build();
@@ -146,7 +156,8 @@ public class ImageModelService {
                 .collect(Collectors.toList())
         );
 
-        imageTaskRepository.save(request);
+        ImageMessageTaskEntity entity = ImageMessageTaskEntity.fromImageMessageTask(request);
+        imageTaskRepository.save(entity);
         return request;
     }
 
