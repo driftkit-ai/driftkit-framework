@@ -14,6 +14,7 @@ import ai.driftkit.chat.framework.annotations.AsyncStep;
 import ai.driftkit.chat.framework.annotations.WorkflowStep;
 import ai.driftkit.chat.framework.events.AsyncTaskEvent;
 import ai.driftkit.chat.framework.events.StepEvent;
+import ai.driftkit.chat.framework.events.WorkflowTransitionEvent;
 import ai.driftkit.chat.framework.model.StepDefinition;
 import ai.driftkit.chat.framework.model.WorkflowContext;
 import ai.driftkit.chat.framework.service.AsyncResponseTracker;
@@ -725,6 +726,60 @@ public abstract class AnnotatedWorkflow implements ChatWorkflow {
      */
     private ChatResponse handleStepResult(WorkflowContext session, StepEvent event) {
         try {
+            // Check if this is a workflow transition event
+            if (event instanceof WorkflowTransitionEvent) {
+                WorkflowTransitionEvent transitionEvent = (WorkflowTransitionEvent) event;
+                
+                // Log the transition
+                log.info("Workflow transition requested from {} to {}", 
+                        transitionEvent.getSourceWorkflowId(), 
+                        transitionEvent.getTargetWorkflowId());
+                
+                // Get the target workflow to find the appropriate step
+                Optional<AnnotatedWorkflow> targetWorkflow = WorkflowRegistry.getWorkflow(transitionEvent.getTargetWorkflowId());
+                if (targetWorkflow.isEmpty()) {
+                    throw new IllegalStateException("Target workflow not found: " + transitionEvent.getTargetWorkflowId());
+                }
+                
+                // Find the target step
+                StepDefinition targetStep = null;
+                if (transitionEvent.getTargetStepId() != null) {
+                    // Find step by ID
+                    targetStep = targetWorkflow.get().getStepDefinitions().stream()
+                            .filter(step -> transitionEvent.getTargetStepId().equals(step.getId()))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Target step not found: " + transitionEvent.getTargetStepId() + 
+                                    " in workflow " + transitionEvent.getTargetWorkflowId()));
+                } else {
+                    // Default to first step with index 0
+                    List<StepDefinition> targetSteps = targetWorkflow.get().getStepDefinitions();
+                    targetStep = targetSteps.stream()
+                            .filter(step -> step.getIndex() == 0)
+                            .findFirst()
+                            .orElse(targetSteps.isEmpty() ? null : targetSteps.get(0));
+                }
+                
+                if (targetStep == null) {
+                    throw new IllegalStateException("No suitable target step found in workflow " + 
+                            transitionEvent.getTargetWorkflowId());
+                }
+                
+                // Create response with transition properties
+                ChatResponse response = ChatResponse.fromSession(
+                        session,
+                        getWorkflowId(),
+                        event.getProperties()
+                );
+                
+                // Set the next schema to the target workflow's step
+                if (!targetStep.getInputSchemas().isEmpty()) {
+                    response.setNextSchemaAsSchema(targetStep.getInputSchemas().get(0));
+                }
+                
+                return response;
+            }
+            
             // Update session state based on result
             if (event.getNextStepId() != null) {
                 session.setCurrentStepId(event.getNextStepId());

@@ -33,26 +33,28 @@ public class PromptRequest {
     private ResponseFormat responseFormat;
 
     public PromptRequest(List<String> promptIds, String chatId, Map<String, Object> variables, Language language) {
-        this(promptIds, null, "reasoning-lite", null, chatId, variables, language, null);
+        this(promptIds, null, "reasoning-lite", null, chatId, variables, language, null, true, null);
     }
 
     public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, Object> variables, Language language) {
-        this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, null);
+        this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, null, true, null);
     }
     
     public PromptRequest(List<String> promptIds, String chatId, Map<String, Object> variables, Language language, String purpose) {
-        this(promptIds, null, "reasoning-lite", null, chatId, variables, language, purpose);
+        this(promptIds, null, "reasoning-lite", null, chatId, variables, language, purpose, true, null);
     }
 
     public PromptRequest(PromptIdRequest idRequest, String chatId, Map<String, Object> variables, Language language, String purpose) {
-        this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, purpose);
+        this(null, List.of(idRequest), "reasoning-lite", null, chatId, variables, language, purpose, true, null);
     }
 
     @Builder
-    public PromptRequest(List<String> promptIds, List<PromptIdRequest> idRequests, String workflow, String modelId, String chatId, Map<String, Object> variables, Language language, String purpose) {
+    public PromptRequest(List<String> promptIds, List<PromptIdRequest> idRequests, String workflow, String modelId, String chatId, Map<String, Object> variables, Language language, String purpose, Boolean jsonResponse, ResponseFormat responseFormat) {
         this.workflow = workflow;
         this.modelId = modelId;
         this.chatId = chatId;
+        this.jsonResponse = jsonResponse;
+        this.responseFormat = responseFormat;
         this.promptIds = idRequests == null ? promptIds.stream()
                 .map(promptId -> new PromptIdRequest(promptId, null, null))
                 .collect(Collectors.toList()) : idRequests;
