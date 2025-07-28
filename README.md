@@ -198,14 +198,14 @@ driftkit-framework/
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.5.0</version>
+    <version>0.5.3</version>
 </dependency>
 
 <!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflows-core</artifactId>
-    <version>0.5.0</version>
+    <version>0.5.3</version>
 </dependency>
 ```
 
@@ -600,7 +600,7 @@ limitations under the License.
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.5.0</version>
+    <version>0.5.3</version>
 </dependency>
 ```
 
