@@ -6,6 +6,7 @@ import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema.PropertyType;
 import ai.driftkit.common.domain.Language;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -228,6 +229,42 @@ public class ChatDomain {
         public String getMessage() {
             Map<String, String> propsMap = getPropertiesMap();
             return propsMap.get("message");
+        }
+        
+        @JsonSetter("properties")
+        public void setPropertiesFromJson(JsonNode node) {
+            if (node == null) {
+                return;
+            }
+            
+            if (node.isArray()) {
+                // Handle array format (default)
+                this.properties = new ArrayList<>();
+                for (JsonNode propNode : node) {
+                    DataProperty prop = new DataProperty();
+                    if (propNode.has("name")) prop.setName(propNode.get("name").asText());
+                    if (propNode.has("value")) prop.setValue(propNode.get("value").asText());
+                    if (propNode.has("nameId")) prop.setNameId(propNode.get("nameId").asText());
+                    if (propNode.has("dataNameId")) prop.setDataNameId(propNode.get("dataNameId").asText());
+                    if (propNode.has("data")) prop.setData(propNode.get("data").asText());
+                    if (propNode.has("multiSelect")) prop.setMultiSelect(propNode.get("multiSelect").asBoolean());
+                    if (propNode.has("type")) prop.setType(PropertyType.valueOf(propNode.get("type").asText()));
+                    if (propNode.has("valueAsNameId")) prop.setValueAsNameId(propNode.get("valueAsNameId").asBoolean());
+                    this.properties.add(prop);
+                }
+            } else if (node.isObject()) {
+                // Handle object format (backward compatibility)
+                this.properties = new ArrayList<>();
+                Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+                while (fields.hasNext()) {
+                    Map.Entry<String, JsonNode> field = fields.next();
+                    DataProperty prop = new DataProperty();
+                    prop.setName(field.getKey());
+                    prop.setValue(field.getValue().asText());
+                    prop.setType(PropertyType.STRING);
+                    this.properties.add(prop);
+                }
+            }
         }
         
         public void resolveDataNameIdReferences(List<ChatMessage> previousMessages) {
