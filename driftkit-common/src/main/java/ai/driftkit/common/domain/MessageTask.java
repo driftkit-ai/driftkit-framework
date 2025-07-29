@@ -48,7 +48,7 @@ public class MessageTask extends AITask {
             boolean jsonRequest,
             boolean jsonResponse,
             ResponseFormat responseFormat,
-            Object workflowStopEvent,
+            String workflowStopEvent,
             Boolean logprobs,
             Integer topLogprobs,
             LogProbs logProbs,

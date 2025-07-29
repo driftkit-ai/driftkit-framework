@@ -3,6 +3,7 @@ package ai.driftkit.workflows.spring.service;
 import ai.driftkit.common.domain.Chat;
 import ai.driftkit.common.domain.ChatRequest;
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.workflows.spring.domain.ChatEntity;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +23,7 @@ public class ChatService {
 
     @PostConstruct
     public void init() {
-        Optional<Chat> systemChat = chatRepository.findById(SYSTEM_CHAT_ID);
+        Optional<ChatEntity> systemChat = chatRepository.findById(SYSTEM_CHAT_ID);
         save(Chat.builder()
                 .chatId(SYSTEM_ENGLISH_CHAT_ID)
                 .language(Language.ENGLISH)
@@ -56,11 +57,15 @@ public class ChatService {
     }
 
     public List<Chat> getChats() {
-        return chatRepository.findChatsByHiddenIsFalse();
+        return chatRepository.findChatsByHiddenIsFalse()
+                .stream()
+                .map(ChatEntity::toChat)
+                .toList();
     }
 
     public Optional<Chat> getChat(String chatId) {
-        return chatRepository.findById(chatId);
+        return chatRepository.findById(chatId)
+                .map(ChatEntity::toChat);
     }
 
     public Chat createChat(ChatRequest request) {
@@ -69,6 +74,7 @@ public class ChatService {
                 .language(request.getLanguage())
                 .createdTime(System.currentTimeMillis())
                 .systemMessage(request.getSystemMessage())
+                .memoryLength(request.getMemoryLength())
                 .name(request.getName())
                 .build();
 
@@ -81,6 +87,8 @@ public class ChatService {
         if (chat.getCreatedTime() == 0) {
             chat.setCreatedTime(System.currentTimeMillis());
         }
-        return chatRepository.save(chat);
+        ChatEntity entity = ChatEntity.fromChat(chat);
+        ChatEntity savedEntity = chatRepository.save(entity);
+        return savedEntity.toChat();
     }
 }

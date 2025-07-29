@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public class WorkflowRegistry {
     
-    private final Map<String, RegisteredWorkflow> registeredWorkflows = new HashMap<>();
+    private static final Map<String, RegisteredWorkflow> registeredWorkflows = new HashMap<>();
 
     /**
      * Register a new workflow.
@@ -27,7 +27,7 @@ public class WorkflowRegistry {
      * @param description A brief description of what the workflow does
      * @param workflow The executable workflow instance
      */
-    public void registerWorkflow(String id, String name, String description, Object workflow) {
+    public static void registerWorkflow(String id, String name, String description, Object workflow) {
         if (!(workflow instanceof ExecutableWorkflow)) {
             throw new IllegalArgumentException("Workflow must be an instance of ExecutableWorkflow");
         }
@@ -47,7 +47,7 @@ public class WorkflowRegistry {
      * @param id The workflow ID
      * @return The registered workflow or null if not found
      */
-    public RegisteredWorkflow getWorkflow(String id) {
+    public static RegisteredWorkflow getWorkflow(String id) {
         return registeredWorkflows.get(id);
     }
 
@@ -56,7 +56,7 @@ public class WorkflowRegistry {
      * 
      * @return A list of all registered workflows
      */
-    public List<RegisteredWorkflow> getAllWorkflows() {
+    public static List<RegisteredWorkflow> getAllWorkflows() {
         return new ArrayList<>(registeredWorkflows.values());
     }
 
@@ -66,7 +66,7 @@ public class WorkflowRegistry {
      * @param id The workflow ID to check
      * @return true if the workflow is registered, false otherwise
      */
-    public boolean hasWorkflow(String id) {
+    public static boolean hasWorkflow(String id) {
         return registeredWorkflows.containsKey(id);
     }
     
@@ -80,7 +80,7 @@ public class WorkflowRegistry {
      * @throws Exception If the workflow execution fails
      */
     @SuppressWarnings("unchecked")
-    public <T, E extends StartEvent> StopEvent<T> executeWorkflow(String workflowId, E startEvent, WorkflowContext workflowContext) throws Exception {
+    public static <T, E extends StartEvent> StopEvent<T> executeWorkflow(String workflowId, E startEvent, WorkflowContext workflowContext) throws Exception {
         RegisteredWorkflow registeredWorkflow = getWorkflow(workflowId);
         if (registeredWorkflow == null) {
             throw new IllegalArgumentException("No workflow registered with ID: " + workflowId);

@@ -1,6 +1,7 @@
 package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.*;
+import ai.driftkit.workflows.spring.domain.ChatEntity;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
@@ -45,7 +46,7 @@ public class TasksService {
     public LLMTaskFuture addTask(MessageTask messageTask) {
         Chat chat = null;
         if (messageTask.getChatId() != null) {
-            Optional<Chat> chatOpt = chatRepository.findById(messageTask.getChatId());
+            Optional<ChatEntity> chatOpt = chatRepository.findById(messageTask.getChatId());
             if (chatOpt.isPresent()) {
                 chat = chatOpt.get();
             }

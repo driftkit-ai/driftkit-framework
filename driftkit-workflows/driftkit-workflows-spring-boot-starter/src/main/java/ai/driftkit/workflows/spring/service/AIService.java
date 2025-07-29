@@ -46,9 +46,6 @@ public class AIService {
     private ImageModelService imageService;
 
     @Autowired
-    private WorkflowRegistry workflowRegistry;
-
-    @Autowired
     private EtlConfig config;
 
     @Autowired
@@ -99,18 +96,18 @@ public class AIService {
             String workflowId = task.getWorkflow();
 
             // Check if the workflow is registered
-            if (workflowId != null && workflowRegistry.hasWorkflow(workflowId)) {
+            if (workflowId != null && WorkflowRegistry.hasWorkflow(workflowId)) {
                 WorkflowContext workflowContext = new WorkflowContext(task);
                 
                 // For all workflows, use LLMRequestEvent
-                StopEvent<?> stopEvent = workflowRegistry.executeWorkflow(
+                StopEvent<?> stopEvent = WorkflowRegistry.executeWorkflow(
                         workflowId, 
                         new LLMRequestEvent(task), 
                         workflowContext
                 );
                 
                 result = stopEvent.getResult();
-                task.setWorkflowStopEvent(stopEvent);
+                task.setWorkflowStopEvent(JsonUtils.toJson(stopEvent));
                 
                 task.setModelId(workflowId);
             } else {

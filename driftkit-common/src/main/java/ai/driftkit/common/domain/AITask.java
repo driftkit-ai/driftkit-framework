@@ -42,7 +42,7 @@ public class AITask {
     private String workflow;
     private String contextJson;
 
-    private Object workflowStopEvent;
+    private String workflowStopEvent;
 
     private Language language = Language.GENERAL;
 

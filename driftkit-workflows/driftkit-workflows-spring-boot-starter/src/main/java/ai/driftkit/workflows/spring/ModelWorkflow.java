@@ -1,18 +1,19 @@
 package ai.driftkit.workflows.spring;
 
-import ai.driftkit.common.domain.client.ModelImageResponse;
-import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.common.domain.Language;
-import ai.driftkit.context.core.util.PromptUtils;
-import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
-import ai.driftkit.workflows.spring.domain.ModelRequestTrace.ContextType;
-import ai.driftkit.workflows.spring.domain.ModelRequestTrace.WorkflowInfo;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.common.domain.client.ModelClient;
+import ai.driftkit.common.domain.client.ModelImageResponse;
+import ai.driftkit.common.domain.client.ModelTextResponse;
+import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.workflows.core.domain.ExecutableWorkflow;
 import ai.driftkit.workflows.core.domain.StartEvent;
 import ai.driftkit.workflows.core.domain.WorkflowContext;
-import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.workflows.core.service.WorkflowRegistry;
+import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
+import ai.driftkit.workflows.spring.domain.ModelRequestTrace.ContextType;
+import ai.driftkit.workflows.spring.domain.ModelRequestTrace.WorkflowInfo;
 import ai.driftkit.workflows.spring.service.ModelRequestContext;
 import ai.driftkit.workflows.spring.service.ModelRequestService;
 import lombok.Getter;
@@ -33,6 +34,10 @@ public abstract class ModelWorkflow<I extends StartEvent, O> extends ExecutableW
         this.modelClient = modelClient;
         this.modelRequestService = modelRequestService;
         this.promptService = promptService;
+
+        String clsName = this.getClass().getSimpleName();
+
+        WorkflowRegistry.registerWorkflow(clsName, clsName, null, this);
     }
     
     /**

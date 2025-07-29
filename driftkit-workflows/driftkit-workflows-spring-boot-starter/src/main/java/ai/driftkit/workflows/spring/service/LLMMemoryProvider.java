@@ -28,7 +28,7 @@ public class LLMMemoryProvider {
         Optional<Chat> chatOpt = chatService.getChat(String.valueOf(chatId));
 
         if (chatOpt.isEmpty() || chatOpt.get().getMemoryLength() == 0) {
-            return TokenWindowChatMemory.withMaxTokens(1000, new SimpleTokenizer());
+            return TokenWindowChatMemory.withMaxTokens(10000, new SimpleTokenizer());
         }
 
         Chat chat = chatOpt.get();
