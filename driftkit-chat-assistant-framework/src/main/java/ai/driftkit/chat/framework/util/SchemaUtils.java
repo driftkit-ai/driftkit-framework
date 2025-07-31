@@ -4,6 +4,7 @@ import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema;
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema.AIFunctionProperty;
 import ai.driftkit.chat.framework.ai.domain.AIFunctionSchema.SchemaName;
 import ai.driftkit.chat.framework.annotations.SchemaClass;
+import ai.driftkit.common.utils.JsonUtils;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -300,6 +301,14 @@ public class SchemaUtils {
                         }
                     }
                     field.set(instance, map);
+                }
+            } else if (JsonUtils.isJSON(value)) {
+                // If value is JSON and field type is an Object (custom class), try to parse it
+                try {
+                    Object parsedValue = JsonUtils.fromJson(value, fieldType);
+                    field.set(instance, parsedValue);
+                } catch (Exception e) {
+                    log.warn("Failed to parse JSON value for field {} of type {}: {}", field.getName(), fieldType.getName(), e.getMessage());
                 }
             } else {
                 log.warn("Unsupported field type: {}", fieldType.getName());

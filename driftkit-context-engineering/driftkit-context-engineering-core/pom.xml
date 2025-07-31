@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-context-engineering</artifactId>
-        <version>0.5.5</version>
+        <version>0.5.6</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
