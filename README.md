@@ -58,7 +58,7 @@
 - **driftkit-context-engineering**: Create and A/B test response templates for different customer scenarios
 - **driftkit-workflows**: Intelligent routing - simple questions to AI, complex issues to specialists
 - **driftkit-vector**: Knowledge base search for accurate, up-to-date information
-- **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro for complex, GPT-4o-mini/Gemini 2.5 Flash for simple queries)
+- **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro/Claude Opus 4 for complex, GPT-4o-mini/Gemini 2.5 Flash/Claude Haiku for simple queries)
 - **driftkit-common**: Conversation memory to maintain context across multiple interactions
 
 **Business Impact:** 60% reduction in response time, 40% cost savings, 95% customer satisfaction
@@ -68,7 +68,7 @@
 **Solution:** Intelligent document analysis with 99%+ accuracy and structured data extraction
 
 **Technical Implementation:**
-- **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5) for processing PDFs, images, scanned documents
+- **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5/Claude with vision) for processing PDFs, images, scanned documents
 - **driftkit-embedding**: Document similarity for duplicate detection and categorization  
 - **driftkit-vector**: Store processed documents for quick retrieval and compliance auditing
 - **driftkit-workflows**: Multi-step validation workflows with human-in-the-loop for critical decisions
@@ -85,7 +85,7 @@
 - **driftkit-embedding**: Customer behavior analysis and preference modeling
 - **driftkit-context-engineering**: Dynamic product description templates for different customer segments
 - **driftkit-workflows**: Real-time recommendation pipelines with A/B testing
-- **driftkit-clients**: Multi-model optimization (fast models for real-time, advanced models for deep analysis)
+- **driftkit-clients**: Multi-model optimization (fast models like GPT-4o-mini/Gemini Flash/Claude Haiku for real-time, advanced models like GPT-4/Gemini Pro/Claude Opus for deep analysis)
 
 **Business Impact:** 35% increase in conversion rates, 50% higher average order value, 60% improved customer lifetime value
 
@@ -98,7 +98,7 @@
 - **driftkit-workflows**: Multi-stage content pipelines (research → draft → review → publish)
 - **driftkit-vector**: Content similarity checking to avoid duplication across channels
 - **driftkit-embedding**: SEO keyword optimization and content clustering
-- **driftkit-clients**: Model selection by content type (creative writing vs technical documentation)
+- **driftkit-clients**: Model selection by content type (creative writing with GPT-4/Claude vs technical documentation with Gemini)
 
 **Business Impact:** 10x content output, 80% cost reduction, consistent brand messaging across 50+ channels
 
@@ -121,7 +121,7 @@
 
 **Technical Implementation:**
 - **driftkit-chat-assistant-framework**: Core annotation-based workflow engine with @WorkflowStep and @AsyncStep for complex multi-turn conversations
-- **driftkit-clients**: Dynamic model selection (GPT-4 for financial advice, GPT-4o-mini for simple queries) with structured outputs for transaction data
+- **driftkit-clients**: Dynamic model selection (GPT-4/Claude Opus for financial advice, GPT-4o-mini/Claude Haiku for simple queries) with structured outputs for transaction data
 - **driftkit-workflows**: Multi-step verification processes - identity verification → transaction authorization → fraud detection → execution
 - **driftkit-vector**: Knowledge base for financial products, regulations, and personalized investment recommendations
 - **driftkit-context-engineering**: Compliance-tested prompt templates for different financial scenarios with A/B testing for conversion optimization
@@ -333,6 +333,7 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 - **Provider Abstraction** - Consistent interface across AI models
 - **OpenAI Integration** - Complete OpenAI API support including GPT-4, O3-Mini
 - **Google Gemini Integration** - Full Gemini API support including 2.5 Pro/Flash/Lite models
+- **Anthropic Claude Integration** - Full Claude API support including Opus 4, Sonnet 4, Haiku 3.5
 - **Multi-modal Support** - Text-to-text, text-to-image, image-to-text
 - **Function Calling** - Tool use and structured output
 - **Structured Output** - JSON schema-based responses with strict mode support

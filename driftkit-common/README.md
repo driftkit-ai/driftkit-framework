@@ -470,6 +470,12 @@ driftkit:
       model: "gpt-4"
       temperature: 0.7
       maxTokens: 2000
+    - name: "claude"
+      type: "claude"
+      apiKey: "${CLAUDE_API_KEY}"
+      model: "claude-sonnet-4-20250514"
+      temperature: 0.7
+      maxTokens: 2000
       
   vectorStores:
     - name: "main-vector-store"
