@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `driftkit-clients` module provides a unified abstraction layer for integrating with various AI model providers. It follows a modular architecture with core abstractions, specific implementations, and Spring Boot auto-configuration support. The module includes comprehensive integrations for OpenAI and Google Gemini, with extensible architecture for additional providers.
+The `driftkit-clients` module provides a unified abstraction layer for integrating with various AI model providers. It follows a modular architecture with core abstractions, specific implementations, and Spring Boot auto-configuration support. The module includes comprehensive integrations for OpenAI, Google Gemini, and Anthropic Claude, with extensible architecture for additional providers.
 
 ## Spring Boot Initialization
 
@@ -33,6 +33,11 @@ driftkit:
       model: "gemini-2.5-flash"
       temperature: 0.7
       maxTokens: 2000
+    - name: "claude"
+      apiKey: "${CLAUDE_API_KEY}"
+      model: "claude-sonnet-4-20250514"
+      temperature: 0.7
+      maxTokens: 2000
 ```
 
 The module provides:
@@ -50,7 +55,8 @@ The module provides:
 driftkit-clients/
 ├── driftkit-clients-core/           # Core abstractions and factory
 ├── driftkit-clients-openai/         # OpenAI-specific implementation
-├── driftkit-clients-gemini/         # Google Gemini implementation  
+├── driftkit-clients-gemini/         # Google Gemini implementation
+├── driftkit-clients-claude/         # Anthropic Claude implementation  
 ├── driftkit-clients-spring-boot-starter/  # Spring Boot auto-configuration
 └── pom.xml                          # Parent module configuration
 ```
@@ -208,6 +214,27 @@ ModelTextRequest request = ModelTextRequest.builder()
     .model("gemini-2.5-flash")
     .build();
 ```
+
+### Supported Models
+
+The framework supports the following AI providers and models:
+
+**OpenAI:**
+- GPT-4, GPT-4o, GPT-4o-mini, O3-Mini
+- DALL-E for image generation
+- Text embeddings models
+
+**Google Gemini:**
+- Gemini 2.5 Pro, Flash, Flash-Lite
+- Image generation (experimental)
+- Native multi-modal support
+
+**Anthropic Claude:**
+- Claude Opus 4, Sonnet 4, Haiku 3.5
+- Vision capabilities across all models
+- 200K token context windows
+
+All clients provide a unified interface through the `ModelClient` abstraction, allowing easy switching between providers via configuration.
 
 ## Spring Boot Starter Module
 

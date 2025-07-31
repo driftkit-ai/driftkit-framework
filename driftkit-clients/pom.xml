@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-parent</artifactId>
-        <version>0.5.7</version>
+        <version>0.5.8</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -22,5 +22,6 @@
         <module>driftkit-clients-spring-boot-starter</module>
         <module>driftkit-clients-openai</module>
         <module>driftkit-clients-gemini</module>
+        <module>driftkit-clients-claude</module>
     </modules>
 </project>

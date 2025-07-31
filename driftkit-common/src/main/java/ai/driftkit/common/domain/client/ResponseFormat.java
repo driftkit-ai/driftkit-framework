@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResponseFormat {
@@ -79,6 +81,7 @@ public class ResponseFormat {
     }
 
     @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class JsonSchema {
@@ -102,6 +105,7 @@ public class ResponseFormat {
     }
 
     @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SchemaProperty {

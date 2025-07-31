@@ -141,7 +141,7 @@
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
 | [**driftkit-common**](driftkit-common/README.md) | Core utilities | Chat memory, document processing, templates |
-| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, O3-Mini, type-safe responses |
+| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, type-safe responses |
 | [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, local BERT models |
 | [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone |
 | [**driftkit-workflows**](driftkit-workflows/README.md) | Orchestration | Annotation-based, LLMAgent SDK |
@@ -158,6 +158,7 @@ driftkit-framework/
 │   ├── driftkit-clients-core/           # Core client interfaces
 │   ├── driftkit-clients-openai/         # OpenAI implementation
 │   ├── driftkit-clients-gemini/         # Google Gemini implementation
+│   ├── driftkit-clients-claude/         # Anthropic Claude implementation
 │   └── driftkit-clients-spring-boot-starter/
 ├── driftkit-embedding/                  # 🧠 Text embedding services
 │   ├── driftkit-embedding-core/         # Core embedding interfaces
@@ -224,6 +225,10 @@ driftkit:
       type: "gemini"
       apiKey: "${GEMINI_API_KEY}"
       model: "gemini-2.5-flash"
+    - name: "claude"
+      type: "claude"
+      apiKey: "${CLAUDE_API_KEY}"
+      model: "claude-sonnet-4-20250514"
 ```
 
 ```java
@@ -336,7 +341,8 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 **Supported Models:**
 - OpenAI: GPT-4, GPT-4o, GPT-4o-mini, o3-Mini, DALL-E
 - Google Gemini: 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, experimental models (TTS, native audio)
-- Extensible architecture for Anthropic and custom providers
+- Anthropic Claude: Opus 4, Sonnet 4, Haiku 3.5 (multimodal with vision support)
+- Extensible architecture for custom providers
 
 **Key Features:**
 - Dynamic client discovery via ServiceLoader

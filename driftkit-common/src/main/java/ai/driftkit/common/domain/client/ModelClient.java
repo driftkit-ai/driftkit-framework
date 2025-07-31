@@ -208,6 +208,7 @@ public abstract class ModelClient<T> {
     }
 
     @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Property {

@@ -98,6 +98,7 @@ public class EtlConfig {
     public static class VaultConfig {
         private String apiKey;
         private String name;
+        private String type;
         private String model;
         private String modelMini;
         private String imageModel;
@@ -105,7 +106,7 @@ public class EtlConfig {
         private String imageSize;
         private String baseUrl;
         private List<String> stop;
-        private int maxTokens;
+        private Integer maxTokens;
         private double temperature;
         private boolean jsonObject;
         private boolean tracing;

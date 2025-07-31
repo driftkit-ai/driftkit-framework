@@ -1,6 +1,9 @@
 package ai.driftkit.clients.gemini.client;
 
 import ai.driftkit.clients.gemini.domain.*;
+import ai.driftkit.clients.gemini.domain.GeminiContent.Part;
+import ai.driftkit.clients.gemini.domain.GeminiGenerationConfig.ThinkingConfig;
+import ai.driftkit.clients.gemini.domain.GeminiImageRequest.ImageGenerationConfig;
 import ai.driftkit.clients.gemini.utils.GeminiUtils;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
@@ -17,7 +20,6 @@ import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -95,12 +97,12 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         // For Gemini image generation, we need to use the special model with responseModalities
         GeminiContent userContent = GeminiContent.builder()
                 .role("user")
-                .parts(List.of(GeminiContent.Part.builder()
+                .parts(List.of(Part.builder()
                         .text(message)
                         .build()))
                 .build();
         
-        GeminiImageRequest.ImageGenerationConfig generationConfig = GeminiImageRequest.ImageGenerationConfig.builder()
+        ImageGenerationConfig generationConfig = ImageGenerationConfig.builder()
                 .temperature(getTemperature())
                 .candidateCount(prompt.getN())
                 .responseModalities(List.of("TEXT", "IMAGE"))
@@ -128,19 +130,24 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             
             if (response.getCandidates() != null) {
                 for (GeminiChatResponse.Candidate candidate : response.getCandidates()) {
-                    if (candidate.getContent() != null && candidate.getContent().getParts() != null) {
-                        for (GeminiContent.Part part : candidate.getContent().getParts()) {
-                            if (part.getInlineData() != null) {
-                                GeminiUtils.ImageData imageData = GeminiUtils.base64toBytes(
-                                        part.getInlineData().getMimeType(),
-                                        part.getInlineData().getData()
-                                );
-                                images.add(new ModelContentElement.ImageData(
-                                        imageData.getImage(),
-                                        imageData.getMimeType()
-                                ));
-                            }
+                    if (candidate.getContent() == null || candidate.getContent().getParts() == null) {
+                        continue;
+                    }
+
+                    for (Part part : candidate.getContent().getParts()) {
+                        if (part.getInlineData() == null) {
+                            continue;
                         }
+
+                        GeminiUtils.ImageData imageData = GeminiUtils.base64toBytes(
+                                part.getInlineData().getMimeType(),
+                                part.getInlineData().getData()
+                        );
+
+                        images.add(new ModelContentElement.ImageData(
+                                imageData.getImage(),
+                                imageData.getMimeType()
+                        ));
                     }
                 }
             }
@@ -170,17 +177,21 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             
             // Handle system messages as system instruction
             if ("system".equals(role)) {
-                List<GeminiContent.Part> parts = new ArrayList<>();
+                List<Part> parts = new ArrayList<>();
                 for (ModelContentElement element : message.getContent()) {
-                    if (element.getType() == ModelTextRequest.MessageType.text) {
-                        parts.add(GeminiContent.Part.builder()
-                                .text(element.getText())
-                                .build());
+                    if (element.getType() != ModelTextRequest.MessageType.text) {
+                        continue;
                     }
+
+                    parts.add(Part.builder()
+                            .text(element.getText())
+                            .build());
                 }
+
                 systemInstruction = GeminiContent.builder()
                         .parts(parts)
                         .build();
+
                 continue;
             }
             
@@ -189,24 +200,26 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 role = "model";
             }
             
-            List<GeminiContent.Part> parts = new ArrayList<>();
+            List<Part> parts = new ArrayList<>();
             
             for (ModelContentElement element : message.getContent()) {
                 switch (element.getType()) {
                     case text:
-                        parts.add(GeminiContent.Part.builder()
+                        parts.add(Part.builder()
                                 .text(element.getText())
                                 .build());
                         break;
                     case image:
-                        if (element.getImage() != null) {
-                            parts.add(GeminiContent.Part.builder()
-                                    .inlineData(GeminiUtils.createInlineData(
-                                            element.getImage().getImage(),
-                                            element.getImage().getMimeType()
-                                    ))
-                                    .build());
+                        if (element.getImage() == null) {
+                            continue;
                         }
+
+                        parts.add(Part.builder()
+                                .inlineData(GeminiUtils.createInlineData(
+                                        element.getImage().getImage(),
+                                        element.getImage().getMimeType()
+                                ))
+                                .build());
                         break;
                 }
             }
@@ -220,8 +233,8 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         // Add system messages from config if not already present
         if (systemInstruction == null && CollectionUtils.isNotEmpty(getSystemMessages())) {
             List<String> systemMessages = getSystemMessages();
-            List<GeminiContent.Part> systemParts = systemMessages.stream()
-                    .map(msg -> GeminiContent.Part.builder().text(msg).build())
+            List<Part> systemParts = systemMessages.stream()
+                    .map(msg -> Part.builder().text(msg).build())
                     .collect(Collectors.toList());
             systemInstruction = GeminiContent.builder()
                     .parts(systemParts)
@@ -255,24 +268,32 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         
         // Handle reasoning/thinking for Gemini 2.5 models
         if (model != null && model.contains("2.5") && prompt.getReasoningEffort() != null) {
-            GeminiGenerationConfig.ThinkingConfig.ThinkingConfigBuilder thinkingBuilder = 
-                    GeminiGenerationConfig.ThinkingConfig.builder();
+            ThinkingConfig.ThinkingConfigBuilder thinkingBuilder = ThinkingConfig.builder();
             
             switch (prompt.getReasoningEffort()) {
-                case low:
+                case none:
                     thinkingBuilder.thinkingBudget(0); // Disable thinking
                     break;
+                case low:
+                    thinkingBuilder.thinkingBudget(4096); // Disable thinking
+                    break;
                 case medium:
+                    thinkingBuilder.thinkingBudget(8192); // Disable thinking
+                    break;
+                case dynamic:
                     thinkingBuilder.thinkingBudget(-1); // Dynamic thinking
                     break;
+                //128 to 32768
                 case high:
                     // Use higher budget for pro models
                     if (model.contains("pro")) {
-                        thinkingBuilder.thinkingBudget(16384); // Mid-range for Pro
+                        thinkingBuilder.thinkingBudget(32768); // Max for Pro
                     } else if (model.contains("lite")) {
-                        thinkingBuilder.thinkingBudget(8192); // Mid-range for Lite
+                        //512 to 24576
+                        thinkingBuilder.thinkingBudget(16384); // Mid-range for Lite
                     } else {
-                        thinkingBuilder.thinkingBudget(12288); // Mid-range for Flash
+                        //0 to 24576
+                        thinkingBuilder.thinkingBudget(16384); // Mid-range for Flash
                     }
                     thinkingBuilder.includeThoughts(true);
                     break;
@@ -336,7 +357,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 List<ToolCall> toolCalls = new ArrayList<>();
                 
                 if (candidate.getContent() != null && candidate.getContent().getParts() != null) {
-                    for (GeminiContent.Part part : candidate.getContent().getParts()) {
+                    for (Part part : candidate.getContent().getParts()) {
                         if (part.getText() != null) {
                             contentBuilder.append(part.getText());
                         } else if (part.getFunctionCall() != null) {

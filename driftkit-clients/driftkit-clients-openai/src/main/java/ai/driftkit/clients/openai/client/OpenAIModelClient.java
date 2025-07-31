@@ -2,6 +2,7 @@ package ai.driftkit.clients.openai.client;
 
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
+import ai.driftkit.common.domain.client.ModelTextRequest.ReasoningEffort;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
@@ -258,11 +259,28 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         try {
             if (model != null && model.startsWith("o")) {
                 req.setTemperature(null);
-                req.setReasoningEffort(Optional.ofNullable(prompt.getReasoningEffort()).map(Enum::name).orElse("medium"));
+                ReasoningEffort effort = prompt.getReasoningEffort();
+
+                if (effort == null) {
+                    effort = ReasoningEffort.medium;
+                }
+
+                switch (effort) {
+                    case dynamic:
+                        effort = ReasoningEffort.high;
+                        break;
+                    case none:
+                        effort = ReasoningEffort.low;
+                        break;
+                }
+
+                req.setReasoningEffort(effort.name());
             }
+
             if (BooleanUtils.isNotTrue(req.getLogprobs())) {
                 req.setTopLogprobs(null);
             }
+
             ChatCompletionResponse completion = client.createChatCompletion(req);
 
             return mapToModelTextResponse(completion);

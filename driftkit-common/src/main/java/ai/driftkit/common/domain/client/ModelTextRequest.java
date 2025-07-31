@@ -87,7 +87,9 @@ public class ModelTextRequest {
     public enum ReasoningEffort {
         medium,
         high,
-        low
+        low,
+        none,
+        dynamic
     }
 
     public enum MessageType {
