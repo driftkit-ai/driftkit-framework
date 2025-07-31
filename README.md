@@ -58,7 +58,7 @@
 - **driftkit-context-engineering**: Create and A/B test response templates for different customer scenarios
 - **driftkit-workflows**: Intelligent routing - simple questions to AI, complex issues to specialists
 - **driftkit-vector**: Knowledge base search for accurate, up-to-date information
-- **driftkit-clients**: Multi-model support (GPT-4 for complex, GPT-4o-mini for simple queries)
+- **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro for complex, GPT-4o-mini/Gemini 2.5 Flash for simple queries)
 - **driftkit-common**: Conversation memory to maintain context across multiple interactions
 
 **Business Impact:** 60% reduction in response time, 40% cost savings, 95% customer satisfaction
@@ -68,7 +68,7 @@
 **Solution:** Intelligent document analysis with 99%+ accuracy and structured data extraction
 
 **Technical Implementation:**
-- **driftkit-clients**: Multi-modal AI (GPT-4 Vision) for processing PDFs, images, scanned documents
+- **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5) for processing PDFs, images, scanned documents
 - **driftkit-embedding**: Document similarity for duplicate detection and categorization  
 - **driftkit-vector**: Store processed documents for quick retrieval and compliance auditing
 - **driftkit-workflows**: Multi-step validation workflows with human-in-the-loop for critical decisions
@@ -141,7 +141,7 @@
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
 | [**driftkit-common**](driftkit-common/README.md) | Core utilities | Chat memory, document processing, templates |
-| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, O3-Mini, type-safe responses |
+| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, O3-Mini, type-safe responses |
 | [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, local BERT models |
 | [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone |
 | [**driftkit-workflows**](driftkit-workflows/README.md) | Orchestration | Annotation-based, LLMAgent SDK |
@@ -157,6 +157,7 @@ driftkit-framework/
 ├── driftkit-clients/                    # 🤖 AI model client abstractions and implementations
 │   ├── driftkit-clients-core/           # Core client interfaces
 │   ├── driftkit-clients-openai/         # OpenAI implementation
+│   ├── driftkit-clients-gemini/         # Google Gemini implementation
 │   └── driftkit-clients-spring-boot-starter/
 ├── driftkit-embedding/                  # 🧠 Text embedding services
 │   ├── driftkit-embedding-core/         # Core embedding interfaces
@@ -198,14 +199,14 @@ driftkit-framework/
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.5.3</version>
+    <version>0.5.7</version>
 </dependency>
 
 <!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflows-core</artifactId>
-    <version>0.5.3</version>
+    <version>0.5.7</version>
 </dependency>
 ```
 
@@ -219,6 +220,10 @@ driftkit:
       type: "openai"
       apiKey: "${OPENAI_API_KEY}"
       model: "gpt-4"
+    - name: "gemini"
+      type: "gemini"
+      apiKey: "${GEMINI_API_KEY}"
+      model: "gemini-2.5-flash"
 ```
 
 ```java
@@ -322,6 +327,7 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 
 - **Provider Abstraction** - Consistent interface across AI models
 - **OpenAI Integration** - Complete OpenAI API support including GPT-4, O3-Mini
+- **Google Gemini Integration** - Full Gemini API support including 2.5 Pro/Flash/Lite models
 - **Multi-modal Support** - Text-to-text, text-to-image, image-to-text
 - **Function Calling** - Tool use and structured output
 - **Structured Output** - JSON schema-based responses with strict mode support
@@ -329,7 +335,8 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 
 **Supported Models:**
 - OpenAI: GPT-4, GPT-4o, GPT-4o-mini, o3-Mini, DALL-E
-- Extensible architecture for Anthropic, Google, and custom providers
+- Google Gemini: 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, experimental models (TTS, native audio)
+- Extensible architecture for Anthropic and custom providers
 
 **Key Features:**
 - Dynamic client discovery via ServiceLoader

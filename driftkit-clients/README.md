@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `driftkit-clients` module provides a unified abstraction layer for integrating with various AI model providers. It follows a modular architecture with core abstractions, specific implementations, and Spring Boot auto-configuration support. The module currently focuses on OpenAI integration but is designed to be extensible for other providers.
+The `driftkit-clients` module provides a unified abstraction layer for integrating with various AI model providers. It follows a modular architecture with core abstractions, specific implementations, and Spring Boot auto-configuration support. The module includes comprehensive integrations for OpenAI and Google Gemini, with extensible architecture for additional providers.
 
 ## Spring Boot Initialization
 
@@ -28,6 +28,11 @@ driftkit:
       model: "gpt-4"
       temperature: 0.7
       maxTokens: 2000
+    - name: "gemini"
+      apiKey: "${GEMINI_API_KEY}"
+      model: "gemini-2.5-flash"
+      temperature: 0.7
+      maxTokens: 2000
 ```
 
 The module provides:
@@ -44,7 +49,8 @@ The module provides:
 ```
 driftkit-clients/
 ├── driftkit-clients-core/           # Core abstractions and factory
-├── driftkit-clients-openai/         # OpenAI-specific implementation  
+├── driftkit-clients-openai/         # OpenAI-specific implementation
+├── driftkit-clients-gemini/         # Google Gemini implementation  
 ├── driftkit-clients-spring-boot-starter/  # Spring Boot auto-configuration
 └── pom.xml                          # Parent module configuration
 ```
@@ -132,6 +138,76 @@ Feign-based HTTP client for OpenAI API integration supporting chat completions, 
 ### OpenAI Utilities
 
 **OpenAIUtils** provides image processing utilities for Base64 conversion and MIME type detection.
+
+## Gemini Module (driftkit-clients-gemini)
+
+### GeminiModelClient
+
+Concrete implementation of ModelClient for Google Gemini services.
+
+**Model Constants:**
+- `GEMINI_DEFAULT = "gemini-2.5-flash"`
+- `GEMINI_SMART_DEFAULT = "gemini-2.5-pro"`
+- `GEMINI_MINI_DEFAULT = "gemini-2.5-flash-lite"`
+- `GEMINI_IMAGE_DEFAULT = "gemini-2.0-flash-preview-image-generation"`
+
+**Key Features:**
+- **Latest Gemini 2.5 Models** - Support for Pro, Flash, and Flash-Lite variants
+- **Native Multi-modal Processing** - Seamless text and image handling
+- **Thinking/Reasoning Support** - Advanced reasoning with configurable thinking budgets
+- **System Instructions** - Native support for system-level prompts
+- **Structured Output** - JSON schema validation and response formatting
+- **Function Calling** - Comprehensive tool use with automatic parameter mapping
+- **Safety Settings** - Configurable content filtering and safety thresholds
+- **Experimental Models** - Support for TTS and native audio models
+
+### Gemini API Client
+
+Feign-based HTTP client for Gemini API integration supporting content generation, token counting, and streaming.
+
+### Domain Objects
+
+- **GeminiChatRequest** - Request model with contents, tools, and generation config
+- **GeminiChatResponse** - Response model with candidates, usage metadata, and safety ratings
+- **GeminiContent** - Multi-modal content representation
+- **GeminiTool** - Function declarations for tool use
+- **GeminiGenerationConfig** - Advanced generation parameters including thinking config
+- **GeminiSafetySettings** - Content safety configuration
+
+### Gemini-Specific Features
+
+**Thinking Configuration:**
+```java
+// Enable advanced reasoning with Gemini 2.5
+ModelTextRequest request = ModelTextRequest.builder()
+    .model("gemini-2.5-pro")
+    .reasoningEffort(ReasoningEffort.high) // Enables thinking mode
+    .messages(messages)
+    .build();
+```
+
+**Safety Configuration:**
+```java
+List<GeminiSafetySettings> safetySettings = List.of(
+    GeminiSafetySettings.builder()
+        .category(HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT)
+        .threshold(HarmBlockThreshold.BLOCK_ONLY_HIGH)
+        .build()
+);
+```
+
+**Multi-modal Content:**
+```java
+// Process images with Gemini
+ModelTextRequest request = ModelTextRequest.builder()
+    .messages(List.of(
+        ModelContentMessage.create(Role.user, 
+            "Analyze this image", 
+            imageData)
+    ))
+    .model("gemini-2.5-flash")
+    .build();
+```
 
 ## Spring Boot Starter Module
 
