@@ -214,7 +214,7 @@ public class SpringAIEmbeddingModel implements EmbeddingModel {
      */
     @Override
     public int estimateTokenCount(String text) {
-        if (StringUtils.isEmpty(text)) {
+        if (StringUtils.isBlank(text)) {
             return 0;
         }
         

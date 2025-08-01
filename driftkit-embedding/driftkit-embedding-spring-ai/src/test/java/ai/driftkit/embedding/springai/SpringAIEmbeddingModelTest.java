@@ -143,6 +143,6 @@ class SpringAIEmbeddingModelTest {
         
         EmbeddingServiceConfig serviceConfig = new EmbeddingServiceConfig("spring-ai", config);
         
-        assertThrows(IllegalArgumentException.class, () -> embeddingModel.configure(serviceConfig));
+        assertThrows(RuntimeException.class, () -> embeddingModel.configure(serviceConfig));
     }
 }

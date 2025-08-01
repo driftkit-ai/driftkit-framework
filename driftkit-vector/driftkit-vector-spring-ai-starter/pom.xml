@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-vector</artifactId>
-        <version>0.5.8</version>
+        <version>0.6.0</version>
     </parent>
 
     <artifactId>driftkit-vector-spring-ai-starter</artifactId>
