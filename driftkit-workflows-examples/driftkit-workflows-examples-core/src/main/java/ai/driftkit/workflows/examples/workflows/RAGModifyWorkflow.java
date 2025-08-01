@@ -5,7 +5,7 @@ import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.embedding.core.service.EmbeddingFactory;
-import ai.driftkit.vector.core.domain.VectorStore;
+import ai.driftkit.vector.core.domain.EmbeddingVectorStore;
 import ai.driftkit.vector.core.service.VectorStoreFactory;
 import ai.driftkit.vector.spring.domain.ParsedContent;
 import ai.driftkit.vector.spring.parser.UnifiedParser;
@@ -41,7 +41,7 @@ public class RAGModifyWorkflow extends ModelWorkflow<StartEvent, RAGModifyWorkfl
     private ThreadPoolExecutor exec;
     private UnifiedParser parser;
     private EmbeddingModel embeddingModel;
-    private VectorStore vectorStore;
+    private EmbeddingVectorStore vectorStore;
 
     public RAGModifyWorkflow(EtlConfig config, PromptService promptService, ModelRequestService modelRequestService) throws Exception {
         super(ModelClientFactory.fromConfig(config.getModelConfig(OpenAIModelClient.OPENAI_PREFIX).orElseThrow()),
@@ -53,7 +53,7 @@ public class RAGModifyWorkflow extends ModelWorkflow<StartEvent, RAGModifyWorkfl
                 config.getEmbedding().getName(),
                 config.getEmbedding().getConfig()
         );
-        this.vectorStore = VectorStoreFactory.fromConfig(config.getVectorStore());
+        this.vectorStore = (EmbeddingVectorStore) VectorStoreFactory.fromConfig(config.getVectorStore());
 
         Integer storingThreads = config.getVectorStore().getInt(EtlConfig.VECTOR_STORE_STORING_THREADS, 1);
 

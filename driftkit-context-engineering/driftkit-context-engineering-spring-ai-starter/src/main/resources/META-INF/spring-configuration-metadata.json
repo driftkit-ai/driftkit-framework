@@ -1,0 +1,83 @@
+{
+  "groups": [
+    {
+      "name": "driftkit.spring-ai",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    },
+    {
+      "name": "driftkit.spring-ai.tracing",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties$TracingProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    },
+    {
+      "name": "driftkit.spring-ai.memory",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties$MemoryProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    },
+    {
+      "name": "driftkit.spring-ai.logging",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties$LoggingProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    },
+    {
+      "name": "driftkit.spring-ai.chat-client",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties$ChatClientProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    },
+    {
+      "name": "driftkit.spring-ai.enhanced-chat-client",
+      "type": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties$EnhancedChatClientProperties",
+      "sourceType": "ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "driftkit.spring-ai.application-name",
+      "type": "java.lang.String",
+      "description": "Application name for tracing",
+      "defaultValue": "spring-ai-app"
+    },
+    {
+      "name": "driftkit.spring-ai.default-system-message",
+      "type": "java.lang.String",
+      "description": "Default system message for ChatClient"
+    },
+    {
+      "name": "driftkit.spring-ai.tracing.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable tracing for Spring AI calls",
+      "defaultValue": true
+    },
+    {
+      "name": "driftkit.spring-ai.memory.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable chat memory advisor",
+      "defaultValue": false
+    },
+    {
+      "name": "driftkit.spring-ai.memory.max-messages",
+      "type": "java.lang.Integer",
+      "description": "Maximum messages to keep in memory",
+      "defaultValue": 20
+    },
+    {
+      "name": "driftkit.spring-ai.logging.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable logging advisor",
+      "defaultValue": false
+    },
+    {
+      "name": "driftkit.spring-ai.chat-client.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable DriftKitChatClient bean creation",
+      "defaultValue": true
+    },
+    {
+      "name": "driftkit.spring-ai.enhanced-chat-client.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable enhanced ChatClient bean creation",
+      "defaultValue": false
+    }
+  ]
+}

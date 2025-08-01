@@ -19,6 +19,7 @@
 
     <modules>
         <module>driftkit-embedding-core</module>
+        <module>driftkit-embedding-spring-ai</module>
         <module>driftkit-embedding-spring-boot-starter</module>
     </modules>
 </project>

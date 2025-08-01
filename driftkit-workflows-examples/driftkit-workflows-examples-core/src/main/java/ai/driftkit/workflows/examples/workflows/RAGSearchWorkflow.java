@@ -12,7 +12,7 @@ import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.service.EmbeddingFactory;
 import ai.driftkit.vector.core.domain.Document;
 import ai.driftkit.vector.core.domain.DocumentsResult;
-import ai.driftkit.vector.core.domain.VectorStore;
+import ai.driftkit.vector.core.domain.EmbeddingVectorStore;
 import ai.driftkit.vector.core.service.VectorStoreFactory;
 import ai.driftkit.workflows.core.domain.*;
 import ai.driftkit.workflows.spring.ModelWorkflow;
@@ -36,7 +36,7 @@ public class RAGSearchWorkflow extends ModelWorkflow<VectorStoreStartEvent, Docu
 
     private String queryPrefix;
     private EmbeddingModel embeddingModel;
-    private VectorStore vectorStore;
+    private EmbeddingVectorStore vectorStore;
     private VaultConfig modelConfig;
 
     public RAGSearchWorkflow(EtlConfig config, PromptService promptService, ModelRequestService modelRequestService) throws Exception {
@@ -48,7 +48,7 @@ public class RAGSearchWorkflow extends ModelWorkflow<VectorStoreStartEvent, Docu
                 config.getEmbedding().getName(),
                 config.getEmbedding().getConfig()
         );
-        this.vectorStore = VectorStoreFactory.fromConfig(config.getVectorStore());
+        this.vectorStore = (EmbeddingVectorStore) VectorStoreFactory.fromConfig(config.getVectorStore());
 
         this.queryPrefix = config.getEmbedding().get(EtlConfig.BASE_QUERY, "Instruct: Retrieve semantically similar text.\\nQuery: ");
 

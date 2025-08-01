@@ -4,7 +4,7 @@ import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VectorStoreConfig;
 import ai.driftkit.vector.core.domain.Document;
 import ai.driftkit.vector.core.domain.DocumentsResult;
-import ai.driftkit.vector.core.domain.VectorStore;
+import ai.driftkit.vector.core.domain.EmbeddingVectorStore;
 import ai.driftkit.vector.core.pinecone.client.PineconeVectorStore.PineconeQueryResponse.Match;
 import ai.driftkit.vector.core.pinecone.client.PineconeVectorStore.PineconeUpsertRequest.VectorEntry;
 import feign.*;
@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 @Slf4j
-public class PineconeVectorStore implements VectorStore {
+public class PineconeVectorStore implements EmbeddingVectorStore {
     private VectorStoreConfig config;
     private PineconeApi api;
 

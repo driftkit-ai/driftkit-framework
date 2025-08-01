@@ -3,14 +3,14 @@ package ai.driftkit.vector.core.inmemory;
 import ai.driftkit.config.EtlConfig.VectorStoreConfig;
 import ai.driftkit.vector.core.domain.Document;
 import ai.driftkit.vector.core.domain.DocumentsResult;
-import ai.driftkit.vector.core.domain.VectorStore;
+import ai.driftkit.vector.core.domain.EmbeddingVectorStore;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-public class InMemoryVectorStore implements VectorStore {
+public class InMemoryVectorStore implements EmbeddingVectorStore {
 
     protected Map<String, Map<String, Document>> documentMap = new ConcurrentHashMap<>();
 

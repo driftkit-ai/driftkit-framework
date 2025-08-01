@@ -1,0 +1,138 @@
+{
+  "groups": [
+    {
+      "name": "driftkit.clients.spring-ai",
+      "type": "ai.driftkit.clients.springai.autoconfigure.DriftKitClientsSpringAIProperties",
+      "sourceType": "ai.driftkit.clients.springai.autoconfigure.DriftKitClientsSpringAIProperties"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.model",
+      "type": "ai.driftkit.clients.springai.autoconfigure.DriftKitClientsSpringAIProperties$ModelProperties",
+      "sourceType": "ai.driftkit.clients.springai.autoconfigure.DriftKitClientsSpringAIProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "driftkit.clients.spring-ai.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable Spring AI model client bean creation",
+      "defaultValue": true
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-model",
+      "type": "java.lang.String",
+      "description": "Default model name to use if not specified in requests"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-temperature",
+      "type": "java.lang.Double",
+      "description": "Default temperature for model requests (0.0-2.0)"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-max-tokens",
+      "type": "java.lang.Integer",
+      "description": "Default max tokens for model requests"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-top-p",
+      "type": "java.lang.Double",
+      "description": "Default top-p value for model requests (0.0-1.0)"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.logging-enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable request/response logging",
+      "defaultValue": false
+    },
+    {
+      "name": "driftkit.clients.spring-ai.model.bean-name",
+      "type": "java.lang.String",
+      "description": "Bean name of the Spring AI ChatModel to use"
+    },
+    {
+      "name": "driftkit.clients.spring-ai.model.primary",
+      "type": "java.lang.Boolean",
+      "description": "Whether to register as primary ModelClient",
+      "defaultValue": false
+    }
+  ],
+  "hints": [
+    {
+      "name": "driftkit.clients.spring-ai.default-model",
+      "values": [
+        {
+          "value": "gpt-4",
+          "description": "OpenAI GPT-4 model"
+        },
+        {
+          "value": "gpt-4o",
+          "description": "OpenAI GPT-4o model"
+        },
+        {
+          "value": "gpt-4o-mini",
+          "description": "OpenAI GPT-4o-mini model"
+        },
+        {
+          "value": "gpt-3.5-turbo",
+          "description": "OpenAI GPT-3.5 Turbo model"
+        },
+        {
+          "value": "claude-3-opus-20240229",
+          "description": "Anthropic Claude 3 Opus model"
+        },
+        {
+          "value": "claude-3-sonnet-20240229",
+          "description": "Anthropic Claude 3 Sonnet model"
+        },
+        {
+          "value": "claude-3-haiku-20240307",
+          "description": "Anthropic Claude 3 Haiku model"
+        },
+        {
+          "value": "gemini-pro",
+          "description": "Google Gemini Pro model"
+        },
+        {
+          "value": "command",
+          "description": "Cohere Command model"
+        },
+        {
+          "value": "mistral-small-latest",
+          "description": "Mistral Small model"
+        },
+        {
+          "value": "mistral-medium-latest",
+          "description": "Mistral Medium model"
+        },
+        {
+          "value": "mistral-large-latest",
+          "description": "Mistral Large model"
+        }
+      ]
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-temperature",
+      "providers": [
+        {
+          "name": "any",
+          "parameters": {
+            "value": "0.7",
+            "description": "Default temperature for balanced creativity and coherence"
+          }
+        }
+      ]
+    },
+    {
+      "name": "driftkit.clients.spring-ai.default-max-tokens",
+      "providers": [
+        {
+          "name": "any",
+          "parameters": {
+            "value": "2048",
+            "description": "Default maximum tokens for responses"
+          }
+        }
+      ]
+    }
+  ]
+}

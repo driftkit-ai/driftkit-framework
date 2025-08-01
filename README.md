@@ -9,7 +9,7 @@
 | Feature | DriftKit                                                                         | Spring AI                       | LangChain4j                     | [Google ADK](https://github.com/google/adk-java) |
 |---------|----------------------------------------------------------------------------------|---------------------------------|---------------------------------|-------------------------------------------------|
 | **Text embedding** | ✅ Multiple providers                                                             | ✅ Multiple providers            | ✅ Multiple providers            | ❌                            |
-| **Vector storage** | ✅ In-memory, File, Pinecone                                                      | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                               |
+| **Vector storage** | ✅ In-memory, File, Pinecone, Spring AI (all providers)                           | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                               |
 | **Structured output** | ✅ Java Pojo/Json based                                                           | ✅                    | ✅                   | ✅                                               |
 | **Tool calling** | ✅ Type-safe with auto/manual-execution: function calling, tools, agents as tools | ✅               | ✅               | ✅                      |
 | **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                                        | ❌                               | ❌                               | ❌                                               |
@@ -24,6 +24,7 @@
 | **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                 | ❌ Code rewrite                  | ⚠️ Limited                                      |
 | **Audio processing** | ✅ VAD + Transcription                                                            | ❌                               | ❌                               | ❌                                               |
 | **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers            | ❌                               | ❌                                               |
+| **Spring AI integration** | ✅ Full bidirectional integration                                                 | Native                           | ❌                               | ❌                                               |
 
 ### 🎯 Unique features
 
@@ -47,6 +48,7 @@
 6. **Type-safe AI integration** - Direct Java objects, no JSON parsing needed
 7. **Multi-agent orchestration** - Loop, Sequential, and Hierarchical patterns
 8. **Built-in audio processing** - VAD, transcription, and streaming capabilities
+9. **Spring AI integration** - Use DriftKit prompts with Spring AI ChatClient, full tracing support
 
 ## 🏆 Business solutions
 
@@ -141,11 +143,11 @@
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
 | [**driftkit-common**](driftkit-common/README.md) | Core utilities | Chat memory, document processing, templates |
-| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, type-safe responses |
-| [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, local BERT models |
-| [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone |
+| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, Spring AI supported models, type-safe responses |
+| [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, Spring AI providers, local BERT models |
+| [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone, Spring AI |
 | [**driftkit-workflows**](driftkit-workflows/README.md) | Orchestration | Annotation-based, LLMAgent SDK |
-| [**driftkit-context-engineering**](driftkit-context-engineering/README.md) | Prompt management | Web UI, versioning, A/B testing |
+| [**driftkit-context-engineering**](driftkit-context-engineering/README.md) | Prompt management | Web UI, versioning, A/B testing, Spring AI integration |
 | [**driftkit-audio**](driftkit-audio/README.md) | Audio processing | VAD, transcription, streaming |
 | [**driftkit-chat-assistant-framework**](driftkit-chat-assistant-framework/README.md) | Chat workflows | Multi-step conversations |
 
@@ -159,19 +161,25 @@ driftkit-framework/
 │   ├── driftkit-clients-openai/         # OpenAI implementation
 │   ├── driftkit-clients-gemini/         # Google Gemini implementation
 │   ├── driftkit-clients-claude/         # Anthropic Claude implementation
+│   ├── driftkit-clients-spring-ai/      # Spring AI models integration
 │   └── driftkit-clients-spring-boot-starter/
 ├── driftkit-embedding/                  # 🧠 Text embedding services
 │   ├── driftkit-embedding-core/         # Core embedding interfaces
+│   ├── driftkit-embedding-spring-ai/    # Spring AI providers integration
 │   └── driftkit-embedding-spring-boot-starter/
 ├── driftkit-vector/                     # 🔍 Vector storage and similarity search
 │   ├── driftkit-vector-core/            # Core vector abstractions
-│   └── driftkit-vector-spring-boot-starter/
+│   ├── driftkit-vector-spring-boot-starter/
+│   ├── driftkit-vector-spring-ai/       # Spring AI vector stores integration
+│   └── driftkit-vector-spring-ai-starter/
 ├── driftkit-workflows/                  # ⚙️ Workflow orchestration engine
 │   ├── driftkit-workflows-core/         # Core workflow framework
 │   └── driftkit-workflows-spring-boot-starter/
 ├── driftkit-context-engineering/        # 📝 Prompt management and engineering
 │   ├── driftkit-context-engineering-core/
-│   └── driftkit-context-engineering-spring-boot-starter/
+│   ├── driftkit-context-engineering-spring-boot-starter/
+│   ├── driftkit-context-engineering-spring-ai/  # Spring AI integration
+│   └── driftkit-context-engineering-spring-ai-starter/
 ├── driftkit-workflows-examples/         # 🎯 Reference workflow implementations
 │   ├── driftkit-workflows-examples-core/
 │   └── driftkit-workflows-examples-spring-boot-starter/
@@ -229,6 +237,15 @@ driftkit:
       type: "claude"
       apiKey: "${CLAUDE_API_KEY}"
       model: "claude-sonnet-4-20250514"
+
+# Spring AI integration (optional)
+driftkit:
+  spring-ai:
+    application-name: "my-app"
+    tracing:
+      enabled: true
+    chat-client:
+      enabled: true
 ```
 
 ```java
@@ -308,6 +325,53 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 }
 ```
 
+### 4. Spring AI Integration
+
+```java
+// Use DriftKit prompts with Spring AI ChatClient
+@Component
+public class CustomerService {
+    private final DriftKitChatClient chatClient;
+    
+    public String analyzeSentiment(String review) {
+        // Use DriftKit prompt with full tracing
+        return chatClient.promptById("sentiment.analysis")
+            .withVariable("review", review)
+            .withLanguage(Language.ENGLISH)
+            .call()
+            .content();
+    }
+    
+    public ProductInfo extractProductInfo(String description) {
+        // Structured output with DriftKit prompt management
+        return chatClient.promptById("product.extraction")
+            .withVariable("description", description)
+            .call()
+            .entity(ProductInfo.class);
+    }
+}
+
+// Or use Spring AI directly with DriftKit prompt provider
+@Component
+public class AIService {
+    private final ChatClient chatClient;
+    private final DriftKitPromptProvider promptProvider;
+    
+    public String generateContent(Map<String, Object> variables) {
+        // Get prompt configuration from DriftKit
+        var config = promptProvider.getPrompt("content.generation", Language.ENGLISH);
+        
+        // Use with Spring AI's fluent API
+        return chatClient.prompt()
+            .system(config.getSystemMessage())
+            .user(u -> u.text(config.getUserMessage()).params(variables))
+            .options(opt -> opt.temperature(config.getTemperature()))
+            .call()
+            .content();
+    }
+}
+```
+
 ## 🧩 Core Modules
 
 ### DriftKit Common
@@ -357,33 +421,50 @@ public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, Strin
 - **Provider Abstraction** - Unified interface for embedding models
 - **OpenAI Embeddings** - text-embedding-ada-002 and newer models
 - **Cohere Integration** - embed-english-v2.0 support
+- **Spring AI Integration** - Access all Spring AI embedding providers
 - **Local BERT Models** - ONNX-based local embedding generation
 - **Performance Optimization** - Caching and batch processing
 
 **Supported Providers:**
 - OpenAI (text-embedding-ada-002, text-embedding-3-small/large)
 - Cohere (embed-english-v2.0, embed-multilingual-v2.0)
+- Spring AI providers (OpenAI, Azure OpenAI, Ollama, and more)
 - Local BERT models via ONNX Runtime
+
+**Spring AI Integration:**
+- Unified access to all Spring AI embedding providers
+- Automatic configuration handling
+- Seamless conversion between Spring AI and DriftKit formats
+- Full error handling and validation
 
 **Key Features:**
 - Automatic model discovery and configuration
 - Batch processing for efficiency
 - Type-safe metadata management
 - Local model support for offline scenarios
+- Spring AI provider support for extended compatibility
 
 ### DriftKit Vector
 **Vector storage and similarity search with multiple backends**
 
-- **Storage Backends** - In-memory, file-based, and Pinecone support
+- **Storage Backends** - In-memory, file-based, Pinecone, and Spring AI support
 - **Document Management** - Full CRUD operations with metadata
 - **Similarity Search** - Efficient k-nearest neighbor search
 - **Content Processing** - Multi-format document parsing
 - **REST API** - Complete web interface for vector operations
+- **Spring AI Integration** - Use any Spring AI vector store through DriftKit interface
 
 **Storage Options:**
 - **InMemoryVectorStore** - High-performance for development
 - **FileBasedVectorStore** - Persistent local storage
 - **PineconeVectorStore** - Cloud-based production storage
+- **Spring AI Vector Stores** - Qdrant, Weaviate, ChromaDB, PGVector, MongoDB Atlas, Redis, and more
+
+**Spring AI Integration Features:**
+- Seamless adapter between Spring AI and DriftKit interfaces
+- Auto-configuration for Spring Boot applications
+- Support for all Spring AI vector store implementations
+- Consistent API across different backends
 
 **Document Processing:**
 - PDF, Microsoft Office, OpenDocument formats
@@ -586,6 +667,162 @@ public class StrictPerson {
 - **Docker deployment** - One-click containerized deployment
 
 **Want to contribute or have suggestions?** Open an issue on GitHub!
+
+## 🌿 Spring AI Integration
+
+DriftKit provides seamless integration with Spring AI, allowing you to leverage the entire Spring AI ecosystem while benefiting from DriftKit's advanced features.
+
+### Spring AI Support Across Modules
+
+#### 1. **DriftKit Clients - Spring AI Models**
+Access all Spring AI chat models through DriftKit's unified interface:
+
+```java
+// Use Spring AI models with DriftKit
+@Bean
+public ModelClient springAIModelClient(ChatModel chatModel) {
+    return new SpringAIModelClient(chatModel)
+        .withModel("gpt-4")
+        .withTemperature(0.7);
+}
+
+// Supports all Spring AI features
+- OpenAI, Azure OpenAI, Ollama, Anthropic, Google Gemini
+- Function/tool calling with FunctionToolCallback
+- Streaming responses
+- Full tracing integration
+```
+
+#### 2. **DriftKit Embedding - Spring AI Providers**
+Use any Spring AI embedding provider:
+
+```yaml
+driftkit:
+  embedding:
+    name: spring-ai
+    config:
+      provider: openai  # or azure-openai, ollama
+      model-name: text-embedding-3-small
+      api-key: ${OPENAI_API_KEY}
+```
+
+```java
+// Automatic Spring AI embedding model creation
+@Autowired
+private EmbeddingModel embeddingModel; // Works with any Spring AI provider
+```
+
+Supported providers:
+- OpenAI (text-embedding-3-small, text-embedding-3-large)
+- Azure OpenAI (with deployment configuration)
+- Ollama (local embeddings)
+- Any custom Spring AI embedding provider
+
+#### 3. **DriftKit Vector - Spring AI Vector Stores**
+Integrate with all Spring AI vector stores:
+
+```java
+// Use Spring AI vector stores with DriftKit
+@Bean
+public VectorStore springAIVectorStore(
+    org.springframework.ai.vectorstore.VectorStore springAIStore) {
+    return new SpringAIVectorStore(springAIStore);
+}
+```
+
+Supported backends:
+- Qdrant
+- Weaviate
+- ChromaDB
+- PGVector
+- MongoDB Atlas
+- Redis
+- Elasticsearch
+- Any Spring AI vector store implementation
+
+#### 4. **DriftKit Context Engineering - Spring AI ChatClient**
+Enhanced Spring AI ChatClient with DriftKit features:
+
+```java
+// Enhanced ChatClient with DriftKit integration
+@Autowired
+private DriftKitChatClient chatClient;
+
+// Use DriftKit prompts with Spring AI
+PromptConfig config = chatClient.promptProvider()
+    .prompt("customer-support")
+    .withVariable("customer", customerName)
+    .build();
+
+String response = chatClient.prompt(config).content();
+
+// Spring AI ChatClient with DriftKit advisors
+@Bean
+public ChatClient enhancedChatClient(SpringAIChatClientFactory factory) {
+    return factory.createSpringAIChatClient(); // Includes tracing, memory, logging
+}
+```
+
+### Spring Boot Auto-Configuration
+
+Add the starter for automatic configuration:
+
+```xml
+<dependency>
+    <groupId>ai.driftkit</groupId>
+    <artifactId>driftkit-context-engineering-spring-ai-starter</artifactId>
+    <version>0.5.8</version>
+</dependency>
+```
+
+Configuration options:
+
+```yaml
+driftkit:
+  spring-ai:
+    application-name: "my-app"
+    tracing:
+      enabled: true  # Enable DriftKit tracing for Spring AI
+    memory:
+      enabled: true  # Add conversation memory
+    logging:
+      enabled: true  # Add request/response logging
+    chat-client:
+      enabled: true  # Create DriftKitChatClient bean
+    enhanced-chat-client:
+      enabled: false # Create enhanced ChatClient with all features
+    default-system-message: "You are a helpful assistant"
+```
+
+### Key Benefits
+
+1. **Unified Interface** - Use Spring AI models with DriftKit's advanced features
+2. **Full Compatibility** - All Spring AI providers work out of the box
+3. **Enhanced Features** - Add tracing, memory, and monitoring to Spring AI
+4. **Type Safety** - Maintain type safety across the integration
+5. **Auto-Configuration** - Spring Boot starters for zero-config setup
+6. **Extensibility** - Easy to add new Spring AI providers
+
+### Migration from Spring AI
+
+Migrating from pure Spring AI to DriftKit is straightforward:
+
+```java
+// Before (Spring AI only)
+ChatClient chatClient = ChatClient.builder(chatModel).build();
+String response = chatClient.prompt()
+    .user("Hello")
+    .call()
+    .content();
+
+// After (DriftKit + Spring AI)
+DriftKitChatClient chatClient = factory.createChatClient();
+String response = chatClient.prompt()
+    .user("Hello") 
+    .call()
+    .content();
+// Plus: automatic tracing, memory, prompt management, etc.
+```
 
 ## 📄 License
 

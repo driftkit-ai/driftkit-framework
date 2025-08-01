@@ -20,5 +20,7 @@
     <modules>
         <module>driftkit-context-engineering-core</module>
         <module>driftkit-context-engineering-spring-boot-starter</module>
+        <module>driftkit-context-engineering-spring-ai</module>
+        <module>driftkit-context-engineering-spring-ai-starter</module>
     </modules>
 </project>

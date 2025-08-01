@@ -2,7 +2,7 @@ package ai.driftkit.vector.autoconfigure;
 
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VectorStoreConfig;
-import ai.driftkit.vector.core.domain.VectorStore;
+import ai.driftkit.vector.core.domain.BaseVectorStore;
 import ai.driftkit.vector.core.service.VectorStoreFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 /**
  * Auto-configuration for vector store services.
  * 
- * This configuration automatically creates a VectorStore bean
+ * This configuration automatically creates a BaseVectorStore bean
  * from the EtlConfig.vectorStore configuration when available.
  */
 @Slf4j
@@ -35,8 +35,8 @@ public class VectorStoreAutoConfiguration {
     }
     
     @Bean
-    @ConditionalOnMissingBean(VectorStore.class)
-    public VectorStore vectorStore(EtlConfig config) {
+    @ConditionalOnMissingBean(BaseVectorStore.class)
+    public BaseVectorStore vectorStore(EtlConfig config) {
         try {
             VectorStoreConfig vectorStoreConfig = config.getVectorStore();
             
@@ -47,7 +47,7 @@ public class VectorStoreAutoConfiguration {
             
             log.info("Initializing vector store: {}", vectorStoreConfig.getName());
             
-            VectorStore vectorStore = VectorStoreFactory.fromConfig(vectorStoreConfig);
+            BaseVectorStore vectorStore = VectorStoreFactory.fromConfig(vectorStoreConfig);
             
             log.info("Successfully initialized vector store: {}", vectorStoreConfig.getName());
             return vectorStore;

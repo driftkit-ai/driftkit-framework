@@ -86,6 +86,7 @@ public class ModelTextResponse {
     }
 
     @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Usage {

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>ai.driftkit</groupId>
+        <artifactId>driftkit-context-engineering</artifactId>
+        <version>0.5.8</version>
+    </parent>
+    
+    <artifactId>driftkit-context-engineering-spring-ai</artifactId>
+    <name>DriftKit Context Engineering Spring AI Integration</name>
+    <description>Spring AI integration for DriftKit Context Engineering prompt management</description>
+    
+    <dependencies>
+        <!-- DriftKit dependencies -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-context-engineering-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-core</artifactId>
+        </dependency>
+        
+        <!-- Spring AI Core -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+        </dependency>
+        
+        <!-- Spring AI Chat Model -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        
+        <!-- Spring Framework -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        
+        <!-- SLF4J -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflows-core</artifactId>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -42,6 +42,7 @@ The module provides:
 ```
 driftkit-embedding/
 ├── driftkit-embedding-core/           # Core embedding functionality
+├── driftkit-embedding-spring-ai/      # Spring AI integration
 ├── driftkit-embedding-spring-boot-starter/  # Spring Boot auto-configuration
 └── pom.xml                           # Parent module configuration
 ```
@@ -115,6 +116,39 @@ TextSegment segment = TextSegment.from("Your text content", metadata);
 ```
 
 ## Provider Implementations
+
+### Spring AI Integration
+
+The `driftkit-embedding-spring-ai` module provides integration with Spring AI's embedding capabilities, supporting multiple providers through a unified interface.
+
+#### Supported Spring AI Providers
+
+- **OpenAI** - GPT embeddings (text-embedding-3-small, text-embedding-3-large)
+- **Azure OpenAI** - Microsoft's hosted OpenAI service
+- **Ollama** - Local embedding models
+
+#### Configuration
+
+```yaml
+driftkit:
+  embedding:
+    name: "spring-ai"
+    config:
+      provider: "openai"  # or "azure-openai", "ollama"
+      modelName: "text-embedding-3-small"
+      apiKey: "${OPENAI_API_KEY}"
+```
+
+#### Implementation Details
+
+The Spring AI integration adapter:
+- Implements the DriftKit `EmbeddingModel` interface
+- Handles provider-specific configuration automatically
+- Converts between Spring AI and DriftKit embedding formats
+- Provides comprehensive error handling and validation
+- Supports batch embedding operations
+
+For detailed Spring AI configuration options, see the [Spring AI module documentation](driftkit-embedding-spring-ai/README.md).
 
 ### OpenAI Integration
 

@@ -54,6 +54,10 @@ driftkit-vector/
 │   ├── parser/                        # Document parsing
 │   ├── repository/                    # Data access layer
 │   └── service/                       # Business logic
+├── driftkit-vector-spring-ai/          # Spring AI integration
+│   └── springai/                       # Adapter implementation
+├── driftkit-vector-spring-ai-starter/  # Spring AI auto-configuration
+│   └── autoconfigure/                  # Spring Boot configuration
 └── pom.xml                           # Parent module configuration
 ```
 
@@ -64,6 +68,7 @@ driftkit-vector/
 - **Apache POI** - Microsoft Office document processing
 - **Jsoup** - HTML parsing and cleanup
 - **Feign** - HTTP client for external APIs (Pinecone)
+- **Spring AI** - Integration with Spring AI vector stores (optional)
 - **DriftKit Common** - Shared utilities and domain objects
 - **DriftKit Embedding** - Text embedding capabilities
 
@@ -152,6 +157,42 @@ driftkit:
       apiKey: "${PINECONE_API_KEY}"
       environment: "us-west1-gcp"
       baseUrl: "https://your-index-name-abc123.svc.us-west1-gcp.pinecone.io"
+```
+
+### Spring AI Integration
+
+The module now supports integration with Spring AI vector stores, allowing you to use any Spring AI-compatible vector store implementation (Pinecone, Qdrant, Weaviate, ChromaDB, etc.) through the DriftKit VectorStore interface.
+
+**Features:**
+- Seamless adapter between Spring AI and DriftKit vector store interfaces
+- Auto-configuration support for Spring Boot applications
+- Support for all Spring AI vector store implementations
+- Consistent API across different vector store backends
+
+**Configuration Example:**
+```yaml
+driftkit:
+  vector:
+    spring-ai:
+      enabled: true
+      store-name: "spring-ai"  # Name to identify this adapter
+      auto-register: true      # Auto-register with VectorStoreFactory
+```
+
+**Usage Example:**
+```java
+// Configure any Spring AI vector store (e.g., Qdrant)
+@Bean
+public VectorStore springAiVectorStore() {
+    return new QdrantVectorStore(qdrantClient, embeddingModel);
+}
+
+// The adapter will automatically be created and available as a DriftKit VectorStore
+@Autowired
+private ai.driftkit.vector.core.domain.VectorStore vectorStore;
+
+// Use it like any other DriftKit vector store
+vectorStore.addDocument("my-index", document);
 ```
 
 ## Spring Boot Integration

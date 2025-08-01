@@ -23,5 +23,7 @@
         <module>driftkit-clients-openai</module>
         <module>driftkit-clients-gemini</module>
         <module>driftkit-clients-claude</module>
+        <module>driftkit-clients-spring-ai</module>
+        <module>driftkit-clients-spring-ai-starter</module>
     </modules>
 </project>

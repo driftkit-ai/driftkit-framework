@@ -20,5 +20,7 @@
     <modules>
         <module>driftkit-vector-core</module>
         <module>driftkit-vector-spring-boot-starter</module>
+        <module>driftkit-vector-spring-ai</module>
+        <module>driftkit-vector-spring-ai-starter</module>
     </modules>
 </project>

@@ -2,7 +2,6 @@ package ai.driftkit.vector.core.filebased;
 
 import ai.driftkit.config.EtlConfig.VectorStoreConfig;
 import ai.driftkit.vector.core.domain.Document;
-import ai.driftkit.vector.core.domain.VectorStore;
 import ai.driftkit.vector.core.inmemory.InMemoryVectorStore;
 import org.jetbrains.annotations.NotNull;
 
