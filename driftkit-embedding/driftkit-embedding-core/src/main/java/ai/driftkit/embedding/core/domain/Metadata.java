@@ -1,13 +1,11 @@
 package ai.driftkit.embedding.core.domain;
 
-import dev.langchain4j.store.embedding.EmbeddingStore;
-
 import java.util.*;
 
-import static dev.langchain4j.internal.Exceptions.illegalArgument;
-import static dev.langchain4j.internal.Exceptions.runtime;
-import static dev.langchain4j.internal.ValidationUtils.ensureNotBlank;
-import static dev.langchain4j.internal.ValidationUtils.ensureNotNull;
+import static ai.driftkit.embedding.core.util.DriftKitExceptions.illegalArgument;
+import static ai.driftkit.embedding.core.util.DriftKitExceptions.runtime;
+import static ai.driftkit.embedding.core.util.ValidationUtils.ensureNotBlank;
+import static ai.driftkit.embedding.core.util.ValidationUtils.ensureNotNull;
 
 public class Metadata {
 
@@ -130,10 +128,10 @@ public class Metadata {
     /**
      * Returns the {@code Integer} value associated with the given key.
      * <br>
-     * Some {@link EmbeddingStore} implementations (still) store {@code Metadata} values as {@code String}s.
+     * Some embedding store implementations (still) store {@code Metadata} values as {@code String}s.
      * In this case, the {@code String} value will be parsed into an {@code Integer} when this method is called.
      * <br>
-     * Some {@link EmbeddingStore} implementations store {@code Metadata} key-value pairs as JSON.
+     * Some embedding store implementations store {@code Metadata} key-value pairs as JSON.
      * In this case, type information is lost when serializing to JSON and then deserializing back from JSON.
      * JSON libraries can, for example, serialize an {@code Integer} and then deserialize it as a {@code Long}.
      * Or serialize a {@code Float} and then deserialize it as a {@code Double}, and so on.
@@ -162,10 +160,10 @@ public class Metadata {
     /**
      * Returns the {@code Long} value associated with the given key.
      * <br>
-     * Some {@link EmbeddingStore} implementations (still) store {@code Metadata} values as {@code String}s.
+     * Some embedding store implementations (still) store {@code Metadata} values as {@code String}s.
      * In this case, the {@code String} value will be parsed into an {@code Long} when this method is called.
      * <br>
-     * Some {@link EmbeddingStore} implementations store {@code Metadata} key-value pairs as JSON.
+     * Some embedding store implementations store {@code Metadata} key-value pairs as JSON.
      * In this case, type information is lost when serializing to JSON and then deserializing back from JSON.
      * JSON libraries can, for example, serialize an {@code Integer} and then deserialize it as a {@code Long}.
      * Or serialize a {@code Float} and then deserialize it as a {@code Double}, and so on.
@@ -194,10 +192,10 @@ public class Metadata {
     /**
      * Returns the {@code Float} value associated with the given key.
      * <br>
-     * Some {@link EmbeddingStore} implementations (still) store {@code Metadata} values as {@code String}s.
+     * Some embedding store implementations (still) store {@code Metadata} values as {@code String}s.
      * In this case, the {@code String} value will be parsed into a {@code Float} when this method is called.
      * <br>
-     * Some {@link EmbeddingStore} implementations store {@code Metadata} key-value pairs as JSON.
+     * Some embedding store implementations store {@code Metadata} key-value pairs as JSON.
      * In this case, type information is lost when serializing to JSON and then deserializing back from JSON.
      * JSON libraries can, for example, serialize an {@code Integer} and then deserialize it as a {@code Long}.
      * Or serialize a {@code Float} and then deserialize it as a {@code Double}, and so on.
@@ -226,10 +224,10 @@ public class Metadata {
     /**
      * Returns the {@code Double} value associated with the given key.
      * <br>
-     * Some {@link EmbeddingStore} implementations (still) store {@code Metadata} values as {@code String}s.
+     * Some embedding store implementations (still) store {@code Metadata} values as {@code String}s.
      * In this case, the {@code String} value will be parsed into a {@code Double} when this method is called.
      * <br>
-     * Some {@link EmbeddingStore} implementations store {@code Metadata} key-value pairs as JSON.
+     * Some embedding store implementations store {@code Metadata} key-value pairs as JSON.
      * In this case, type information is lost when serializing to JSON and then deserializing back from JSON.
      * JSON libraries can, for example, serialize an {@code Integer} and then deserialize it as a {@code Long}.
      * Or serialize a {@code Float} and then deserialize it as a {@code Double}, and so on.

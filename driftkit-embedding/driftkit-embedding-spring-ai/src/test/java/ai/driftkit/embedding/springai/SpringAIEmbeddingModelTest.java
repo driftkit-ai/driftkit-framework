@@ -4,7 +4,7 @@ import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.EmbeddingServiceConfig;
 import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
-import dev.langchain4j.model.output.Response;
+import ai.driftkit.embedding.core.domain.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

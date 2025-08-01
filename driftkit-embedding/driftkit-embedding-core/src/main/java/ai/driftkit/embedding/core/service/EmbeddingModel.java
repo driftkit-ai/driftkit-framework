@@ -5,8 +5,8 @@ import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.local.AIOnnxBertBiEncoder;
 import ai.driftkit.embedding.core.local.AIOnnxBertBiEncoder.EmbeddingAndTokenCount;
-import dev.langchain4j.model.output.Response;
-import dev.langchain4j.model.output.TokenUsage;
+import ai.driftkit.embedding.core.domain.Response;
+import ai.driftkit.embedding.core.domain.TokenUsage;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ public interface EmbeddingModel {
             return null;
         }
 
-        return new Response<>(content.get(0), resp.tokenUsage(), resp.finishReason());
+        return Response.from(content.get(0), resp.tokenUsage(), resp.finishReason());
     }
 
     default Response<List<Embedding>> embedAll(List<TextSegment> segments) {

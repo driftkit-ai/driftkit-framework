@@ -46,7 +46,6 @@
         <spring.version>6.1.5</spring.version>
         
         <!-- AI/ML Libraries -->
-        <langchain.version>0.35.0</langchain.version>
         <djl.version>0.32.0</djl.version>
         <spring-ai.version>1.0.1</spring-ai.version>
         
@@ -284,31 +283,11 @@
                 <version>${snakeyaml.version}</version>
             </dependency>
 
-            <!-- LangChain4j -->
+            <!-- ONNX Runtime for local embeddings -->
             <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j</artifactId>
-                <version>${langchain.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-embeddings</artifactId>
-                <version>${langchain.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-embeddings-all-minilm-l6-v2</artifactId>
-                <version>${langchain.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-embeddings-e5-small-v2</artifactId>
-                <version>${langchain.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-embeddings-e5-small-v2-q</artifactId>
-                <version>${langchain.version}</version>
+                <groupId>com.microsoft.onnxruntime</groupId>
+                <artifactId>onnxruntime</artifactId>
+                <version>1.16.3</version>
             </dependency>
 
             <!-- DJL -->

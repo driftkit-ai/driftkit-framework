@@ -6,8 +6,8 @@ import ai.driftkit.config.EtlConfig.EmbeddingServiceConfig;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
 import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
-import dev.langchain4j.model.embedding.onnx.PoolingMode;
-import dev.langchain4j.model.output.Response;
+import ai.driftkit.embedding.core.domain.PoolingMode;
+import ai.driftkit.embedding.core.domain.Response;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 

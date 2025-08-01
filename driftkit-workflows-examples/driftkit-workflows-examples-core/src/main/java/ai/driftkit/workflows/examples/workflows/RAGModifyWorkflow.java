@@ -23,7 +23,7 @@ import ai.driftkit.workflows.spring.service.ModelRequestService;
 import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
-import dev.langchain4j.model.output.Response;
+import ai.driftkit.embedding.core.domain.Response;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

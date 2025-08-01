@@ -21,7 +21,7 @@ import ai.driftkit.workflows.examples.workflows.RAGSearchWorkflow.VectorStoreSta
 import ai.driftkit.workflows.spring.service.ModelRequestService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.model.output.Response;
+import ai.driftkit.embedding.core.domain.Response;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
 import lombok.Builder;
 import lombok.Data;

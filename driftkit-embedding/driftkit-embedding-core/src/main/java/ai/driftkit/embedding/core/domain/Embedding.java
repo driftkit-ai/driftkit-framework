@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static dev.langchain4j.internal.ValidationUtils.ensureNotNull;
 
 @Data
 @AllArgsConstructor

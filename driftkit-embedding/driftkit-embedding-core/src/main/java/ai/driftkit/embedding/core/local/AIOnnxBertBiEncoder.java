@@ -7,9 +7,9 @@ import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.OrtSession.Result;
-import dev.langchain4j.internal.Exceptions;
-import dev.langchain4j.internal.ValidationUtils;
-import dev.langchain4j.model.embedding.onnx.PoolingMode;
+import ai.driftkit.embedding.core.domain.PoolingMode;
+import ai.driftkit.embedding.core.util.DriftKitExceptions;
+import ai.driftkit.embedding.core.util.ValidationUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -160,7 +160,7 @@ public class AIOnnxBertBiEncoder {
             case MEAN:
                 return meanPool(vectors);
             default:
-                throw Exceptions.illegalArgument("Unknown pooling mode: " + poolingMode);
+                throw DriftKitExceptions.illegalArgument("Unknown pooling mode: " + poolingMode);
         }
     }
 

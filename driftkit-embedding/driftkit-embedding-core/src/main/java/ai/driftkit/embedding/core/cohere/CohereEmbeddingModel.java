@@ -5,8 +5,8 @@ import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.local.AIOnnxBertBiEncoder;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
-import dev.langchain4j.model.output.Response;
-import dev.langchain4j.model.output.TokenUsage;
+import ai.driftkit.embedding.core.domain.Response;
+import ai.driftkit.embedding.core.domain.TokenUsage;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -86,11 +86,6 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- LangChain4j compatibility -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j</artifactId>
-        </dependency>
 
         <!-- Lombok -->
         <dependency>
