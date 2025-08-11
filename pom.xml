@@ -61,6 +61,7 @@
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <commons-jexl.version>2.1.1</commons-jexl.version>
         <commons-collections4.version>4.4</commons-collections4.version>
+        <commons-io.version>2.15.1</commons-io.version>
         
         <!-- Testing -->
         <junit.version>4.13.2</junit.version>
@@ -104,6 +105,8 @@
         <module>driftkit-context-engineering</module>
         <module>driftkit-workflows-examples</module>
         <module>driftkit-audio</module>
+        <module>driftkit-rag</module>
+        <module>driftkit-cli</module>
     </modules>
 
     <dependencyManagement>
@@ -163,6 +166,16 @@
             </dependency>
             <dependency>
                 <groupId>ai.driftkit</groupId>
+                <artifactId>driftkit-workflow-engine-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.driftkit</groupId>
+                <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.driftkit</groupId>
                 <artifactId>driftkit-context-engineering-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -217,6 +230,11 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-collections4</artifactId>
                 <version>${commons-collections4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commons-io.version}</version>
             </dependency>
 
             <!-- SLF4J -->

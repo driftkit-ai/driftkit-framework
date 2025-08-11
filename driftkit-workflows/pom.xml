@@ -20,5 +20,7 @@
     <modules>
         <module>driftkit-workflows-core</module>
         <module>driftkit-workflows-spring-boot-starter</module>
+        <module>driftkit-workflow-engine-core</module>
+        <module>driftkit-workflow-engine-spring-boot-starter</module>
     </modules>
 </project>
