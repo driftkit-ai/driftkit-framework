@@ -4,12 +4,16 @@ import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
-import ai.driftkit.workflow.engine.persistence.InMemoryWorkflowStateRepository;
-import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
+import ai.driftkit.workflow.engine.persistence.*;
+import ai.driftkit.workflow.engine.memory.WorkflowMemoryConfiguration;
 import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.spring.controller.WorkflowController;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
+import ai.driftkit.workflow.engine.spring.websocket.WebSocketConfig;
+import ai.driftkit.workflow.engine.spring.websocket.WorkflowEventWebSocketBridge;
+import ai.driftkit.workflow.engine.spring.websocket.WorkflowWebSocketController;
+import ai.driftkit.workflow.engine.spring.websocket.WorkflowWebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -18,6 +22,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Spring Boot auto-configuration for DriftKit Workflow Engine.
@@ -60,10 +67,51 @@ public class WorkflowEngineAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
+    public ChatSessionRepository chatSessionRepository() {
+        log.info("Configuring in-memory ChatSessionRepository");
+        return new InMemoryChatSessionRepository();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public ChatHistoryRepository chatHistoryRepository() {
+        log.info("Configuring in-memory ChatHistoryRepository");
+        return new InMemoryChatHistoryRepository();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public AsyncResponseRepository asyncResponseRepository() {
+        log.info("Configuring in-memory AsyncResponseRepository");
+        return new InMemoryAsyncResponseRepository();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public MemoryManagementService memoryManagementService(
+            ChatSessionRepository chatSessionRepository,
+            ChatHistoryRepository chatHistoryRepository,
+            AsyncResponseRepository asyncResponseRepository) {
+        log.info("Configuring MemoryManagementService");
+        // Use default memory configuration
+        return new MemoryManagementService(
+            chatSessionRepository,
+            chatHistoryRepository,
+            asyncResponseRepository,
+            WorkflowMemoryConfiguration.createDefault(chatHistoryRepository)
+        );
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
     public WorkflowEngine workflowEngine(
             WorkflowEngineProperties properties,
             WorkflowStateRepository stateRepository,
-            ProgressTracker progressTracker) {
+            ProgressTracker progressTracker,
+            SchemaProvider schemaProvider,
+            ChatSessionRepository chatSessionRepository,
+            ChatHistoryRepository chatHistoryRepository,
+            AsyncResponseRepository asyncResponseRepository) {
         
         log.info("Configuring WorkflowEngine with properties: {}", properties);
         
@@ -75,6 +123,10 @@ public class WorkflowEngineAutoConfiguration {
             .defaultStepTimeoutMs(properties.getDefaultStepTimeoutMs())
             .stateRepository(stateRepository)
             .progressTracker(progressTracker)
+            .schemaProvider(schemaProvider)
+            .chatSessionRepository(chatSessionRepository)
+            .chatHistoryRepository(chatHistoryRepository)
+            .asyncResponseRepository(asyncResponseRepository)
             .build();
             
         return new WorkflowEngine(config);
@@ -84,9 +136,10 @@ public class WorkflowEngineAutoConfiguration {
     @ConditionalOnMissingBean
     public WorkflowService workflowService(
             WorkflowEngine engine,
-            SchemaProvider schemaProvider) {
+            SchemaProvider schemaProvider,
+            MemoryManagementService memoryManagementService) {
         log.info("Configuring WorkflowService");
-        return new WorkflowService(engine, schemaProvider);
+        return new WorkflowService(engine, schemaProvider, memoryManagementService);
     }
     
     @Bean

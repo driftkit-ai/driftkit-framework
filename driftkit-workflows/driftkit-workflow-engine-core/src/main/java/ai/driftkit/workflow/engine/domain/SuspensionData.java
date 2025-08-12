@@ -1,12 +1,14 @@
 package ai.driftkit.workflow.engine.domain;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Container for workflow suspension data that preserves type information
  * and original step input for proper resume handling.
  */
 public record SuspensionData(
+    String messageId,
     Object promptToUser,
     Map<String, Object> metadata,
     Object originalStepInput,
@@ -15,7 +17,7 @@ public record SuspensionData(
     Class<?> nextInputClass
 ) {
     /**
-     * Creates suspension data with type preservation.
+     * Creates suspension data with type preservation and auto-generated message ID.
      */
     public static SuspensionData create(
             Object promptToUser,
@@ -24,10 +26,41 @@ public record SuspensionData(
             String suspendedStepId,
             Class<?> nextInputClass) {
         
+        String messageId = UUID.randomUUID().toString();
         Class<?> inputType = originalStepInput != null ? 
             originalStepInput.getClass() : Object.class;
             
         return new SuspensionData(
+            messageId,
+            promptToUser,
+            metadata,
+            originalStepInput,
+            inputType,
+            suspendedStepId,
+            nextInputClass
+        );
+    }
+    
+    /**
+     * Creates suspension data with explicit message ID.
+     */
+    public static SuspensionData createWithMessageId(
+            String messageId,
+            Object promptToUser,
+            Map<String, Object> metadata,
+            Object originalStepInput,
+            String suspendedStepId,
+            Class<?> nextInputClass) {
+        
+        if (messageId == null || messageId.isBlank()) {
+            throw new IllegalArgumentException("Message ID cannot be null or blank");
+        }
+        
+        Class<?> inputType = originalStepInput != null ? 
+            originalStepInput.getClass() : Object.class;
+            
+        return new SuspensionData(
+            messageId,
             promptToUser,
             metadata,
             originalStepInput,

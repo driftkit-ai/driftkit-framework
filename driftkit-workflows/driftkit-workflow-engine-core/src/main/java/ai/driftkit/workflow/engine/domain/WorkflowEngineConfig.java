@@ -1,6 +1,10 @@
 package ai.driftkit.workflow.engine.domain;
 
 import ai.driftkit.workflow.engine.async.ProgressTracker;
+import ai.driftkit.workflow.engine.persistence.AsyncResponseRepository;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.ChatHistoryRepository;
+import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
@@ -68,6 +72,30 @@ public class WorkflowEngineConfig {
      */
     @Builder.Default
     private SchemaProvider schemaProvider = new DefaultSchemaProvider();
+    
+    /**
+     * Chat session repository implementation.
+     * If null, an in-memory implementation will be used.
+     */
+    private ChatSessionRepository chatSessionRepository;
+    
+    /**
+     * Chat history repository implementation.
+     * If null, an in-memory implementation will be used.
+     */
+    private ChatHistoryRepository chatHistoryRepository;
+    
+    /**
+     * Async response repository implementation.
+     * If null, an in-memory implementation will be used.
+     */
+    private AsyncResponseRepository asyncResponseRepository;
+    
+    /**
+     * Async step state repository implementation.
+     * If null, an in-memory implementation will be used.
+     */
+    private AsyncStepStateRepository asyncStepStateRepository;
     
     /**
      * Creates a default configuration.

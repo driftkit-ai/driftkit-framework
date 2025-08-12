@@ -92,6 +92,15 @@ public interface WorkflowStateRepository {
     long countByStatus(WorkflowInstance.WorkflowStatus status);
     
     /**
+     * Finds a workflow instance by its suspension message ID.
+     * This is used to resume workflows that were suspended with a specific message ID.
+     * 
+     * @param messageId The message ID to search for
+     * @return The workflow instance if found, empty otherwise
+     */
+    Optional<WorkflowInstance> findBySuspensionMessageId(String messageId);
+    
+    /**
      * Deletes all completed workflow instances older than the specified age.
      * Useful for cleanup operations.
      * 

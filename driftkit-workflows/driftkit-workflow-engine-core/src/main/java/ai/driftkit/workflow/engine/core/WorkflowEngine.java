@@ -9,6 +9,9 @@ import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.persistence.AsyncResponseRepository;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.InMemoryAsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.InMemoryWorkflowStateRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
@@ -38,6 +41,8 @@ public class WorkflowEngine {
 
     private final Map<String, WorkflowGraph<?, ?>> registeredWorkflows = new ConcurrentHashMap<>();
     private final WorkflowStateRepository stateRepository;
+    private final AsyncResponseRepository asyncResponseRepository;
+    private final AsyncStepStateRepository asyncStepStateRepository;
     private final ExecutorService executorService;
     private final ScheduledExecutorService scheduledExecutor;
     private final Map<String, WorkflowExecutionListener> listeners = new ConcurrentHashMap<>();
@@ -63,6 +68,13 @@ public class WorkflowEngine {
         // Initialize state repository
         this.stateRepository = config.getStateRepository() != null ?
                 config.getStateRepository() : new InMemoryWorkflowStateRepository();
+
+        // Initialize async response repository
+        this.asyncResponseRepository = config.getAsyncResponseRepository();
+        
+        // Initialize async step state repository
+        this.asyncStepStateRepository = config.getAsyncStepStateRepository() != null ?
+                config.getAsyncStepStateRepository() : new InMemoryAsyncStepStateRepository();
 
         // Initialize progress tracker
         this.progressTracker = config.getProgressTracker() != null ?
@@ -202,6 +214,19 @@ public class WorkflowEngine {
         executorService.submit(() -> executeWorkflow(instance, graph, execution));
 
         return execution;
+    }
+
+    /**
+     * Finds a workflow instance by its associated message ID.
+     * This is useful for resuming workflows that were suspended with a specific message.
+     *
+     * @param messageId The message ID to search for
+     * @return The workflow instance if found
+     */
+    public Optional<WorkflowInstance> findInstanceByMessageId(String messageId) {
+        // Search through all suspended instances for one with matching message ID
+        // This is a simple implementation - in production, you might want to index by messageId
+        return stateRepository.findBySuspensionMessageId(messageId);
     }
 
     /**
@@ -458,9 +483,12 @@ public class WorkflowEngine {
         String asyncTaskId = async.taskId();
         Object immediateData = async.immediateData();
 
-        // Create structured async state
+        // Create structured async state and save to repository
         AsyncStepState asyncState = AsyncStepState.started(asyncTaskId, immediateData);
-        instance.setAsyncStepState(currentStep.id(), asyncState);
+        asyncStepStateRepository.save(asyncState);
+        
+        // Store the messageId for this async step (not in context, just for tracking)
+        final String messageId = asyncState.getMessageId();
 
         // Suspend the workflow to treat async like suspend
         instance.updateStatus(WorkflowStatus.SUSPENDED);
@@ -496,23 +524,18 @@ public class WorkflowEngine {
                     @Override
                     public void updateProgress(int percentComplete, String message) {
                         // Update async state
-                        WorkflowInstance latestInstance = stateRepository.load(instance.getInstanceId())
-                                .orElse(instance);
-
-                        latestInstance.getAsyncStepState(currentStep.id()).ifPresent(state -> {
-                            if (percentComplete >= 0) {
-                                state.updateProgress(percentComplete, message);
-                            } else {
-                                // Just update message
-                                state.updateProgress(state.getPercentComplete(), message);
-                            }
-
-                            // Update progress tracker
-                            progressTracker.updateProgress(asyncTaskId, state.getPercentComplete(), message);
-
-                            // Save state
-                            stateRepository.save(latestInstance);
-                        });
+                        // Update progress directly in repository
+                        if (percentComplete >= 0) {
+                            asyncStepStateRepository.updateProgress(messageId, percentComplete, message);
+                        } else {
+                            // Just update message - need to get current progress first
+                            asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
+                                asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
+                            });
+                        }
+                        
+                        // Update progress tracker
+                        progressTracker.updateProgress(asyncTaskId, percentComplete >= 0 ? percentComplete : 0, message);
                     }
 
                     @Override
@@ -520,7 +543,8 @@ public class WorkflowEngine {
                         WorkflowInstance latestInstance = stateRepository.load(instance.getInstanceId())
                                 .orElse(instance);
 
-                        return latestInstance.getAsyncStepState(currentStep.id())
+                        // Check if cancelled directly from repository
+                        return asyncStepStateRepository.findByMessageId(messageId)
                                 .map(state -> state.getStatus() == AsyncStepState.AsyncStatus.CANCELLED)
                                 .orElse(false);
                     }
@@ -544,8 +568,10 @@ public class WorkflowEngine {
                                 .orElse(instance);
 
                         // Update async state with completion
-                        latestInstance.getAsyncStepState(currentStep.id()).ifPresent(state -> {
+                        asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
                             state.complete(handlerResult);
+                            asyncStepStateRepository.save(state);
+                            
                             WorkflowEvent completedEvent = WorkflowEvent.completed(Map.of(
                                 "taskId", asyncTaskId,
                                 "status", "completed"

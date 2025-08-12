@@ -219,6 +219,35 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
         }
     }
     
+    @Override
+    public Optional<WorkflowInstance> findBySuspensionMessageId(String messageId) {
+        if (messageId == null || messageId.isBlank()) {
+            return Optional.empty();
+        }
+        
+        lock.readLock().lock();
+        try {
+            return instances.values().stream()
+                .filter(instance -> instance.getStatus() == WorkflowInstance.WorkflowStatus.SUSPENDED)
+                .filter(instance -> {
+                    // Check suspension data for message ID
+                    if (instance.getSuspensionData() != null) {
+                        return messageId.equals(instance.getSuspensionData().messageId());
+                    }
+                    // Also check async step states for backward compatibility
+                    if (instance.getAsyncStepStates() != null && !instance.getAsyncStepStates().isEmpty()) {
+                        return instance.getAsyncStepStates().values().stream()
+                                .anyMatch(state -> messageId.equals(state.getMessageId()));
+                    }
+                    return false;
+                })
+                .findFirst()
+                .map(this::cloneInstance);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+    
     /**
      * Gets the current number of stored instances.
      * 

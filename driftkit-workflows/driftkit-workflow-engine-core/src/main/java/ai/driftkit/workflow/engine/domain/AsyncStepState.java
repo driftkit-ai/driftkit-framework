@@ -4,7 +4,6 @@ import ai.driftkit.workflow.engine.core.StepResult;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -50,14 +49,14 @@ public class AsyncStepState {
     private String statusMessage;
     
     /**
-     * When the async operation started.
+     * When the async operation started (timestamp in milliseconds).
      */
-    private final Instant startTime;
+    private final long startTime;
     
     /**
-     * When the async operation completed (if applicable).
+     * When the async operation completed (timestamp in milliseconds, 0 if not completed).
      */
-    private Instant completionTime;
+    private long completionTime;
     
     /**
      * The result data once the async operation completes.
@@ -102,7 +101,7 @@ public class AsyncStepState {
             .currentData(initialData)
             .percentComplete(0)
             .statusMessage("Started")
-            .startTime(Instant.now())
+            .startTime(System.currentTimeMillis())
             .status(AsyncStatus.IN_PROGRESS)
             .build();
     }
@@ -129,7 +128,7 @@ public class AsyncStepState {
         this.statusMessage = "Completed";
         this.resultData = resultData;
         this.currentData = resultData;
-        this.completionTime = Instant.now();
+        this.completionTime = System.currentTimeMillis();
     }
     
     /**
@@ -138,7 +137,7 @@ public class AsyncStepState {
     public void fail(Throwable error) {
         this.status = AsyncStatus.FAILED;
         this.error = error;
-        this.completionTime = Instant.now();
+        this.completionTime = System.currentTimeMillis();
         this.statusMessage = "Failed: " + error.getMessage();
     }
     
@@ -147,7 +146,7 @@ public class AsyncStepState {
      */
     public void cancel() {
         this.status = AsyncStatus.CANCELLED;
-        this.completionTime = Instant.now();
+        this.completionTime = System.currentTimeMillis();
         this.statusMessage = "Cancelled";
     }
     
@@ -155,8 +154,8 @@ public class AsyncStepState {
      * Gets the duration of this async operation in milliseconds.
      */
     public long getDurationMs() {
-        Instant endTime = completionTime != null ? completionTime : Instant.now();
-        return endTime.toEpochMilli() - startTime.toEpochMilli();
+        long endTime = completionTime > 0 ? completionTime : System.currentTimeMillis();
+        return endTime - startTime;
     }
     
     /**
