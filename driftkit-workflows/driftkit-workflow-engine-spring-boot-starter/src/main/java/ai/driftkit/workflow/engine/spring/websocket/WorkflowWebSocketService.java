@@ -12,7 +12,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -42,7 +41,7 @@ public class WorkflowWebSocketService {
             instance.getStatus().toString(),
             instance.getCurrentStepId(),
             instance.getNextStepId(),
-            Instant.now()
+            System.currentTimeMillis()
         );
         
         String destination = "/topic/workflow/" + runId + "/status";
@@ -105,7 +104,7 @@ public class WorkflowWebSocketService {
             response.isCompleted(),
             response.getPercentComplete(),
             response.getPropertiesMap(),
-            Instant.now()
+            System.currentTimeMillis()
         );
         
         String destination = "/topic/chat/" + chatId + "/responses/" + response.getId();
@@ -122,7 +121,7 @@ public class WorkflowWebSocketService {
             stepId,
             error.getClass().getSimpleName(),
             error.getMessage(),
-            Instant.now()
+            System.currentTimeMillis()
         );
         
         String destination = "/topic/workflow/" + runId + "/errors";
@@ -138,7 +137,7 @@ public class WorkflowWebSocketService {
             runId,
             result != null ? result.getClass().getSimpleName() : null,
             result,
-            Instant.now()
+            System.currentTimeMillis()
         );
         
         String destination = "/topic/workflow/" + runId + "/completion";
@@ -155,7 +154,7 @@ public class WorkflowWebSocketService {
         private final String status;
         private final String currentStepId;
         private final String nextStepId;
-        private final Instant timestamp;
+        private final long timestamp;
     }
     
     @Data
@@ -175,7 +174,7 @@ public class WorkflowWebSocketService {
         private final boolean completed;
         private final Integer percentComplete;
         private final Map<String, String> properties;
-        private final Instant timestamp;
+        private final long timestamp;
     }
     
     @Data
@@ -184,7 +183,7 @@ public class WorkflowWebSocketService {
         private final String stepId;
         private final String errorType;
         private final String errorMessage;
-        private final Instant timestamp;
+        private final long timestamp;
     }
     
     @Data
@@ -192,6 +191,6 @@ public class WorkflowWebSocketService {
         private final String runId;
         private final String resultType;
         private final Object result;
-        private final Instant timestamp;
+        private final long timestamp;
     }
 }

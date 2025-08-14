@@ -6,14 +6,11 @@ import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.persistence.*;
 import ai.driftkit.workflow.engine.memory.WorkflowMemoryConfiguration;
+import ai.driftkit.workflow.engine.persistence.inmemory.*;
 import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.spring.controller.WorkflowController;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
-import ai.driftkit.workflow.engine.spring.websocket.WebSocketConfig;
-import ai.driftkit.workflow.engine.spring.websocket.WorkflowEventWebSocketBridge;
-import ai.driftkit.workflow.engine.spring.websocket.WorkflowWebSocketController;
-import ai.driftkit.workflow.engine.spring.websocket.WorkflowWebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -22,9 +19,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Spring Boot auto-configuration for DriftKit Workflow Engine.
@@ -81,9 +75,16 @@ public class WorkflowEngineAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public AsyncResponseRepository asyncResponseRepository() {
-        log.info("Configuring in-memory AsyncResponseRepository");
-        return new InMemoryAsyncResponseRepository();
+    public AsyncStepStateRepository asyncStepStateRepository() {
+        log.info("Configuring in-memory AsyncStepStateRepository");
+        return new InMemoryAsyncStepStateRepository();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public SuspensionDataRepository suspensionDataRepository() {
+        log.info("Configuring in-memory SuspensionDataRepository");
+        return new InMemorySuspensionDataRepository();
     }
     
     @Bean
@@ -91,13 +92,15 @@ public class WorkflowEngineAutoConfiguration {
     public MemoryManagementService memoryManagementService(
             ChatSessionRepository chatSessionRepository,
             ChatHistoryRepository chatHistoryRepository,
-            AsyncResponseRepository asyncResponseRepository) {
+            AsyncStepStateRepository asyncStepStateRepository,
+            SuspensionDataRepository suspensionDataRepository) {
         log.info("Configuring MemoryManagementService");
         // Use default memory configuration
         return new MemoryManagementService(
             chatSessionRepository,
             chatHistoryRepository,
-            asyncResponseRepository,
+            asyncStepStateRepository,
+            suspensionDataRepository,
             WorkflowMemoryConfiguration.createDefault(chatHistoryRepository)
         );
     }
@@ -111,7 +114,8 @@ public class WorkflowEngineAutoConfiguration {
             SchemaProvider schemaProvider,
             ChatSessionRepository chatSessionRepository,
             ChatHistoryRepository chatHistoryRepository,
-            AsyncResponseRepository asyncResponseRepository) {
+            AsyncStepStateRepository asyncStepStateRepository,
+            SuspensionDataRepository suspensionDataRepository) {
         
         log.info("Configuring WorkflowEngine with properties: {}", properties);
         
@@ -126,7 +130,8 @@ public class WorkflowEngineAutoConfiguration {
             .schemaProvider(schemaProvider)
             .chatSessionRepository(chatSessionRepository)
             .chatHistoryRepository(chatHistoryRepository)
-            .asyncResponseRepository(asyncResponseRepository)
+            .asyncStepStateRepository(asyncStepStateRepository)
+            .suspensionDataRepository(suspensionDataRepository)
             .build();
             
         return new WorkflowEngine(config);

@@ -8,6 +8,7 @@ import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
@@ -54,6 +55,9 @@ public class SpringChatWorkflowIntegrationTest {
     
     @Autowired
     private SpringChatWorkflow chatWorkflow;
+    
+    @Autowired
+    private SuspensionDataRepository suspensionDataRepository;
     
     
     @Test
@@ -103,8 +107,9 @@ public class SpringChatWorkflowIntegrationTest {
         assertEquals(WorkflowInstance.WorkflowStatus.SUSPENDED, instance.getStatus());
         
         // The workflow should be suspended waiting for UserChatMessage
-        assertNotNull(instance.getSuspensionData());
-        assertEquals(UserChatMessage.class, instance.getSuspensionData().nextInputClass());
+        var suspensionData = suspensionDataRepository.findByInstanceId(instance.getInstanceId());
+        assertTrue(suspensionData.isPresent());
+        assertEquals(UserChatMessage.class, suspensionData.get().nextInputClass());
         
         // Resume workflow with user message
         UserChatMessage userMessage = new UserChatMessage();
@@ -225,66 +230,50 @@ public class SpringChatWorkflowIntegrationTest {
         }
         
         @Step(
-            id = "routeByIntent",
-            description = "Route based on intent",
-            nextClasses = {GreetingEvent.class, QuestionEvent.class}
+            id = "handleIntent",
+            description = "Handle user intent",
+            nextClasses = {UserChatMessage.class}
         )
-        public StepResult<?> routeByIntent(
+        public StepResult<SimpleChatResponse> handleIntent(
                 WorkflowContext context,
                 IntentAnalysis analysis) {
             
             if (analysis.getIntent() == Intent.GREETING) {
-                return new StepResult.Branch<>(new GreetingEvent("Hello from Spring-integrated workflow!"));
+                log.info("Handling greeting for: {}", analysis.getQuery());
+                
+                // Create greeting response
+                SimpleChatResponse response = new SimpleChatResponse();
+                response.setMessage("Hello! How can I help you today? [Processed by: " + 
+                    springManagedService.getServiceName() + "]");
+                
+                return StepResult.suspend(response, UserChatMessage.class);
+                
             } else {
-                return new StepResult.Branch<>(new QuestionEvent(
-                    analysis.getQuery(), 
-                    analysis.getConfidence()
-                ));
+                log.info("Handling question asynchronously: {}", analysis.getQuery());
+            
+                // Simulate async search
+                CompletableFuture<SimpleChatResponse> future = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        Thread.sleep(500); // Simulate processing
+                        SimpleChatResponse result = new SimpleChatResponse();
+                        result.setMessage("Here's information about: " + analysis.getQuery());
+                        return result;
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                
+                // Create immediate response
+                SimpleChatResponse immediateResponse = new SimpleChatResponse();
+                immediateResponse.setMessage("Searching for information about: " + analysis.getQuery() + "...");
+                
+                return new StepResult.Async(
+                    "question-search",
+                    500L,
+                    Map.of("query", analysis.getQuery(), "future", future),
+                    immediateResponse
+                );
             }
-        }
-        
-        @Step(id = "handleGreeting", description = "Handle greeting", nextClasses = {UserChatMessage.class})
-        public StepResult<SimpleChatResponse> handleGreeting(
-                WorkflowContext context,
-                GreetingEvent greeting) {
-            
-            // Create simple response
-            SimpleChatResponse response = new SimpleChatResponse();
-            response.setMessage("Hello! How can I help you today? [Processed by: " + 
-                springManagedService.getServiceName() + "]");
-            
-            return StepResult.suspend(response, UserChatMessage.class);
-        }
-        
-        @Step(id = "handleQuestion", description = "Handle question with async processing", nextClasses = {UserChatMessage.class})
-        public StepResult<SimpleChatResponse> handleQuestion(
-                WorkflowContext context,
-                QuestionEvent question) {
-            
-            log.info("Handling question asynchronously: {}", question.query());
-            
-            // Simulate async search
-            CompletableFuture<SimpleChatResponse> future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    Thread.sleep(500); // Simulate processing
-                    SimpleChatResponse result = new SimpleChatResponse();
-                    result.setMessage("Here's information about: " + question.query());
-                    return result;
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            
-            // Create immediate response
-            SimpleChatResponse immediateResponse = new SimpleChatResponse();
-            immediateResponse.setMessage("Searching for information about: " + question.query() + "...");
-            
-            return new StepResult.Async(
-                "question-search",
-                500L,
-                Map.of("query", question.query(), "future", future),
-                immediateResponse
-            );
         }
         
         @AsyncStep("question-search")

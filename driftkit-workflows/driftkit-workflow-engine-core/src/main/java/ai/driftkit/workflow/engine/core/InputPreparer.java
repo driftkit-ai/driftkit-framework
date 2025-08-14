@@ -28,6 +28,7 @@ public class InputPreparer {
         
         // For initial step, use trigger data
         if (step.isInitial()) {
+            log.debug("Step {} is initial, using trigger data", step.id());
             return instance.getContext().getTriggerData();
         }
         
@@ -46,38 +47,41 @@ public class InputPreparer {
         }
         
         // Priority 2: Find the most recent compatible output
+        log.debug("Looking for recent compatible output. Available outputs: {}", 
+            ctx.getStepOutputs().keySet());
         Object recentOutput = findRecentCompatibleOutput(instance, step);
         if (recentOutput != null) {
+            log.debug("Found recent compatible output for step {}", step.id());
             return recentOutput;
         }
         
         // Priority 3: If step has specific input type requirement, search all outputs for exact match
         if (expectedInputType != null && expectedInputType != Object.class) {
-            Map<String, Object> allResults = ctx.getStepOutputs();
+            Map<String, StepOutput> allResults = ctx.getStepOutputs();
             
             // First pass: look for exact type match
-            for (Map.Entry<String, Object> entry : allResults.entrySet()) {
-                if (entry.getKey().equals(step.id()) || entry.getValue() == null) {
+            for (Map.Entry<String, StepOutput> entry : allResults.entrySet()) {
+                if (entry.getKey().equals(step.id()) || entry.getValue() == null || !entry.getValue().hasValue()) {
                     continue;
                 }
                 
-                if (expectedInputType.equals(entry.getValue().getClass())) {
+                if (expectedInputType.equals(entry.getValue().getActualClass())) {
                     log.debug("Found exact type match from step {} for input type {}",
                         entry.getKey(), expectedInputType.getSimpleName());
-                    return entry.getValue();
+                    return entry.getValue().getValue();
                 }
             }
             
             // Second pass: look for compatible type (assignable)
-            for (Map.Entry<String, Object> entry : allResults.entrySet()) {
-                if (entry.getKey().equals(step.id()) || entry.getValue() == null) {
+            for (Map.Entry<String, StepOutput> entry : allResults.entrySet()) {
+                if (entry.getKey().equals(step.id()) || entry.getValue() == null || !entry.getValue().hasValue()) {
                     continue;
                 }
                 
-                if (expectedInputType.isAssignableFrom(entry.getValue().getClass())) {
+                if (entry.getValue().isCompatibleWith(expectedInputType)) {
                     log.debug("Found compatible type from step {} for input type {}",
                         entry.getKey(), expectedInputType.getSimpleName());
-                    return entry.getValue();
+                    return entry.getValue().getValue();
                 }
             }
         }
@@ -135,11 +139,14 @@ public class InputPreparer {
                 continue;
             }
             
-            Object result = ctx.getStepResult(exec.getStepId(), Object.class);
-            if (result != null && isInputCompatible(step, result)) {
-                log.debug("Using output from step {} (type: {}) as input for step {}", 
-                    exec.getStepId(), result.getClass().getSimpleName(), step.id());
-                return result;
+            StepOutput output = ctx.getStepOutputs().get(exec.getStepId());
+            if (output != null && output.hasValue()) {
+                Object result = output.getValue();
+                if (result != null && isInputCompatible(step, result)) {
+                    log.debug("Using output from step {} (type: {}) as input for step {}", 
+                        exec.getStepId(), result.getClass().getSimpleName(), step.id());
+                    return result;
+                }
             }
         }
         

@@ -1,19 +1,17 @@
 package ai.driftkit.workflow.engine.persistence;
 
-import ai.driftkit.workflow.engine.domain.AsyncStepState;
-import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.chat.ChatDomain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -68,17 +66,17 @@ public class WorkflowInstance {
     /**
      * When the workflow instance was created.
      */
-    private Instant createdAt;
+    private long createdAt;
     
     /**
      * When the workflow instance was last updated.
      */
-    private Instant updatedAt;
+    private long updatedAt;
     
     /**
      * When the workflow instance was completed (if applicable).
      */
-    private Instant completedAt;
+    private long completedAt;
     
     /**
      * Execution history for debugging and tracing.
@@ -97,26 +95,25 @@ public class WorkflowInstance {
      */
     private ErrorInfo errorInfo;
     
-    /**
-     * Suspension information if the workflow is suspended.
-     */
-    private SuspensionData suspensionData;
     
-    /**
-     * Async step states for tracking progress of asynchronous operations.
-     */
-    @Builder.Default
-    private Map<String, AsyncStepState> asyncStepStates = new ConcurrentHashMap<>();
     
     /**
      * Creates a new workflow instance for a fresh run.
      */
     public static WorkflowInstance newInstance(WorkflowGraph<?, ?> graph, Object triggerData) {
-        WorkflowContext context = WorkflowContext.newRun(triggerData, graph.workflowInstance());
-        Instant now = Instant.now();
+        String instanceId = UUID.randomUUID().toString();
+        return newInstance(graph, triggerData, instanceId);
+    }
+    
+    /**
+     * Creates a new workflow instance with specific instance ID.
+     */
+    public static WorkflowInstance newInstance(WorkflowGraph<?, ?> graph, Object triggerData, String instanceId) {
+        WorkflowContext context = WorkflowContext.newRun(triggerData, instanceId);
+        long now = System.currentTimeMillis();
         
         return WorkflowInstance.builder()
-            .instanceId(context.getRunId())
+            .instanceId(instanceId)
             .workflowId(graph.id())
             .workflowVersion(graph.version())
             .context(context)
@@ -136,13 +133,13 @@ public class WorkflowInstance {
             .stepId(stepId)
             .input(input)
             .output(output)
-            .executedAt(Instant.now())
+            .executedAt(System.currentTimeMillis())
             .durationMs(durationMs)
             .success(success)
             .build();
         
         executionHistory.add(record);
-        updatedAt = Instant.now();
+        updatedAt = System.currentTimeMillis();
     }
     
     /**
@@ -150,20 +147,20 @@ public class WorkflowInstance {
      */
     public void updateStatus(WorkflowStatus newStatus) {
         this.status = newStatus;
-        this.updatedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
         
         if (newStatus == WorkflowStatus.COMPLETED || newStatus == WorkflowStatus.FAILED) {
-            this.completedAt = Instant.now();
+            this.completedAt = System.currentTimeMillis();
         }
     }
     
     /**
-     * Suspends the workflow with the given information.
+     * Suspends the workflow.
+     * Note: SuspensionData is now stored separately in SuspensionDataRepository
      */
-    public void suspend(SuspensionData suspensionData) {
+    public void suspend() {
         this.status = WorkflowStatus.SUSPENDED;
-        this.suspensionData = suspensionData;
-        this.updatedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
     }
     
     /**
@@ -175,8 +172,7 @@ public class WorkflowInstance {
         }
         
         this.status = WorkflowStatus.RUNNING;
-        this.suspensionData = null;
-        this.updatedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
     }
     
     /**
@@ -188,11 +184,11 @@ public class WorkflowInstance {
             error.getClass().getName(),
             error.getMessage(),
             stepId,
-            Instant.now(),
+            System.currentTimeMillis(),
             getStackTrace(error)
         );
-        this.updatedAt = Instant.now();
-        this.completedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
+        this.completedAt = System.currentTimeMillis();
     }
     
     /**
@@ -200,7 +196,7 @@ public class WorkflowInstance {
      */
     public void updateContext(String stepId, Object output) {
         this.context.setStepOutput(stepId, output);
-        this.updatedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
     }
     
     /**
@@ -208,52 +204,20 @@ public class WorkflowInstance {
      */
     public void setContextValue(String key, Object value) {
         this.context.setContextValue(key, value);
-        this.updatedAt = Instant.now();
+        this.updatedAt = System.currentTimeMillis();
     }
     
-    /**
-     * Sets the async state for a step.
-     */
-    public void setAsyncStepState(String stepId, AsyncStepState state) {
-        if (stepId == null || state == null) {
-            throw new IllegalArgumentException("Step ID and state cannot be null");
-        }
-        asyncStepStates.put(stepId, state);
-        this.updatedAt = Instant.now();
-    }
-    
-    /**
-     * Gets the async state for a specific step.
-     */
-    public Optional<AsyncStepState> getAsyncStepState(String stepId) {
-        return Optional.ofNullable(asyncStepStates.get(stepId));
-    }
-    
-    /**
-     * Gets the async state for the current step.
-     */
-    public Optional<AsyncStepState> getCurrentAsyncState() {
-        return getAsyncStepState(currentStepId);
-    }
-    
-    /**
-     * Removes async state for a step (used when step completes).
-     */
-    public void clearAsyncStepState(String stepId) {
-        asyncStepStates.remove(stepId);
-        this.updatedAt = Instant.now();
-    }
     
     /**
      * Gets the total execution duration.
      */
     public long getTotalDurationMs() {
-        if (createdAt == null) {
+        if (createdAt == 0) {
             return 0;
         }
         
-        Instant endTime = completedAt != null ? completedAt : Instant.now();
-        return endTime.toEpochMilli() - createdAt.toEpochMilli();
+        long endTime = completedAt != 0 ? completedAt : System.currentTimeMillis();
+        return endTime - createdAt;
     }
     
     /**
@@ -335,7 +299,7 @@ public class WorkflowInstance {
         private String stepId;
         private Object input;
         private Object output;
-        private Instant executedAt;
+        private long executedAt;
         private long durationMs;
         private boolean success;
         private String errorMessage;
@@ -349,7 +313,7 @@ public class WorkflowInstance {
         String errorType,
         String errorMessage,
         String stepId,
-        Instant occurredAt,
+        long occurredAt,
         String stackTrace
     ) {}
 }

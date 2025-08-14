@@ -1,6 +1,5 @@
 package ai.driftkit.workflow.engine.core;
 
-import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
@@ -8,7 +7,6 @@ import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
@@ -45,8 +43,8 @@ public class WorkflowStateManager {
             .context(context)
             .status(WorkflowInstance.WorkflowStatus.RUNNING)
             .currentStepId(initialStepId)
-            .createdAt(Instant.now())
-            .updatedAt(Instant.now())
+            .createdAt(System.currentTimeMillis())
+            .updatedAt(System.currentTimeMillis())
             .build();
             
         stateRepository.save(instance);
@@ -93,9 +91,8 @@ public class WorkflowStateManager {
     /**
      * Suspends a workflow instance.
      */
-    public void suspendInstance(WorkflowInstance instance, 
-                              SuspensionData suspensionData) {
-        instance.suspend(suspensionData);
+    public void suspendInstance(WorkflowInstance instance) {
+        instance.suspend();
         saveInstance(instance);
         log.debug("Workflow suspended: {} at step: {}", 
             instance.getInstanceId(), instance.getCurrentStepId());
@@ -116,13 +113,6 @@ public class WorkflowStateManager {
             instance.updateContext(WorkflowContext.Keys.USER_INPUT, userInput);
             instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, 
                 userInput.getClass().getName());
-        }
-        
-        // Get suspension data to restore original input if needed
-        SuspensionData suspensionData = instance.getSuspensionData();
-        if (suspensionData != null && suspensionData.originalStepInput() != null) {
-            instance.updateContext(WorkflowContext.Keys.RESUMED_STEP_INPUT, 
-                suspensionData.originalStepInput());
         }
         
         instance.resume();
@@ -159,28 +149,6 @@ public class WorkflowStateManager {
         saveInstance(instance);
     }
     
-    /**
-     * Checks if a workflow can be resumed with the given input type.
-     */
-    public boolean canResumeWithInput(WorkflowInstance instance, 
-                                    Class<?> inputType,
-                                    WorkflowGraph<?, ?> graph) {
-        if (instance.getStatus() != WorkflowInstance.WorkflowStatus.SUSPENDED) {
-            return false;
-        }
-        
-        SuspensionData suspensionData = instance.getSuspensionData();
-        if (suspensionData == null) {
-            return true; // No specific type requirement
-        }
-        
-        Class<?> expectedType = suspensionData.nextInputClass();
-        if (expectedType == null) {
-            return true; // No specific type requirement
-        }
-        
-        return expectedType.isAssignableFrom(inputType);
-    }
     
     /**
      * Finds a step that can handle the given input type after suspension.

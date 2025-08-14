@@ -4,6 +4,7 @@ import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +32,7 @@ public class AsyncTaskManager {
     private final ProgressTracker progressTracker;
     private final WorkflowStateRepository stateRepository;
     private final AsyncStepHandler asyncStepHandler;
+    private final AsyncStepStateRepository asyncStepStateRepository;
     private final Map<String, AsyncTaskInfo> runningTasks = new ConcurrentHashMap<>();
     
     /**
@@ -44,9 +47,9 @@ public class AsyncTaskManager {
         String taskId = asyncResult.taskId();
         Object immediateData = asyncResult.immediateData();
         
-        // Create async state
+        // Create async state - it generates its own message ID
         AsyncStepState asyncState = AsyncStepState.started(taskId, immediateData);
-        instance.setAsyncStepState(stepId, asyncState);
+        asyncStepStateRepository.save(asyncState);
         
         // Create initial event for tracking
         WorkflowEvent initialEvent = immediateData instanceof WorkflowEvent ? 

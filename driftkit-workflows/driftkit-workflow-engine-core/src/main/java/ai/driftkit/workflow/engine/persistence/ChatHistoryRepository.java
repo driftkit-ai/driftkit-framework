@@ -5,6 +5,7 @@ import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository interface for managing chat message history.
@@ -69,4 +70,12 @@ public interface ChatHistoryRepository {
      * @return Number of messages
      */
     long countByChatId(String chatId);
+    
+    /**
+     * Find a specific message by its ID.
+     * 
+     * @param messageId The message ID
+     * @return The message if found
+     */
+    Optional<ChatMessage> findById(String messageId);
 }

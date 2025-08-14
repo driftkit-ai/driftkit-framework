@@ -69,8 +69,8 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 throw new IllegalArgumentException("No workflow specified in request");
             }
 
-            // Execute workflow with the chat request
-            var execution = engine.execute(workflowId, request);
+            // Execute workflow with the chat request using chatId as instanceId
+            var execution = engine.execute(workflowId, request, request.getChatId());
             String runId = execution.getRunId();
             
             // Notify event publisher if available
@@ -81,8 +81,8 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             // Wait for workflow to reach a terminal state
             WorkflowInstance instance = waitForTerminalState(runId);
             
-            log.info("Workflow {} reached state: {}, suspensionData: {}", 
-                runId, instance.getStatus(), instance.getSuspensionData());
+            log.info("Workflow {} reached state: {}", 
+                runId, instance.getStatus());
             
             // Create ChatResponse based on workflow state
             ChatResponse response = createChatResponseFromWorkflowState(
@@ -95,33 +95,39 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
 
             // Update chat history with response
             memoryService.storeChatResponse(response);
-            
-            // If it's an async response, also store the async step state for polling
-            if (!response.isCompleted() && instance.getSuspensionData() != null) {
-                String messageId = instance.getSuspensionData().messageId();
-                Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(messageId);
-                if (asyncStateOpt.isPresent()) {
-                    // This is async - store for polling
-                    memoryService.updateAsyncResponse(response.getId(), response);
-                }
-            }
 
             return response;
 
         } catch (Exception e) {
             log.error("Error processing chat request", e);
             // Return error response in proper ChatResponse format
-            return createErrorResponse(request, e);
+            ChatResponse errorResponse = createErrorResponse(request, e);
+            memoryService.storeChatResponse(errorResponse);
+            return errorResponse;
         }
     }
     
     @Override
     public ChatResponse resumeChat(String messageId, ChatRequest request) {
         try {
-            // Find the suspended workflow instance by messageId
-            Optional<WorkflowInstance> instanceOpt = engine.findInstanceByMessageId(messageId);
+            // Store the resume request in chat history
+            memoryService.storeChatRequest(request);
+            
+            // Find the original message in chat history
+            Optional<ChatMessage> originalMessage = memoryService.getChatMessage(messageId);
+            if (originalMessage.isEmpty() || !(originalMessage.get() instanceof ChatResponse)) {
+                throw new IllegalArgumentException("No chat response found for messageId: " + messageId);
+            }
+            
+            ChatResponse originalResponse = (ChatResponse) originalMessage.get();
+            
+            // Use chatId as instanceId
+            String instanceId = originalResponse.getChatId();
+            
+            // Get the workflow instance
+            Optional<WorkflowInstance> instanceOpt = engine.getWorkflowInstance(instanceId);
             if (!instanceOpt.isPresent()) {
-                throw new IllegalArgumentException("No suspended workflow found for messageId: " + messageId);
+                throw new IllegalArgumentException("No workflow instance found for instanceId: " + instanceId);
             }
             
             WorkflowInstance instance = instanceOpt.get();
@@ -129,14 +135,28 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 throw new IllegalStateException("Workflow is not in suspended state: " + instance.getStatus());
             }
             
-            // Get suspension data to validate input
-            SuspensionData suspensionData = instance.getSuspensionData();
-            if (suspensionData == null) {
-                throw new IllegalStateException("No suspension data found for workflow");
+            // Get expected input type from schema registry
+            Object resumeInput;
+            String schemaName = request.getRequestSchemaName();
+            if (schemaName != null) {
+                Class<?> expectedInputClass = schemaProvider.getSchemaClass(schemaName);
+                if (expectedInputClass != null) {
+                    // Convert properties map to expected type
+                    resumeInput = schemaProvider.convertFromMap(
+                        request.getPropertiesMap(), 
+                        expectedInputClass
+                    );
+                } else {
+                    log.warn("Schema not found in registry: {}", schemaName);
+                    resumeInput = request;
+                }
+            } else {
+                // No schema specified, use request as-is
+                resumeInput = request;
             }
             
-            // Resume the workflow with user input
-            var execution = engine.resume(instance.getInstanceId(), request);
+            // Resume the workflow with converted input
+            var execution = engine.resume(instance.getInstanceId(), resumeInput);
             String runId = execution.getRunId();
             
             // Notify event publisher if available
@@ -163,51 +183,52 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             
         } catch (Exception e) {
             log.error("Error resuming chat for messageId: {}", messageId, e);
-            return createErrorResponse(request, e);
+            ChatResponse errorResponse = createErrorResponse(request, e);
+            memoryService.storeChatResponse(errorResponse);
+            return errorResponse;
         }
     }
     
     @Override
     public Optional<ChatResponse> getAsyncStatus(String messageId) {
-        // First try to get from async response repository
-        Optional<ChatResponse> asyncResponse = memoryService.getAsyncResponse(messageId);
-        if (asyncResponse.isPresent()) {
-            // Check if we need to update it from async step state
-            Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(messageId);
-            if (asyncStateOpt.isPresent()) {
-                AsyncStepState asyncState = asyncStateOpt.get();
-                ChatResponse response = asyncResponse.get();
-                
-                // Update progress
-                response.setPercentComplete(asyncState.getPercentComplete());
-                response.setCompleted(asyncState.isCompleted());
-                
-                Map<String, String> properties = new HashMap<>();
-                
-                // If 100% complete, use result data; otherwise use immediate data
-                Object dataToUse = asyncState.getPercentComplete() == 100 && asyncState.getResultData() != null 
-                    ? asyncState.getResultData() 
-                    : asyncState.getInitialData();
-                    
-                if (dataToUse != null) {
-                    properties = extractPropertiesFromData(dataToUse);
-                }
-                
-                // Always add current status
-                properties.put("status", asyncState.getStatusMessage());
-                properties.put("progressPercent", String.valueOf(asyncState.getPercentComplete()));
-                
-                response.setPropertiesMap(properties);
-                
-                // Update in repository
-                memoryService.updateAsyncResponse(messageId, response);
-                
-                return Optional.of(response);
-            }
-            return asyncResponse;
+        // Get async state
+        Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(messageId);
+        if (asyncStateOpt.isEmpty()) {
+            return Optional.empty();
         }
         
-        return Optional.empty();
+        AsyncStepState asyncState = asyncStateOpt.get();
+        
+        // Get original response from history
+        Optional<ChatMessage> originalMessage = memoryService.getChatMessage(messageId);
+        if (originalMessage.isEmpty() || !(originalMessage.get() instanceof ChatResponse)) {
+            return Optional.empty();
+        }
+        
+        ChatResponse original = (ChatResponse) originalMessage.get();
+        
+        // Create updated response based on current async state
+        ChatResponse response = new ChatResponse(
+            messageId,
+            original.getChatId(),
+            original.getWorkflowId(),
+            original.getLanguage(),
+            asyncState.isCompleted(),
+            asyncState.getPercentComplete(),
+            original.getUserId(),
+            new HashMap<>()
+        );
+        
+        // Update properties based on state
+        if (asyncState.isCompleted() && asyncState.getResultData() != null) {
+            // Use final result data
+            response.setPropertiesMap(extractPropertiesFromData(asyncState.getResultData()));
+        } else {
+            // Use initial data with updated progress
+            response.setPropertiesMap(extractPropertiesFromData(asyncState.getInitialData()));
+        }
+
+        return Optional.of(response);
     }
     
     // ========== Session Management ==========
@@ -383,12 +404,19 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 return instance;
             }
             
-            // For RUNNING status, check if we have async step state
-            if (status == WorkflowInstance.WorkflowStatus.RUNNING && 
-                instance.getAsyncStepStates() != null && 
-                !instance.getAsyncStepStates().isEmpty()) {
-                // Workflow has async steps - this is also a terminal state for initial response
-                return instance;
+            // For RUNNING status, check if we have suspension data with async flag
+            if (status == WorkflowInstance.WorkflowStatus.RUNNING) {
+                // Check if we have suspension data
+                Optional<SuspensionData> suspensionDataOpt = memoryService.getSuspensionData(instance.getInstanceId());
+                if (suspensionDataOpt.isPresent()) {
+                    SuspensionData suspensionData = suspensionDataOpt.get();
+                    // Check if this is an async suspension by looking for async step state
+                    Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(suspensionData.messageId());
+                    if (asyncStateOpt.isPresent()) {
+                        // Workflow has async steps - this is also a terminal state for initial response
+                        return instance;
+                    }
+                }
             }
             
             // Small sleep to avoid busy waiting
@@ -410,6 +438,9 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         );
     }
     
+    /**
+     * Creates a chat response from workflow state.
+     */
     private ChatResponse createChatResponseFromWorkflowState(
             String chatId,
             String userId,
@@ -417,109 +448,156 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             String workflowId,
             WorkflowInstance instance) {
         
-        Map<String, String> responseProperties = new HashMap<>();
-        AIFunctionSchema nextSchema = null;
-        boolean completed = true;
-        Integer percentComplete = 100;
-        String responseId = UUID.randomUUID().toString(); // Default response ID
-        
         switch (instance.getStatus()) {
             case SUSPENDED:
-                SuspensionData suspensionData = instance.getSuspensionData();
+                SuspensionData suspensionData = memoryService.getSuspensionData(instance.getInstanceId()).orElse(null);
                 if (suspensionData != null) {
-                    responseId = suspensionData.messageId();
-                    
-                    // Check if this is an async suspension by looking in AsyncStepStateRepository
-                    Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(responseId);
+                    // Check if this is an async suspension
+                    Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(suspensionData.messageId());
                     if (asyncStateOpt.isPresent()) {
-                        // This is an async step
+                        // Async suspension
                         AsyncStepState asyncState = asyncStateOpt.get();
-                        
-                        // Mark as not completed for async to enable polling
-                        completed = false;
-                        percentComplete = asyncState.getPercentComplete();
-                        
-                        // Extract properties from initial data
-                        Object immediateData = asyncState.getInitialData();
-                        if (immediateData != null) {
-                            responseProperties = extractPropertiesFromData(immediateData);
-                        }
-                        
-                        // Add status info
-                        responseProperties.put("status", asyncState.getStatusMessage());
-                        responseProperties.put("progressPercent", String.valueOf(asyncState.getPercentComplete()));
+                        return createAsyncResponse(
+                            chatId, userId, language, workflowId,
+                            asyncState.getInitialData(),
+                            asyncState.getMessageId(),
+                            asyncState.getPercentComplete(),
+                            asyncState.getStatusMessage()
+                        );
                     } else {
-                        // Regular suspension (not async)
-                        // Extract properties from promptToUser
-                        Object promptToUser = suspensionData.promptToUser();
-                        responseProperties = extractPropertiesFromData(promptToUser);
-                        
-                        // Generate schema for expected input
-                        Class<?> nextInputClass = suspensionData.nextInputClass();
-                        if (nextInputClass != null) {
-                            nextSchema = schemaProvider.generateSchema(nextInputClass);
+                        // Regular suspension
+                        AIFunctionSchema nextSchema = null;
+                        if (suspensionData.nextInputClass() != null) {
+                            nextSchema = schemaProvider.generateSchema(suspensionData.nextInputClass());
                         }
+                        return createSuspendResponse(
+                            chatId, userId, language, workflowId,
+                            suspensionData.promptToUser(),
+                            nextSchema,
+                            suspensionData.messageId()
+                        );
                     }
                 }
                 break;
                 
             case COMPLETED:
-                // Workflow completed
-                // Get the last step result from context
+                // Get the last step result
                 List<WorkflowInstance.StepExecutionRecord> history = instance.getExecutionHistory();
+                Object finalResult = null;
                 if (!history.isEmpty()) {
                     WorkflowInstance.StepExecutionRecord lastStep = history.get(history.size() - 1);
-                    Object finalResult = lastStep.getOutput();
-                    responseProperties = extractPropertiesFromData(finalResult);
+                    finalResult = lastStep.getOutput();
                 }
-                break;
+                return createCompletedResponse(chatId, userId, language, workflowId, finalResult);
                 
             case FAILED:
-                // Workflow failed
+                // Get error message
+                String errorMessage = "Unknown error";
                 WorkflowInstance.ErrorInfo errorInfo = instance.getErrorInfo();
                 if (errorInfo != null) {
-                    responseProperties.put("error", errorInfo.errorMessage());
-                } else {
-                    responseProperties.put("error", "Unknown error");
+                    errorMessage = errorInfo.errorMessage();
                 }
-                break;
+                return createErrorResponse(chatId, userId, language, workflowId, errorMessage);
                 
             case RUNNING:
-                // Running with async steps
-                if (instance.getAsyncStepStates() != null && !instance.getAsyncStepStates().isEmpty()) {
-                    completed = false;
-                    percentComplete = 25;
-                    
-                    // Get first async step state for immediate data
-                    var asyncState = instance.getAsyncStepStates().values().iterator().next();
-                    // Use async state's messageId as response ID
-                    responseId = asyncState.getMessageId();
-                    
-                    Object immediateData = asyncState.getInitialData();
-                    if (immediateData != null) {
-                        responseProperties = extractPropertiesFromData(immediateData);
-                    }
-                }
+                // Should not happen in normal flow
+                log.warn("Workflow {} is still RUNNING when creating response", instance.getInstanceId());
                 break;
         }
         
+        // Fallback response
+        return createErrorResponse(chatId, userId, language, workflowId, 
+            "Unexpected workflow state: " + instance.getStatus());
+    }
+    
+    /**
+     * Creates a suspension response.
+     */
+    private ChatResponse createSuspendResponse(String chatId, String userId, Language language, 
+                                              String workflowId, Object promptData, 
+                                              AIFunctionSchema nextSchema, String messageId) {
+        Map<String, String> properties = extractPropertiesFromData(promptData);
+        
         ChatResponse response = new ChatResponse(
-                responseId,
-                chatId,
-                workflowId,
-                language != null ? language : Language.GENERAL,
-                completed,
-                percentComplete,
-                userId,
-                responseProperties
+            messageId != null ? messageId : UUID.randomUUID().toString(),
+            chatId,
+            workflowId,
+            language != null ? language : Language.GENERAL,
+            true,  // Suspended responses are "completed" from UI perspective
+            100,
+            userId,
+            properties
         );
         
-        // Set next schema if available
         if (nextSchema != null) {
             response.setNextSchemaAsSchema(nextSchema);
         }
         
         return response;
+    }
+    
+    /**
+     * Creates an async response.
+     */
+    private ChatResponse createAsyncResponse(String chatId, String userId, Language language,
+                                           String workflowId, Object immediateData,
+                                           String messageId, int percentComplete,
+                                           String statusMessage) {
+        Map<String, String> properties = extractPropertiesFromData(immediateData);
+        if (statusMessage != null) {
+            properties.put("status", statusMessage);
+        }
+        properties.put("progressPercent", String.valueOf(percentComplete));
+        
+        return new ChatResponse(
+            messageId != null ? messageId : UUID.randomUUID().toString(),
+            chatId,
+            workflowId,
+            language != null ? language : Language.GENERAL,
+            false,  // NOT completed
+            percentComplete,
+            userId,
+            properties
+        );
+    }
+    
+    /**
+     * Creates a completed response.
+     */
+    private ChatResponse createCompletedResponse(String chatId, String userId, Language language,
+                                               String workflowId, Object result) {
+        Map<String, String> properties = extractPropertiesFromData(result);
+        
+        return new ChatResponse(
+            UUID.randomUUID().toString(),
+            chatId,
+            workflowId,
+            language != null ? language : Language.GENERAL,
+            true,
+            100,
+            userId,
+            properties
+        );
+    }
+    
+    /**
+     * Creates an error response.
+     */
+    private ChatResponse createErrorResponse(String chatId, String userId, Language language,
+                                           String workflowId, String errorMessage) {
+        Map<String, String> properties = new HashMap<>();
+        properties.put("error", errorMessage != null ? errorMessage : "Unknown error");
+        
+        return new ChatResponse(
+            UUID.randomUUID().toString(),
+            chatId,
+            workflowId,
+            language != null ? language : Language.GENERAL,
+            true,
+            100,
+            userId,
+            properties
+        );
     }
     
     private Map<String, String> extractPropertiesFromData(Object data) {
@@ -542,8 +620,18 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                     }
                 }
                 return properties;
+            } else if (propsObj instanceof Map) {
+                // Direct property map in "properties" field
+                Map<String, String> properties = new HashMap<>();
+                Map<?, ?> propsMap = (Map<?, ?>) propsObj;
+                propsMap.forEach((k, v) -> {
+                    if (k != null && v != null) {
+                        properties.put(k.toString(), v.toString());
+                    }
+                });
+                return properties;
             } else {
-                // Direct property map
+                // No "properties" field, treat as plain map
                 Map<String, String> properties = new HashMap<>();
                 map.forEach((k, v) -> {
                     if (k != null && v != null) {
@@ -553,7 +641,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 return properties;
             }
         } else {
-            // Try to extract properties using schema provider
+            // Not a map, use schema provider to extract properties
             return schemaProvider.convertToMap(data);
         }
     }

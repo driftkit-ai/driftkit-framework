@@ -2,7 +2,6 @@ package ai.driftkit.workflow.engine.schema;
 
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema.AIFunctionProperty;
-import ai.driftkit.workflow.engine.schema.AIFunctionSchema.SchemaName;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +22,26 @@ public class DefaultSchemaProvider implements SchemaProvider {
     private static final Map<Class<?>, List<AIFunctionSchema>> composableSchemaCache = new ConcurrentHashMap<>();
     private static final List<AIFunctionSchema> schemasList = new CopyOnWriteArrayList<>();
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    // Use static registry to share schemas across instances
+    private static final SchemaRegistry GLOBAL_SCHEMA_REGISTRY = new InMemorySchemaRegistry();
+    private final SchemaRegistry schemaRegistry;
+    
+    /**
+     * Default constructor with in-memory schema registry.
+     */
+    public DefaultSchemaProvider() {
+        this(GLOBAL_SCHEMA_REGISTRY);
+    }
+    
+    /**
+     * Constructor with custom schema registry.
+     * 
+     * @param schemaRegistry The schema registry to use
+     */
+    public DefaultSchemaProvider(SchemaRegistry schemaRegistry) {
+        this.schemaRegistry = schemaRegistry;
+    }
 
     @Override
     public AIFunctionSchema generateSchema(Class<?> inputType) {
@@ -54,6 +73,13 @@ public class DefaultSchemaProvider implements SchemaProvider {
         }
         
         schemaCache.put(inputType, schema);
+        
+        // Register in schema registry
+        String schemaName = getSchemaId(inputType);
+        if (schemaName != null) {
+            schemaRegistry.registerSchema(schemaName, inputType);
+            log.debug("Registered schema in registry: {} -> {}", schemaName, inputType.getName());
+        }
         
         return schema;
     }
@@ -272,6 +298,15 @@ public class DefaultSchemaProvider implements SchemaProvider {
         schemaCache.clear();
         composableSchemaCache.clear();
         AIFunctionSchema.clearCache();
+        schemaRegistry.clear();
+    }
+    
+    @Override
+    public Class<?> getSchemaClass(String schemaName) {
+        if (schemaName == null) {
+            return null;
+        }
+        return schemaRegistry.getSchemaClass(schemaName).orElse(null);
     }
     
     private void setFieldValue(Field field, Object instance, String value) {

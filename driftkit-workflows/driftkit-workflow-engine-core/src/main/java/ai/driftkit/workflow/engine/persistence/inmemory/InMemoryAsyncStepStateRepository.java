@@ -1,6 +1,7 @@
-package ai.driftkit.workflow.engine.persistence;
+package ai.driftkit.workflow.engine.persistence.inmemory;
 
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;

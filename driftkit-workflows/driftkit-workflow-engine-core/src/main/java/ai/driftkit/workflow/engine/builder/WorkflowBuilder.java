@@ -1,14 +1,21 @@
 package ai.driftkit.workflow.engine.builder;
 
 import ai.driftkit.workflow.engine.core.WorkflowContext;
+import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.Serializable;
+import java.lang.invoke.SerializedLambda;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.BiFunction;
 
 /**
  * Fluent API builder for creating workflow graphs.
@@ -23,6 +30,8 @@ public class WorkflowBuilder<T, R> {
     private final List<BuildStep> buildSteps = new ArrayList<>();
     private String version = "1.0";
     private String description;
+    private StepDefinition lastStepDefinition = null;
+    private final Set<Object> asyncHandlers = new HashSet<>(); // Collect all async handlers
     
     private WorkflowBuilder(String id, Class<T> inputType, Class<R> outputType) {
         if (id == null || id.isBlank()) {
@@ -74,6 +83,78 @@ public class WorkflowBuilder<T, R> {
      */
     public WorkflowBuilder<T, R> then(StepDefinition stepDef) {
         buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef; // Track for type flow
+        return this;
+    }
+    
+    /**
+     * Adds a sequential step to the workflow using a function.
+     * Automatically extracts the method name if it's a method reference.
+     * 
+     * @param step Function that returns StepResult
+     */
+    public <I, O> WorkflowBuilder<T, R> then(Function<I, StepResult<O>> step) {
+        // Extract step ID from method reference or generate one
+        String stepId = extractLambdaMethodName(step);
+        
+        // Create step definition
+        StepDefinition stepDef = StepDefinition.of(stepId, step);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef; // Track for type flow
+        
+        return this;
+    }
+    
+    /**
+     * Adds a sequential step to the workflow using a BiFunction with context.
+     * Automatically extracts the method name if it's a method reference.
+     * 
+     * @param step BiFunction that takes input and context and returns StepResult
+     */
+    public <I, O> WorkflowBuilder<T, R> then(BiFunction<I, WorkflowContext, StepResult<O>> step) {
+        // Extract step ID from method reference or generate one
+        String stepId = extractLambdaMethodName(step);
+        
+        // Create step definition
+        StepDefinition stepDef = StepDefinition.of(stepId, step);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef; // Track for type flow
+        
+        return this;
+    }
+    
+    /**
+     * Adds a sequential step with explicit ID using a lambda.
+     * Use this when you need to specify a custom ID for a lambda expression.
+     * 
+     * @param id Explicit step ID
+     * @param step Function that returns StepResult
+     */
+    public <I, O> WorkflowBuilder<T, R> then(String id, Function<I, StepResult<O>> step, Class<I> inputType, Class<O> outputType) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Step ID cannot be null or empty");
+        }
+        if (inputType == null || outputType == null) {
+            throw new IllegalArgumentException("Input and output types must be specified for lambda expressions");
+        }
+        StepDefinition stepDef = StepDefinition.of(id, step).withTypes(inputType, outputType);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef; // Track for type flow
+        return this;
+    }
+    
+    /**
+     * Adds a sequential step with explicit ID using a BiFunction.
+     * 
+     * @param id Explicit step ID
+     * @param step BiFunction that takes input and context and returns StepResult
+     */
+    public <I, O> WorkflowBuilder<T, R> then(String id, BiFunction<I, WorkflowContext, StepResult<O>> step) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Step ID cannot be null or empty");
+        }
+        StepDefinition stepDef = StepDefinition.of(id, step);
+        buildSteps.add(new SequentialStep(stepDef));
         return this;
     }
     
@@ -92,34 +173,93 @@ public class WorkflowBuilder<T, R> {
     }
     
     /**
-     * Adds a conditional branch to the workflow.
+     * Adds parallel steps to the workflow using varargs of functions.
+     * All steps will be executed concurrently.
      * 
-     * @param condition Predicate to evaluate on the workflow context
-     * @param ifTrue WorkflowBuilder to execute if condition is true
-     * @param ifFalse WorkflowBuilder to execute if condition is false
+     * @param steps Variable number of functions to execute in parallel
      */
-    public WorkflowBuilder<T, R> branch(Predicate<WorkflowContext> condition, 
-                                WorkflowBuilder<?, ?> ifTrue, 
-                                WorkflowBuilder<?, ?> ifFalse) {
-        buildSteps.add(new BranchStep(condition, ifTrue, ifFalse));
+    @SafeVarargs
+    public final <I, O> WorkflowBuilder<T, R> parallel(Function<I, StepResult<O>>... steps) {
+        if (steps == null || steps.length == 0) {
+            throw new IllegalArgumentException("Parallel steps cannot be null or empty");
+        }
+        
+        List<StepDefinition> stepDefs = new ArrayList<>();
+        for (Function<I, StepResult<O>> step : steps) {
+            String stepId = extractLambdaMethodName(step);
+            stepDefs.add(StepDefinition.of(stepId, step));
+        }
+        
+        buildSteps.add(new ParallelStep(stepDefs));
         return this;
     }
     
     /**
-     * Adds a conditional branch with single step definitions.
+     * Adds parallel steps to the workflow using varargs of BiFunctions.
+     * All steps will be executed concurrently.
      * 
-     * @param condition Predicate to evaluate on the workflow context
-     * @param ifTrue Step to execute if condition is true
-     * @param ifFalse Step to execute if condition is false
+     * @param steps Variable number of BiFunctions to execute in parallel
+     */
+    @SafeVarargs
+    public final <I, O> WorkflowBuilder<T, R> parallel(BiFunction<I, WorkflowContext, StepResult<O>>... steps) {
+        if (steps == null || steps.length == 0) {
+            throw new IllegalArgumentException("Parallel steps cannot be null or empty");
+        }
+        
+        List<StepDefinition> stepDefs = new ArrayList<>();
+        for (BiFunction<I, WorkflowContext, StepResult<O>> step : steps) {
+            String stepId = extractLambdaMethodName(step);
+            stepDefs.add(StepDefinition.of(stepId, step));
+        }
+        
+        buildSteps.add(new ParallelStep(stepDefs));
+        return this;
+    }
+    
+    // Note: Legacy branch methods that use Object types have been removed.
+    // Use the typed branch method below that properly tracks input types.
+    
+    /**
+     * Creates a branch with automatic type inference from the previous step.
+     * The branch steps will receive the output type of the previous step as their input.
+     */
+    /**
+     * Creates a branch with automatic type inference from the previous step.
+     * The branch steps will receive the output type of the previous step as their input.
      */
     public WorkflowBuilder<T, R> branch(Predicate<WorkflowContext> condition,
-                                StepDefinition ifTrue,
-                                StepDefinition ifFalse) {
-        buildSteps.add(new BranchStep(
-            condition,
-            WorkflowBuilder.define("branch-true", Object.class, Object.class).then(ifTrue),
-            WorkflowBuilder.define("branch-false", Object.class, Object.class).then(ifFalse)
-        ));
+                                Consumer<WorkflowBuilder<?, ?>> ifTrue,
+                                Consumer<WorkflowBuilder<?, ?>> ifFalse) {
+        if (condition == null) {
+            throw new IllegalArgumentException("Branch condition cannot be null");
+        }
+        if (ifTrue == null) {
+            throw new IllegalArgumentException("True branch cannot be null");
+        }
+        if (ifFalse == null) {
+            throw new IllegalArgumentException("False branch cannot be null");
+        }
+        
+        // Determine the input type for branches from the last step's output
+        Class<?> branchInputType = lastStepDefinition != null ? 
+            lastStepDefinition.getOutputType() : inputType;
+            
+        if (branchInputType == null) {
+            throw new IllegalStateException(
+                "Cannot determine input type for branch. Previous step must have explicit output type. " +
+                "Use method references or provide explicit types for lambda steps."
+            );
+        }
+        
+        // Create branches with the proper input type
+        // The output type will be determined by the last step in each branch
+        WorkflowBuilder<?, ?> trueBranch = new WorkflowBuilder<>("branch-true", branchInputType, branchInputType);
+        ifTrue.accept(trueBranch);
+        
+        WorkflowBuilder<?, ?> falseBranch = new WorkflowBuilder<>("branch-false", branchInputType, branchInputType);
+        ifFalse.accept(falseBranch);
+        
+        buildSteps.add(new TypedBranchStep(condition, trueBranch, falseBranch, branchInputType));
         return this;
     }
     
@@ -139,6 +279,7 @@ public class WorkflowBuilder<T, R> {
         // Build the graph
         GraphBuildContext context = new GraphBuildContext();
         String lastStepId = null;
+        List<String> lastExitPoints = null;
         
         for (int i = 0; i < buildSteps.size(); i++) {
             BuildStep buildStep = buildSteps.get(i);
@@ -162,22 +303,57 @@ public class WorkflowBuilder<T, R> {
                 initialStepId = result.entryPoints.get(0);
             }
             
-            // Connect to previous step
+            // Connect to previous step(s)
             if (lastStepId != null && !result.entryPoints.isEmpty()) {
+                // Single previous step to multiple entry points
                 for (String entryPoint : result.entryPoints) {
                     edges.computeIfAbsent(lastStepId, k -> new ArrayList<>())
                         .add(Edge.sequential(lastStepId, entryPoint));
                 }
+            } else if (lastExitPoints != null && !lastExitPoints.isEmpty() && !result.entryPoints.isEmpty()) {
+                // Multiple previous exit points (from branch) to entry points
+                for (String exitPoint : lastExitPoints) {
+                    for (String entryPoint : result.entryPoints) {
+                        edges.computeIfAbsent(exitPoint, k -> new ArrayList<>())
+                            .add(Edge.sequential(exitPoint, entryPoint));
+                    }
+                }
             }
             
-            lastStepId = result.exitPoints.isEmpty() ? null : result.exitPoints.get(0);
+            // Update last step tracking
+            if (!result.exitPoints.isEmpty()) {
+                if (result.exitPoints.size() == 1) {
+                    lastStepId = result.exitPoints.get(0);
+                    lastExitPoints = null;
+                } else {
+                    // Multiple exit points (e.g., from branches)
+                    lastStepId = null;
+                    lastExitPoints = new ArrayList<>(result.exitPoints);
+                }
+            } else {
+                lastStepId = null;
+                lastExitPoints = null;
+            }
         }
         
         // Validate the graph
         validateGraph(nodes, edges, initialStepId);
         
+        int totalEdges = edges.values().stream().mapToInt(List::size).sum();
         log.info("Built workflow graph: {} with {} nodes and {} edges", 
-            id, nodes.size(), edges.values().stream().mapToInt(List::size).sum());
+            id, nodes.size(), totalEdges);
+        
+        // Debug: print graph structure
+        if (log.isDebugEnabled()) {
+            log.debug("Graph structure for {}:", id);
+            nodes.forEach((nodeId, node) -> {
+                log.debug("  Node: {} ({})", nodeId, node.description());
+                List<Edge> outgoing = edges.getOrDefault(nodeId, List.of());
+                outgoing.forEach(edge -> {
+                    log.debug("    -> {} ({})", edge.toStepId(), edge.type());
+                });
+            });
+        }
         
         return WorkflowGraph.<T, R>builder()
             .id(id)
@@ -198,6 +374,41 @@ public class WorkflowBuilder<T, R> {
         // This is a marker method for the documentation example
         // In practice, branches are handled differently
         return this;
+    }
+    
+    /**
+     * Multi-way branching based on a selector function.
+     * 
+     * @param selector Function that extracts the value to switch on
+     * @return OnBuilder for specifying cases
+     */
+    public <V> OnBuilder<T, R, V> on(Function<WorkflowContext, V> selector) {
+        return new OnBuilder<>(this, selector);
+    }
+    
+    /**
+     * Try-catch style error handling for a step.
+     * 
+     * @param stepDef The step that might throw an error
+     * @return TryBuilder for specifying error handlers
+     */
+    public TryBuilder<T, R> tryStep(StepDefinition stepDef) {
+        return new TryBuilder<>(this, stepDef);
+    }
+    
+    
+    /**
+     * Package-private method to add build steps from other builders.
+     */
+    void addBuildStep(BuildStep step) {
+        buildSteps.add(step);
+    }
+    
+    /**
+     * Package-private method to get build steps.
+     */
+    List<BuildStep> getBuildSteps() {
+        return buildSteps;
     }
     
     /**
@@ -243,7 +454,7 @@ public class WorkflowBuilder<T, R> {
     /**
      * Base interface for build steps.
      */
-    private interface BuildStep {
+    static interface BuildStep {
         BuildStepResult build(GraphBuildContext context, String previousStepId);
     }
     
@@ -276,7 +487,7 @@ public class WorkflowBuilder<T, R> {
             String syncPointId = "sync_" + context.nextId();
             StepNode syncNode = StepNode.fromFunction(
                 syncPointId,
-                (Object input) -> new ai.driftkit.workflow.engine.core.StepResult.Continue<>(input)
+                (Object input) -> StepResult.continueWith(input)
             ).withDescription("Synchronization point");
             
             // Add all parallel steps
@@ -299,25 +510,28 @@ public class WorkflowBuilder<T, R> {
     }
     
     /**
-     * Branch step implementation.
+     * Typed branch step implementation that preserves input type information.
      */
-    private record BranchStep(Predicate<WorkflowContext> condition,
-                             WorkflowBuilder<?, ?> ifTrue,
-                             WorkflowBuilder<?, ?> ifFalse) implements BuildStep {
+    private record TypedBranchStep<I>(Predicate<WorkflowContext> condition,
+                                     WorkflowBuilder<I, ?> ifTrue,
+                                     WorkflowBuilder<I, ?> ifFalse,
+                                     Class<I> inputType) implements BuildStep {
         @Override
         public BuildStepResult build(GraphBuildContext context, String previousStepId) {
             BuildStepResult result = new BuildStepResult();
             
-            // Create a decision node
+            // Create a decision node with proper type information
             String decisionId = "decision_" + context.nextId();
             StepNode decisionNode = StepNode.fromBiFunction(
                 decisionId,
                 (Object input, WorkflowContext ctx) -> {
                     boolean conditionResult = condition.test(ctx);
-                    return new ai.driftkit.workflow.engine.core.StepResult.Branch<>(
+                    return StepResult.branch(
                         conditionResult ? new BranchTrue() : new BranchFalse()
                     );
-                }
+                },
+                inputType,  // Specify the input type
+                Object.class  // Output type for branch results
             ).withDescription("Branch decision");
             
             result.nodes.add(decisionNode);
@@ -429,7 +643,7 @@ public class WorkflowBuilder<T, R> {
     /**
      * Context for building the graph.
      */
-    private static class GraphBuildContext {
+    static class GraphBuildContext {
         private final AtomicInteger idCounter = new AtomicInteger();
         private String prefix = "";
         private boolean first = true;
@@ -450,6 +664,7 @@ public class WorkflowBuilder<T, R> {
             GraphBuildContext newContext = new GraphBuildContext();
             newContext.prefix = prefix;
             newContext.idCounter.set(this.idCounter.get());
+            newContext.first = false; // Branch contexts should never have initial steps
             return newContext;
         }
     }
@@ -457,7 +672,7 @@ public class WorkflowBuilder<T, R> {
     /**
      * Result of building a step or group of steps.
      */
-    private static class BuildStepResult {
+    static class BuildStepResult {
         final List<StepNode> nodes = new ArrayList<>();
         final Map<String, List<Edge>> edges = new HashMap<>();
         final List<String> entryPoints = new ArrayList<>();
@@ -465,8 +680,295 @@ public class WorkflowBuilder<T, R> {
     }
     
     /**
+     * Multi-branch step implementation for when/is/otherwise pattern.
+     */
+    static class MultiBranchStep<V> implements BuildStep {
+        private final Function<WorkflowContext, V> selector;
+        private final Map<V, Consumer<WorkflowBuilder<?, ?>>> cases;
+        private final Consumer<WorkflowBuilder<?, ?>> otherwiseCase;
+        
+        MultiBranchStep(Function<WorkflowContext, V> selector,
+                       Map<V, Consumer<WorkflowBuilder<?, ?>>> cases,
+                       Consumer<WorkflowBuilder<?, ?>> otherwiseCase) {
+            this.selector = selector;
+            this.cases = new HashMap<>(cases);
+            this.otherwiseCase = otherwiseCase;
+        }
+        
+        @Override
+        public BuildStepResult build(GraphBuildContext context, String previousStepId) {
+            BuildStepResult result = new BuildStepResult();
+            
+            // Create decision node
+            String decisionId = "multi_branch_" + context.nextId();
+            StepNode decisionNode = StepNode.fromBiFunction(
+                decisionId,
+                (Object input, WorkflowContext ctx) -> {
+                    V value = selector.apply(ctx);
+                    return StepResult.branch(
+                        new BranchValue<>(value)
+                    );
+                }
+            ).withDescription("Multi-way branch decision");
+            
+            result.nodes.add(decisionNode);
+            result.entryPoints.add(decisionId);
+            
+            // Build branches for each case
+            for (Map.Entry<V, Consumer<WorkflowBuilder<?, ?>>> entry : cases.entrySet()) {
+                V caseValue = entry.getKey();
+                Consumer<WorkflowBuilder<?, ?>> caseFlow = entry.getValue();
+                
+                String branchPrefix = "case_" + caseValue + "_" + context.nextId() + "_";
+                GraphBuildContext branchContext = context.withPrefix(branchPrefix);
+                
+                WorkflowBuilder<Object, Object> caseBuilder = 
+                    WorkflowBuilder.define("case-" + caseValue, Object.class, Object.class);
+                caseFlow.accept(caseBuilder);
+                
+                BuildStepResult caseResult = buildSubWorkflow(caseBuilder, branchContext);
+                
+                // Add nodes and edges
+                result.nodes.addAll(caseResult.nodes);
+                result.edges.putAll(caseResult.edges);
+                
+                // Connect decision to case
+                if (!caseResult.entryPoints.isEmpty()) {
+                    result.edges.computeIfAbsent(decisionId, k -> new ArrayList<>())
+                        .add(Edge.branchWithValue(decisionId, caseResult.entryPoints.get(0), 
+                            BranchValue.class, caseValue));
+                }
+                
+                result.exitPoints.addAll(caseResult.exitPoints);
+            }
+            
+            // Build otherwise branch
+            if (otherwiseCase != null) {
+                String otherwisePrefix = "otherwise_" + context.nextId() + "_";
+                GraphBuildContext otherwiseContext = context.withPrefix(otherwisePrefix);
+                
+                WorkflowBuilder<Object, Object> otherwiseBuilder = 
+                    WorkflowBuilder.define("otherwise", Object.class, Object.class);
+                otherwiseCase.accept(otherwiseBuilder);
+                
+                BuildStepResult otherwiseResult = buildSubWorkflow(otherwiseBuilder, otherwiseContext);
+                
+                // Add nodes and edges
+                result.nodes.addAll(otherwiseResult.nodes);
+                result.edges.putAll(otherwiseResult.edges);
+                
+                // Connect decision to otherwise
+                if (!otherwiseResult.entryPoints.isEmpty()) {
+                    result.edges.computeIfAbsent(decisionId, k -> new ArrayList<>())
+                        .add(Edge.branch(decisionId, otherwiseResult.entryPoints.get(0), 
+                            BranchOtherwise.class));
+                }
+                
+                result.exitPoints.addAll(otherwiseResult.exitPoints);
+            }
+            
+            return result;
+        }
+        
+        private BuildStepResult buildSubWorkflow(WorkflowBuilder<?, ?> workflow, GraphBuildContext context) {
+            BuildStepResult result = new BuildStepResult();
+            String lastStepId = null;
+            
+            for (BuildStep step : workflow.buildSteps) {
+                BuildStepResult stepResult = step.build(context, lastStepId);
+                
+                result.nodes.addAll(stepResult.nodes);
+                stepResult.edges.forEach((from, edges) -> 
+                    result.edges.computeIfAbsent(from, k -> new ArrayList<>()).addAll(edges)
+                );
+                
+                if (lastStepId != null && !stepResult.entryPoints.isEmpty()) {
+                    for (String entryPoint : stepResult.entryPoints) {
+                        result.edges.computeIfAbsent(lastStepId, k -> new ArrayList<>())
+                            .add(Edge.sequential(lastStepId, entryPoint));
+                    }
+                }
+                
+                if (result.entryPoints.isEmpty()) {
+                    result.entryPoints.addAll(stepResult.entryPoints);
+                }
+                
+                lastStepId = stepResult.exitPoints.isEmpty() ? null : stepResult.exitPoints.get(0);
+            }
+            
+            if (lastStepId != null) {
+                result.exitPoints.add(lastStepId);
+            }
+            
+            return result;
+        }
+    }
+    
+    /**
+     * Try-catch step implementation.
+     */
+    static class TryCatchStep implements BuildStep {
+        private final StepDefinition tryStep;
+        private final Map<Class<? extends Throwable>, TryBuilder.ErrorHandler> errorHandlers;
+        private final Runnable finallyBlock;
+        
+        TryCatchStep(StepDefinition tryStep,
+                    Map<Class<? extends Throwable>, TryBuilder.ErrorHandler> errorHandlers,
+                    Runnable finallyBlock) {
+            this.tryStep = tryStep;
+            this.errorHandlers = new HashMap<>(errorHandlers);
+            this.finallyBlock = finallyBlock;
+        }
+        
+        @Override
+        public BuildStepResult build(GraphBuildContext context, String previousStepId) {
+            BuildStepResult result = new BuildStepResult();
+            
+            // Create try step with error handling wrapper
+            String tryStepId = context.prefix + tryStep.getId();
+            StepNode tryNode = new StepNode(
+                tryStepId,
+                tryStep.getDescription() + " (with error handling)",
+                new StepNode.StepExecutor() {
+                    @Override
+                    public Object execute(Object input, WorkflowContext ctx) throws Exception {
+                        try {
+                            Object result = tryStep.getExecutor().execute(input, ctx);
+                            
+                            // Execute finally block if present
+                            if (finallyBlock != null) {
+                                finallyBlock.run();
+                            }
+                            
+                            return result;
+                        } catch (Throwable t) {
+                            // Find matching error handler
+                            for (Map.Entry<Class<? extends Throwable>, TryBuilder.ErrorHandler> entry : 
+                                 errorHandlers.entrySet()) {
+                                if (entry.getKey().isAssignableFrom(t.getClass())) {
+                                    StepResult<?> handled = 
+                                        entry.getValue().handle(t, ctx);
+                                    
+                                    // Execute finally block
+                                    if (finallyBlock != null) {
+                                        finallyBlock.run();
+                                    }
+                                    
+                                    if (handled instanceof StepResult.Continue) {
+                                        return ((StepResult.Continue<?>) handled).data();
+                                    } else if (handled instanceof StepResult.Finish) {
+                                        return ((StepResult.Finish<?>) handled).result();
+                                    } else if (handled instanceof StepResult.Fail) {
+                                        throw new RuntimeException("Error handler failed", 
+                                            ((StepResult.Fail<?>) handled).error());
+                                    }
+                                }
+                            }
+                            
+                            // No handler found, execute finally and rethrow
+                            if (finallyBlock != null) {
+                                finallyBlock.run();
+                            }
+                            throw t;
+                        }
+                    }
+                    
+                    @Override
+                    public Class<?> getInputType() {
+                        return tryStep.getInputType();
+                    }
+                    
+                    @Override
+                    public Class<?> getOutputType() {
+                        return tryStep.getOutputType();
+                    }
+                    
+                    @Override
+                    public boolean requiresContext() {
+                        return true;
+                    }
+                },
+                false,
+                context.isFirst()
+            );
+            
+            result.nodes.add(tryNode);
+            result.entryPoints.add(tryStepId);
+            result.exitPoints.add(tryStepId);
+            
+            return result;
+        }
+    }
+    
+    /**
+     * Extract method name from a lambda or method reference.
+     * For method references, tries to extract the actual method name.
+     * For anonymous lambdas, generates a unique ID.
+     * 
+     * @param lambda The lambda or method reference
+     * @return The extracted method name or generated ID
+     */
+    private String extractLambdaMethodName(Object lambda) {
+        if (lambda == null) {
+            throw new IllegalArgumentException("Lambda cannot be null");
+        }
+        
+        // Try SerializedLambda approach first (works when lambda is Serializable)
+        if (lambda instanceof Serializable) {
+            try {
+                Method writeReplace = lambda.getClass().getDeclaredMethod("writeReplace");
+                writeReplace.setAccessible(true);
+                SerializedLambda serializedLambda = (SerializedLambda) writeReplace.invoke(lambda);
+                
+                String implMethodName = serializedLambda.getImplMethodName();
+                
+                // Check if it's a synthetic lambda (starts with "lambda$")
+                if (implMethodName.startsWith("lambda$")) {
+                    // Generate a more meaningful ID
+                    return generateStepId();
+                }
+                
+                // It's a method reference, return the method name
+                log.debug("Extracted method name from SerializedLambda: {}", implMethodName);
+                return implMethodName;
+                
+            } catch (Exception e) {
+                log.debug("Could not extract method name from SerializedLambda: {}", e.getMessage());
+            }
+        }
+        
+        // Fallback: try to extract from class name
+        String className = lambda.getClass().getName();
+        
+        if (className.contains("$$Lambda$")) {
+            // Extract the base class name as a hint
+            int lambdaIndex = className.indexOf("$$Lambda$");
+            String baseClass = className.substring(0, lambdaIndex);
+            int lastDot = baseClass.lastIndexOf('.');
+            if (lastDot >= 0) {
+                baseClass = baseClass.substring(lastDot + 1);
+            }
+            return baseClass.toLowerCase() + "_" + generateStepId().substring(5); // Remove "step_" prefix
+        }
+        
+        // Ultimate fallback
+        return generateStepId();
+    }
+    
+    /**
+     * Generate a unique step ID.
+     * 
+     * @return A unique step ID
+     */
+    private String generateStepId() {
+        return "step_" + UUID.randomUUID().toString().substring(0, 8);
+    }
+    
+    /**
      * Marker types for branch decisions.
      */
     private record BranchTrue() {}
     private record BranchFalse() {}
+    public record BranchValue<V>(V value) {}
+    private record BranchOtherwise() {}
 }

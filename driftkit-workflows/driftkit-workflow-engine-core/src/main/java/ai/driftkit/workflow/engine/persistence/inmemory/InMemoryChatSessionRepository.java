@@ -1,8 +1,9 @@
-package ai.driftkit.workflow.engine.persistence;
+package ai.driftkit.workflow.engine.persistence.inmemory;
 
 import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
+import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;

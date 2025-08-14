@@ -9,13 +9,16 @@ import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
-import ai.driftkit.workflow.engine.persistence.AsyncResponseRepository;
 import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
-import ai.driftkit.workflow.engine.persistence.InMemoryAsyncStepStateRepository;
-import ai.driftkit.workflow.engine.persistence.InMemoryWorkflowStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryAsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemorySuspensionDataRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
+import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
+import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,8 +44,8 @@ public class WorkflowEngine {
 
     private final Map<String, WorkflowGraph<?, ?>> registeredWorkflows = new ConcurrentHashMap<>();
     private final WorkflowStateRepository stateRepository;
-    private final AsyncResponseRepository asyncResponseRepository;
     private final AsyncStepStateRepository asyncStepStateRepository;
+    private final SuspensionDataRepository suspensionDataRepository;
     private final ExecutorService executorService;
     private final ScheduledExecutorService scheduledExecutor;
     private final Map<String, WorkflowExecutionListener> listeners = new ConcurrentHashMap<>();
@@ -53,6 +56,7 @@ public class WorkflowEngine {
     private final WorkflowOrchestrator orchestrator;
     private final WorkflowStateManager stateManager;
     private final AsyncTaskManager asyncTaskManager;
+    private final SchemaProvider schemaProvider;
 
     /**
      * Creates a workflow engine with default configuration.
@@ -69,16 +73,22 @@ public class WorkflowEngine {
         this.stateRepository = config.getStateRepository() != null ?
                 config.getStateRepository() : new InMemoryWorkflowStateRepository();
 
-        // Initialize async response repository
-        this.asyncResponseRepository = config.getAsyncResponseRepository();
         
         // Initialize async step state repository
         this.asyncStepStateRepository = config.getAsyncStepStateRepository() != null ?
                 config.getAsyncStepStateRepository() : new InMemoryAsyncStepStateRepository();
+                
+        // Initialize suspension data repository
+        this.suspensionDataRepository = config.getSuspensionDataRepository() != null ?
+                config.getSuspensionDataRepository() : new InMemorySuspensionDataRepository();
 
         // Initialize progress tracker
         this.progressTracker = config.getProgressTracker() != null ?
                 config.getProgressTracker() : new InMemoryProgressTracker();
+                
+        // Initialize schema provider
+        this.schemaProvider = config.getSchemaProvider() != null ?
+                config.getSchemaProvider() : new DefaultSchemaProvider();
 
         // Initialize async step handler
         this.asyncStepHandler = new AsyncStepHandler();
@@ -103,7 +113,9 @@ public class WorkflowEngine {
             stateManager,
             workflowExecutor,
             stepRouter,
-            inputPreparer
+            inputPreparer,
+            suspensionDataRepository,
+            schemaProvider
         );
 
         // Initialize thread pools
@@ -118,7 +130,8 @@ public class WorkflowEngine {
             executorService,
             progressTracker,
             stateRepository,
-            asyncStepHandler
+            asyncStepHandler,
+            asyncStepStateRepository
         );
         
         // Initialize SchemaProvider in WorkflowEngineHolder
@@ -199,8 +212,20 @@ public class WorkflowEngine {
      * @return WorkflowExecution handle for tracking the execution
      */
     public <T, R> WorkflowExecution<R> execute(String workflowId, T input) {
+        return execute(workflowId, input, UUID.randomUUID().toString());
+    }
+    
+    /**
+     * Starts a new workflow execution with specific instance ID.
+     *
+     * @param workflowId The ID of the workflow to execute
+     * @param input The input data for the workflow
+     * @param instanceId The specific instance ID to use
+     * @return WorkflowExecution handle for tracking the execution
+     */
+    public <T, R> WorkflowExecution<R> execute(String workflowId, T input, String instanceId) {
         WorkflowGraph<T, R> graph = getWorkflowGraph(workflowId);
-        WorkflowInstance instance = WorkflowInstance.newInstance(graph, input);
+        WorkflowInstance instance = WorkflowInstance.newInstance(graph, input, instanceId);
 
         stateRepository.save(instance);
 
@@ -216,18 +241,6 @@ public class WorkflowEngine {
         return execution;
     }
 
-    /**
-     * Finds a workflow instance by its associated message ID.
-     * This is useful for resuming workflows that were suspended with a specific message.
-     *
-     * @param messageId The message ID to search for
-     * @return The workflow instance if found
-     */
-    public Optional<WorkflowInstance> findInstanceByMessageId(String messageId) {
-        // Search through all suspended instances for one with matching message ID
-        // This is a simple implementation - in production, you might want to index by messageId
-        return stateRepository.findBySuspensionMessageId(messageId);
-    }
 
     /**
      * Resumes a suspended workflow execution.
@@ -253,8 +266,8 @@ public class WorkflowEngine {
         // Get the suspended step to find the original input type
         String suspendedStepId = instance.getCurrentStepId();
 
-        // Get suspension data if available
-        SuspensionData suspensionData = instance.getSuspensionData();
+        // Get suspension data from repository
+        SuspensionData suspensionData = suspensionDataRepository.findByInstanceId(runId).orElse(null);
 
         if (suspensionData != null && suspensionData.originalStepInput() != null) {
             // Store the original step input back in context for the step to use
@@ -289,6 +302,8 @@ public class WorkflowEngine {
         }
 
         instance.resume();
+        // Delete suspension data from repository
+        suspensionDataRepository.deleteByInstanceId(runId);
         stateRepository.save(instance);
 
         WorkflowExecution<R> execution = new WorkflowExecution<>(
@@ -407,59 +422,47 @@ public class WorkflowEngine {
                     continue;
                 }
 
-                Object result = ctx.getStepResult(exec.getStepId(), Object.class);
-
-                // Skip null results
-                if (result == null) {
+                // Get the step output with proper type information
+                try {
+                    StepOutput output = ctx.getStepOutputs().get(exec.getStepId());
+                    if (output == null || !output.hasValue()) {
+                        continue;
+                    }
+                    
+                    // Check if this output matches the expected input type exactly
+                    if (expectedInputType != null && expectedInputType != Object.class) {
+                        if (output.getActualClass().equals(expectedInputType)) {
+                            Object result = output.getValue();
+                            log.debug("Using exact type match from step {} (type: {}) as input for step {}",
+                                    exec.getStepId(), output.getActualClass().getSimpleName(), step.id());
+                            return result;
+                        }
+                    }
+                    
+                    // Check type compatibility
+                    if (step.canAcceptInput(output.getActualClass())) {
+                        Object result = output.getValue();
+                        log.debug("Using compatible output from step {} (type: {}) as input for step {}",
+                                exec.getStepId(), output.getActualClass().getSimpleName(), step.id());
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.error("Error retrieving output from step {}", exec.getStepId(), e);
                     continue;
-                }
-
-                // Check type compatibility
-                if (step.canAcceptInput(result.getClass())) {
-                    log.debug("Using output from step {} (type: {}) as input for step {}",
-                            exec.getStepId(), result.getClass().getSimpleName(), step.id());
-                    return result;
                 }
             }
         }
 
-        // Priority 3: If step has specific input type requirement, search all outputs for exact match
-        if (expectedInputType != null && expectedInputType != Object.class) {
-            Map<String, Object> allResults = ctx.getStepOutputs();
-
-            // First pass: look for exact type match
-            for (Map.Entry<String, Object> entry : allResults.entrySet()) {
-                if (entry.getKey().equals(step.id()) || entry.getValue() == null) {
-                    continue;
-                }
-
-                if (expectedInputType.equals(entry.getValue().getClass())) {
-                    log.debug("Found exact type match from step {} for input type {}",
-                            entry.getKey(), expectedInputType.getSimpleName());
-                    return entry.getValue();
-                }
+        // Priority 3: Only check trigger data for initial steps
+        // This prevents non-initial steps (like those in branches) from accidentally
+        // getting the workflow's original input instead of the previous step's output
+        if (step.isInitial()) {
+            Object triggerData = ctx.getTriggerData();
+            if (triggerData != null && step.canAcceptInput(triggerData.getClass())) {
+                log.debug("Using trigger data of type {} for initial step {}",
+                        triggerData.getClass().getSimpleName(), step.id());
+                return triggerData;
             }
-
-            // Second pass: look for compatible types (subclasses)
-            for (Map.Entry<String, Object> entry : allResults.entrySet()) {
-                if (entry.getKey().equals(step.id()) || entry.getValue() == null) {
-                    continue;
-                }
-
-                if (expectedInputType.isAssignableFrom(entry.getValue().getClass())) {
-                    log.debug("Found compatible type from step {} for input type {}",
-                            entry.getKey(), expectedInputType.getSimpleName());
-                    return entry.getValue();
-                }
-            }
-        }
-
-        // Priority 4: Check trigger data if it matches the expected type
-        Object triggerData = ctx.getTriggerData();
-        if (triggerData != null && step.canAcceptInput(triggerData.getClass())) {
-            log.debug("Using trigger data of type {} for step {}",
-                    triggerData.getClass().getSimpleName(), step.id());
-            return triggerData;
         }
 
         // No suitable input available
@@ -489,9 +492,20 @@ public class WorkflowEngine {
         
         // Store the messageId for this async step (not in context, just for tracking)
         final String messageId = asyncState.getMessageId();
+        
+        // Create suspension data with async state message ID
+        SuspensionData suspensionData = SuspensionData.createWithMessageId(
+            messageId,
+            immediateData,  // The initial async data is the prompt to user
+            Map.of("async", true, "taskId", asyncTaskId),
+            async,  // Original async result
+            currentStep.id(),
+            null  // No next input class for async
+        );
 
-        // Suspend the workflow to treat async like suspend
-        instance.updateStatus(WorkflowStatus.SUSPENDED);
+        // Suspend the workflow with suspension data
+        instance.suspend();
+        suspensionDataRepository.save(instance.getInstanceId(), suspensionData);
         stateRepository.save(instance);
 
         // Track the execution with initial event
@@ -642,14 +656,15 @@ public class WorkflowEngine {
 
                             case StepResult.Suspend<?> susp -> {
                                 // Suspend from async handler
-                                SuspensionData suspensionData = SuspensionData.create(
+                                SuspensionData asyncSuspensionData = SuspensionData.create(
                                         susp.promptToUser(),
                                         susp.metadata(),
                                         null,
                                         currentStep.id(),
                                         susp.nextInputClass()
                                 );
-                                latestInstance.suspend(suspensionData);
+                                latestInstance.suspend();
+                                suspensionDataRepository.save(latestInstance.getInstanceId(), asyncSuspensionData);
                                 stateRepository.save(latestInstance);
                             }
 
@@ -707,9 +722,14 @@ public class WorkflowEngine {
                 progressTracker.onError(asyncTaskId, error);
 
                 // Update async state with error
-                latestInstance.getAsyncStepState(currentStep.id()).ifPresent(state -> {
-                    state.fail(error);
-                });
+                Optional<SuspensionData> errorSuspensionData = suspensionDataRepository.findByInstanceId(latestInstance.getInstanceId());
+                String errorMessageId = errorSuspensionData.map(SuspensionData::messageId).orElse(null);
+                if (errorMessageId != null) {
+                    asyncStepStateRepository.findByMessageId(errorMessageId).ifPresent(state -> {
+                        state.fail(error);
+                        asyncStepStateRepository.save(state);
+                    });
+                }
 
                 // Update instance state
                 latestInstance.fail(error, currentStep.id());
@@ -749,14 +769,20 @@ public class WorkflowEngine {
                     .orElse(instance);
             
             // Update async state with completion
-            latestInstance.getAsyncStepState(currentStep.id()).ifPresent(state -> {
-                state.complete(result);
-                WorkflowEvent progressEvent = WorkflowEvent.withProgress(
-                    state.getPercentComplete(),
-                    state.getStatusMessage()
-                );
-                progressTracker.updateExecutionStatus(state.getTaskId(), progressEvent);
-            });
+            Optional<SuspensionData> completionSuspensionData = suspensionDataRepository.findByInstanceId(latestInstance.getInstanceId());
+            String completionMessageId = completionSuspensionData.map(SuspensionData::messageId).orElse(null);
+            if (completionMessageId != null) {
+                asyncStepStateRepository.findByMessageId(completionMessageId).ifPresent(state -> {
+                    state.complete(result);
+                    asyncStepStateRepository.save(state);
+                    
+                    WorkflowEvent progressEvent = WorkflowEvent.withProgress(
+                        state.getPercentComplete(),
+                        state.getStatusMessage()
+                    );
+                    progressTracker.updateExecutionStatus(state.getTaskId(), progressEvent);
+                });
+            }
             
             // Process the result
             switch (result) {
@@ -1022,7 +1048,13 @@ public class WorkflowEngine {
         return stateRepository.load(instanceId)
                 .map(instance -> {
                     // First check if current step has async state
-                    Optional<AsyncStepState> asyncState = instance.getCurrentAsyncState();
+                    Optional<AsyncStepState> asyncState = Optional.empty();
+                    Optional<SuspensionData> suspensionData = suspensionDataRepository.findByInstanceId(instanceId);
+                    if (suspensionData.isPresent()) {
+                        asyncState = asyncStepStateRepository.findByMessageId(
+                            suspensionData.get().messageId()
+                        );
+                    }
                     if (asyncState.isPresent()) {
                         AsyncStepState state = asyncState.get();
 
@@ -1043,8 +1075,8 @@ public class WorkflowEngine {
 
                     // If suspended (non-async), return the suspension prompt as completed event
                     if (instance.getStatus() == WorkflowStatus.SUSPENDED &&
-                            instance.getSuspensionData() != null) {
-                        SuspensionData suspension = instance.getSuspensionData();
+                            suspensionData.isPresent()) {
+                        SuspensionData suspension = suspensionData.get();
 
                         // Suspension prompt is already a structured object, return it as-is
                         // The promptToUser should be a proper domain object (e.g., WorkflowEvent)
@@ -1090,7 +1122,13 @@ public class WorkflowEngine {
         }
 
         WorkflowInstance instance = instanceOpt.get();
-        Optional<AsyncStepState> asyncState = instance.getCurrentAsyncState();
+        Optional<AsyncStepState> asyncState = Optional.empty();
+        Optional<SuspensionData> suspensionData = suspensionDataRepository.findByInstanceId(instanceId);
+        if (suspensionData.isPresent()) {
+            asyncState = asyncStepStateRepository.findByMessageId(
+                suspensionData.get().messageId()
+            );
+        }
 
         if (asyncState.isPresent() && asyncState.get().isRunning()) {
             AsyncStepState state = asyncState.get();
@@ -1101,6 +1139,7 @@ public class WorkflowEngine {
             // Resume workflow to failed state
             instance.resume();
             instance.fail(new RuntimeException("Async operation cancelled"), instance.getCurrentStepId());
+            suspensionDataRepository.deleteByInstanceId(instanceId);
             stateRepository.save(instance);
 
             // Notify progress tracker

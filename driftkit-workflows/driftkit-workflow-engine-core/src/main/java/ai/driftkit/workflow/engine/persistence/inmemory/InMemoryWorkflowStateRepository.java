@@ -1,9 +1,10 @@
-package ai.driftkit.workflow.engine.persistence;
+package ai.driftkit.workflow.engine.persistence.inmemory;
 
+import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.concurrent.TimeUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -30,6 +31,7 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
      */
     private final int maxInstances;
     
+    
     /**
      * Creates a repository with default settings (max 10,000 instances).
      */
@@ -49,6 +51,7 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
         this.maxInstances = maxInstances;
         log.info("Created in-memory workflow repository with max capacity: {}", maxInstances);
     }
+    
     
     @Override
     public void save(WorkflowInstance instance) {
@@ -192,7 +195,7 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
             throw new IllegalArgumentException("Age in days must be non-negative");
         }
         
-        Instant cutoffTime = Instant.now().minus(ageInDays, ChronoUnit.DAYS);
+        long cutoffTime = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(ageInDays);
         
         lock.writeLock().lock();
         try {
@@ -200,8 +203,8 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
                 .filter(entry -> {
                     WorkflowInstance instance = entry.getValue();
                     return instance.isTerminal() && 
-                           instance.getCompletedAt() != null &&
-                           instance.getCompletedAt().isBefore(cutoffTime);
+                           instance.getCompletedAt() != 0 &&
+                           instance.getCompletedAt() < cutoffTime;
                 })
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
@@ -219,34 +222,6 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
         }
     }
     
-    @Override
-    public Optional<WorkflowInstance> findBySuspensionMessageId(String messageId) {
-        if (messageId == null || messageId.isBlank()) {
-            return Optional.empty();
-        }
-        
-        lock.readLock().lock();
-        try {
-            return instances.values().stream()
-                .filter(instance -> instance.getStatus() == WorkflowInstance.WorkflowStatus.SUSPENDED)
-                .filter(instance -> {
-                    // Check suspension data for message ID
-                    if (instance.getSuspensionData() != null) {
-                        return messageId.equals(instance.getSuspensionData().messageId());
-                    }
-                    // Also check async step states for backward compatibility
-                    if (instance.getAsyncStepStates() != null && !instance.getAsyncStepStates().isEmpty()) {
-                        return instance.getAsyncStepStates().values().stream()
-                                .anyMatch(state -> messageId.equals(state.getMessageId()));
-                    }
-                    return false;
-                })
-                .findFirst()
-                .map(this::cloneInstance);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
     
     /**
      * Gets the current number of stored instances.
@@ -324,8 +299,6 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
             .executionHistory(new ArrayList<>(instance.getExecutionHistory()))
             .metadata(new ConcurrentHashMap<>(instance.getMetadata()))
             .errorInfo(instance.getErrorInfo())
-            .suspensionData(instance.getSuspensionData())
-            .asyncStepStates(new ConcurrentHashMap<>(instance.getAsyncStepStates()))
             .build();
     }
 }

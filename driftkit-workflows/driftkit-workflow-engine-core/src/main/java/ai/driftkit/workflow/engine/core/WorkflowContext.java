@@ -5,11 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Mutable container for workflow execution context with thread-safe operations.
@@ -29,9 +27,10 @@ public class WorkflowContext {
     
     private final String runId;
     private final Object triggerData;
-    private final ConcurrentHashMap<String, Object> stepOutputs;
-    private final ConcurrentHashMap<String, Object> customData;
-    private final Object workflowInstance;
+    private final ConcurrentHashMap<String, StepOutput> stepOutputs;
+    private final ConcurrentHashMap<String, StepOutput> customData;
+    private final String instanceId;
+    private volatile String lastStepId;
     
     /**
      * Well-known keys for special context values.
@@ -57,9 +56,9 @@ public class WorkflowContext {
      * Creates a new WorkflowContext with the provided parameters.
      */
     private WorkflowContext(String runId, Object triggerData, 
-                          Map<String, Object> stepOutputs,
-                          Map<String, Object> customData,
-                          Object workflowInstance) {
+                          Map<String, StepOutput> stepOutputs,
+                          Map<String, StepOutput> customData,
+                          String instanceId) {
         this.runId = (runId == null || runId.isBlank()) ? UUID.randomUUID().toString() : runId;
         this.triggerData = triggerData;
         this.stepOutputs = new ConcurrentHashMap<>();
@@ -70,7 +69,7 @@ public class WorkflowContext {
         if (customData != null) {
             this.customData.putAll(customData);
         }
-        this.workflowInstance = workflowInstance;
+        this.instanceId = instanceId != null ? instanceId : this.runId;
     }
     
     /**
@@ -90,30 +89,30 @@ public class WorkflowContext {
     }
     
     /**
-     * Creates a new WorkflowContext for a fresh workflow run with a workflow instance.
+     * Creates a new WorkflowContext for a fresh workflow run with an instance ID.
      * 
      * @param triggerData The initial data that triggered the workflow
-     * @param workflowInstance The workflow instance
+     * @param instanceId The workflow instance ID
      * @return A new WorkflowContext with a generated runId
      */
-    public static WorkflowContext newRun(Object triggerData, Object workflowInstance) {
+    public static WorkflowContext newRun(Object triggerData, String instanceId) {
         return new WorkflowContext(
             UUID.randomUUID().toString(),
             triggerData,
             null,
             null,
-            workflowInstance
+            instanceId
         );
     }
     
     /**
-     * Internal factory method for creating context with existing data.
+     * Factory method for creating context with existing data.
      */
-    static WorkflowContext fromExisting(String runId, Object triggerData,
-                                      Map<String, Object> stepOutputs,
-                                      Map<String, Object> customData,
-                                      Object workflowInstance) {
-        return new WorkflowContext(runId, triggerData, stepOutputs, customData, workflowInstance);
+    public static WorkflowContext fromExisting(String runId, Object triggerData,
+                                             Map<String, StepOutput> stepOutputs,
+                                             Map<String, StepOutput> customData,
+                                             String instanceId) {
+        return new WorkflowContext(runId, triggerData, stepOutputs, customData, instanceId);
     }
     
     /**
@@ -128,12 +127,18 @@ public class WorkflowContext {
      */
     @SuppressWarnings("unchecked")
     public <T> T getStepResult(String stepId, Class<T> type) {
-        Object result = stepOutputs.get(stepId);
-        if (result == null) {
+        StepOutput output = stepOutputs.get(stepId);
+        if (output == null || !output.hasValue()) {
             throw new NoSuchElementException("No output found for step: " + stepId);
         }
         
-        return convertToType(result, type, "step output");
+        try {
+            return output.getValueAs(type);
+        } catch (ClassCastException e) {
+            log.error("Type mismatch for step {}: expected {}, actual {}", 
+                stepId, type.getName(), output.getActualClass().getName(), e);
+            throw e;
+        }
     }
     
     /**
@@ -160,7 +165,8 @@ public class WorkflowContext {
      * @return true if the step has output, false otherwise
      */
     public boolean hasStepResult(String stepId) {
-        return stepOutputs.containsKey(stepId);
+        StepOutput output = stepOutputs.get(stepId);
+        return output != null && output.hasValue();
     }
     
     /**
@@ -177,7 +183,11 @@ public class WorkflowContext {
         if (output == null) {
             stepOutputs.remove(stepId);
         } else {
-            stepOutputs.put(stepId, output);
+            stepOutputs.put(stepId, StepOutput.of(output));
+            // Track the last step that produced output
+            if (!stepId.startsWith("__")) {
+                lastStepId = stepId;
+            }
         }
         
         log.trace("Set step output for '{}': {}", stepId, 
@@ -211,7 +221,7 @@ public class WorkflowContext {
         if (value == null) {
             customData.remove(key);
         } else {
-            customData.put(key, value);
+            customData.put(key, StepOutput.of(value));
         }
         
         log.trace("Set context value for '{}': {}", key,
@@ -228,12 +238,18 @@ public class WorkflowContext {
      */
     @SuppressWarnings("unchecked")
     public <T> T getContextValue(String key, Class<T> type) {
-        Object value = customData.get(key);
-        if (value == null) {
+        StepOutput output = customData.get(key);
+        if (output == null || !output.hasValue()) {
             return null;
         }
         
-        return convertToType(value, type, "context value");
+        try {
+            return output.getValueAs(type);
+        } catch (ClassCastException e) {
+            log.error("Type mismatch for context key {}: expected {}, actual {}", 
+                key, type.getName(), output.getActualClass().getName(), e);
+            throw e;
+        }
     }
     
     /**
@@ -332,7 +348,11 @@ public class WorkflowContext {
      */
     @SuppressWarnings("unchecked")
     public <T> List<T> getList(String key, Class<T> elementType) {
-        Object value = customData.get(key);
+        StepOutput output = customData.get(key);
+        if (output == null || !output.hasValue()) {
+            return null;
+        }
+        Object value = output.getValue();
         if (value instanceof List) {
             return (List<T>) value;
         }
@@ -344,7 +364,11 @@ public class WorkflowContext {
      */
     @SuppressWarnings("unchecked")
     public <K, V> Map<K, V> getMap(String key, Class<K> keyType, Class<V> valueType) {
-        Object value = customData.get(key);
+        StepOutput output = customData.get(key);
+        if (output == null || !output.hasValue()) {
+            return null;
+        }
+        Object value = output.getValue();
         if (value instanceof Map) {
             return (Map<K, V>) value;
         }
@@ -377,6 +401,16 @@ public class WorkflowContext {
     }
     
     /**
+     * Gets the raw step outputs map for serialization.
+     * Internal use only.
+     * 
+     * @return The map of step outputs
+     */
+    public Map<String, StepOutput> getStepOutputs() {
+        return new HashMap<>(stepOutputs);
+    }
+    
+    /**
      * Returns the number of custom data entries.
      * 
      * @return The number of custom data entries
@@ -401,13 +435,105 @@ public class WorkflowContext {
     }
     
     /**
-     * Creates a new WorkflowContext with step outputs for backward compatibility.
-     * Used internally during migration.
+     * Fluent step output access for cleaner syntax in predicates and workflow logic.
+     * 
+     * @param stepId The ID of the step whose output to access
+     * @return A StepOutputAccessor for fluent access to the step's output
      */
-    WorkflowContext withStepOutputs(Map<String, Object> outputs) {
-        WorkflowContext newContext = WorkflowContext.fromExisting(
-            this.runId, this.triggerData, outputs, this.customData, this.workflowInstance);
-        return newContext;
+    public StepOutputAccessor step(String stepId) {
+        return new StepOutputAccessor(stepId);
+    }
+    
+    /**
+     * Direct access to last step output.
+     * 
+     * @param type The expected type of the output
+     * @param <T> The type parameter
+     * @return Optional containing the last step output, or empty if none
+     */
+    public <T> Optional<T> lastOutput(Class<T> type) {
+        if (lastStepId == null) {
+            return Optional.empty();
+        }
+        StepOutput output = stepOutputs.get(lastStepId);
+        if (output == null || !output.hasValue()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(output.getValueAs(type));
+        } catch (ClassCastException e) {
+            log.error("Type mismatch for last output: expected {}, actual {}", 
+                type.getName(), output.getActualClass().getName(), e);
+            return Optional.empty();
+        }
+    }
+    
+    /**
+     * Inner class for fluent step output access.
+     */
+    public class StepOutputAccessor {
+        private final String stepId;
+        
+        StepOutputAccessor(String stepId) {
+            this.stepId = stepId;
+        }
+        
+        /**
+         * Get the output of the step as an Optional.
+         * 
+         * @param type The expected type of the output
+         * @param <T> The type parameter
+         * @return Optional containing the output, or empty if not found
+         */
+        public <T> Optional<T> output(Class<T> type) {
+            StepOutput output = stepOutputs.get(stepId);
+            if (output == null || !output.hasValue()) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(output.getValueAs(type));
+            } catch (ClassCastException e) {
+                log.error("Type mismatch for step {}: expected {}, actual {}", 
+                    stepId, type.getName(), output.getActualClass().getName(), e);
+                return Optional.empty();
+            }
+        }
+        
+        /**
+         * Get the output of the step or throw if not found.
+         * 
+         * @param type The expected type of the output
+         * @param <T> The type parameter
+         * @return The output value
+         * @throws NoSuchElementException if output not found
+         */
+        public <T> T outputOrThrow(Class<T> type) {
+            return output(type)
+                .orElseThrow(() -> new NoSuchElementException("No output found for step: " + stepId));
+        }
+        
+        /**
+         * Check if the step has produced output.
+         * 
+         * @return true if output exists
+         */
+        public boolean exists() {
+            return stepOutputs.containsKey(stepId);
+        }
+        
+        /**
+         * Check if the step succeeded (has output and it's not a Throwable).
+         * 
+         * @return true if step succeeded
+         */
+        public boolean succeeded() {
+            StepOutput output = stepOutputs.get(stepId);
+            if (output == null || !output.hasValue()) {
+                return false;
+            }
+            Object value = output.getValue();
+            return value != null && !(value instanceof Throwable);
+        }
     }
     
     /**

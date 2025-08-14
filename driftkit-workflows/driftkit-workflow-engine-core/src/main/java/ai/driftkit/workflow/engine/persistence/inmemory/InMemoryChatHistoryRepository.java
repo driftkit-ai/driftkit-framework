@@ -1,9 +1,10 @@
-package ai.driftkit.workflow.engine.persistence;
+package ai.driftkit.workflow.engine.persistence.inmemory;
 
 import ai.driftkit.workflow.engine.chat.ChatDomain.ChatMessage;
 import ai.driftkit.workflow.engine.chat.ChatDomain.MessageType;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
+import ai.driftkit.workflow.engine.persistence.ChatHistoryRepository;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -79,6 +80,14 @@ public class InMemoryChatHistoryRepository implements ChatHistoryRepository {
     public long countByChatId(String chatId) {
         List<ChatMessage> history = chatHistories.getOrDefault(chatId, new ArrayList<>());
         return history.size();
+    }
+    
+    @Override
+    public Optional<ChatMessage> findById(String messageId) {
+        return chatHistories.values().stream()
+                .flatMap(List::stream)
+                .filter(msg -> msg.getId().equals(messageId))
+                .findFirst();
     }
     
     private Comparator<ChatMessage> getMessageComparator(PageRequest pageRequest) {

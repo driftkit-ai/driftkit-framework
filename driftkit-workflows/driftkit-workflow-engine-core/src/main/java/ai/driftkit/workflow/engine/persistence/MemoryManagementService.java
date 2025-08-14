@@ -13,12 +13,15 @@ import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
+import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.memory.WorkflowMemoryConfiguration;
-import lombok.RequiredArgsConstructor;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryAsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryChatHistoryRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryChatSessionRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemorySuspensionDataRepository;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
 
@@ -33,31 +36,32 @@ public class MemoryManagementService {
     
     private final ChatSessionRepository sessionRepository;
     private final ChatHistoryRepository historyRepository;
-    private final AsyncResponseRepository asyncResponseRepository;
     private final AsyncStepStateRepository asyncStepStateRepository;
+    private final SuspensionDataRepository suspensionDataRepository;
     private final WorkflowMemoryConfiguration memoryConfiguration;
     
-    // Constructor for backward compatibility
+    // Constructor
     public MemoryManagementService(
             ChatSessionRepository sessionRepository,
             ChatHistoryRepository historyRepository,
-            AsyncResponseRepository asyncResponseRepository,
             WorkflowMemoryConfiguration memoryConfiguration) {
-        this(sessionRepository, historyRepository, asyncResponseRepository, 
-             new InMemoryAsyncStepStateRepository(), memoryConfiguration);
+        this(sessionRepository, historyRepository, 
+             new InMemoryAsyncStepStateRepository(),
+             new InMemorySuspensionDataRepository(),
+             memoryConfiguration);
     }
     
-    // Full constructor
+    // Constructor with SuspensionDataRepository
     public MemoryManagementService(
             ChatSessionRepository sessionRepository,
             ChatHistoryRepository historyRepository,
-            AsyncResponseRepository asyncResponseRepository,
             AsyncStepStateRepository asyncStepStateRepository,
+            SuspensionDataRepository suspensionDataRepository,
             WorkflowMemoryConfiguration memoryConfiguration) {
         this.sessionRepository = sessionRepository;
         this.historyRepository = historyRepository;
-        this.asyncResponseRepository = asyncResponseRepository;
         this.asyncStepStateRepository = asyncStepStateRepository;
+        this.suspensionDataRepository = suspensionDataRepository;
         this.memoryConfiguration = memoryConfiguration;
     }
     
@@ -140,33 +144,8 @@ public class MemoryManagementService {
     public void storeChatResponse(ChatResponse response) {
         // Store in history
         addToChatHistory(response.getChatId(), response);
-        
-        // If async, store in async repository for distributed access
-        if (!response.isCompleted()) {
-            asyncResponseRepository.save(response);
-        }
     }
     
-    /**
-     * Get async response from repository (works across nodes).
-     */
-    public Optional<ChatResponse> getAsyncResponse(String responseId) {
-        return asyncResponseRepository.findById(responseId);
-    }
-    
-    /**
-     * Update async response.
-     */
-    public void updateAsyncResponse(String responseId, ChatResponse updatedResponse) {
-        // Save updated response
-        asyncResponseRepository.save(updatedResponse);
-        
-        // If completed, remove from async repository and ensure it's in history
-        if (updatedResponse.isCompleted()) {
-            asyncResponseRepository.deleteById(responseId);
-            addToChatHistory(updatedResponse.getChatId(), updatedResponse);
-        }
-    }
     
     /**
      * Get async step state by message ID.
@@ -197,6 +176,13 @@ public class MemoryManagementService {
     }
     
     /**
+     * Get a specific chat message by ID.
+     */
+    public Optional<ChatMessage> getChatMessage(String messageId) {
+        return historyRepository.findById(messageId);
+    }
+    
+    /**
      * Delete chat session and history.
      */
     public void deleteChat(String chatId) {
@@ -223,14 +209,6 @@ public class MemoryManagementService {
         return historyRepository.countByChatId(chatId);
     }
     
-    /**
-     * Clean up old async responses.
-     * Should be called periodically to prevent unbounded growth.
-     */
-    public int cleanupOldAsyncResponses(long olderThanHours) {
-        long cutoffTime = System.currentTimeMillis() - (olderThanHours * 3600 * 1000);
-        return asyncResponseRepository.deleteOlderThan(cutoffTime);
-    }
     
     /**
      * Create default in-memory service.
@@ -240,7 +218,6 @@ public class MemoryManagementService {
         return new MemoryManagementService(
             new InMemoryChatSessionRepository(),
             historyRepo,
-            new InMemoryAsyncResponseRepository(),
             WorkflowMemoryConfiguration.createDefault(historyRepo)
         );
     }
@@ -252,7 +229,6 @@ public class MemoryManagementService {
         return new MemoryManagementService(
             new InMemoryChatSessionRepository(),
             new InMemoryChatHistoryRepository(),
-            new InMemoryAsyncResponseRepository(),
             null
         );
     }
@@ -389,5 +365,35 @@ public class MemoryManagementService {
             return str;
         }
         return str.substring(0, maxLength - 3) + "...";
+    }
+    
+    // ========== Suspension Data Methods ==========
+    
+    /**
+     * Save suspension data for a workflow instance.
+     */
+    public void saveSuspensionData(String instanceId, SuspensionData suspensionData) {
+        suspensionDataRepository.save(instanceId, suspensionData);
+    }
+    
+    /**
+     * Get suspension data by instance ID.
+     */
+    public Optional<SuspensionData> getSuspensionData(String instanceId) {
+        return suspensionDataRepository.findByInstanceId(instanceId);
+    }
+    
+    /**
+     * Get suspension data by message ID.
+     */
+    public Optional<SuspensionData> getSuspensionDataByMessageId(String messageId) {
+        return suspensionDataRepository.findByMessageId(messageId);
+    }
+    
+    /**
+     * Delete suspension data for a workflow instance.
+     */
+    public void deleteSuspensionData(String instanceId) {
+        suspensionDataRepository.deleteByInstanceId(instanceId);
     }
 }

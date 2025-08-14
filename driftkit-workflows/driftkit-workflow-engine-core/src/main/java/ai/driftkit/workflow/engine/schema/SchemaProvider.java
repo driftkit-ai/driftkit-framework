@@ -88,4 +88,15 @@ public interface SchemaProvider {
      * Clears the schema cache.
      */
     void clearCache();
+    
+    /**
+     * Gets the Java class for a given schema name.
+     * This allows looking up schema classes without querying suspension data.
+     * 
+     * @param schemaName The name of the schema
+     * @return The Java class if registered, null otherwise
+     */
+    default Class<?> getSchemaClass(String schemaName) {
+        return null;
+    }
 }

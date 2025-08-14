@@ -1,7 +1,7 @@
 package ai.driftkit.workflow.spring.autoconfigure;
 
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
-import ai.driftkit.workflow.engine.persistence.InMemoryWorkflowStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import ai.driftkit.workflow.engine.spring.autoconfigure.WorkflowEngineAutoConfiguration;

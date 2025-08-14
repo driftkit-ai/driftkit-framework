@@ -5,7 +5,7 @@ import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecution;
 import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecutionListener;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.examples.NewRouterWorkflow.*;
-import ai.driftkit.workflow.engine.persistence.InMemoryWorkflowStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -129,14 +129,7 @@ public class NewRouterWorkflowTest {
         Optional<WorkflowInstance> suspendedInstance = stateRepository.load(execution.getRunId());
         assertTrue(suspendedInstance.isPresent());
         assertEquals(WorkflowInstance.WorkflowStatus.SUSPENDED, suspendedInstance.get().getStatus());
-        assertNotNull(suspendedInstance.get().getSuspensionData());
         assertEquals("handleNewUser", suspendedInstance.get().getCurrentStepId());
-
-        // Verify suspension prompt
-        NewRouterWorkflow.UserNamePrompt prompt = 
-            (NewRouterWorkflow.UserNamePrompt) suspendedInstance.get().getSuspensionData().promptToUser();
-        assertTrue(prompt.getMessage().contains("Welcome! I see you're new here"));
-        assertTrue(prompt.getMessage().contains("could you please tell me your name?"));
 
         // Simulate user providing their name (suspension expects UserNameInput)
         NewRouterWorkflow.UserNameInput userInput = new NewRouterWorkflow.UserNameInput();

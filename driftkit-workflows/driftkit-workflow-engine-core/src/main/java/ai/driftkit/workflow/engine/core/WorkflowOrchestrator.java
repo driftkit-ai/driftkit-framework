@@ -4,8 +4,10 @@ import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.domain.WorkflowException;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
+import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,6 +23,8 @@ public class WorkflowOrchestrator {
     private final WorkflowExecutor executor;
     private final StepRouter router;
     private final InputPreparer inputPreparer;
+    private final SuspensionDataRepository suspensionDataRepository;
+    private final SchemaProvider schemaProvider;
     
     /**
      * Orchestrates the execution of a workflow instance.
@@ -137,6 +141,14 @@ public class WorkflowOrchestrator {
                 // Get the step input that was passed to this step
                 Object stepInput = inputPreparer.prepareStepInput(instance, currentStep);
 
+                // Generate schema for next input class to register it
+                if (susp.nextInputClass() != null) {
+                    schemaProvider.generateSchema(susp.nextInputClass());
+                    String schemaId = schemaProvider.getSchemaId(susp.nextInputClass());
+                    log.debug("Registered schema for class {} with ID: {}", 
+                        susp.nextInputClass().getName(), schemaId);
+                }
+
                 // Create suspension data with type preservation
                 SuspensionData suspensionData = SuspensionData.create(
                         susp.promptToUser(),
@@ -147,7 +159,10 @@ public class WorkflowOrchestrator {
                 );
 
                 // Suspend the workflow
-                instance.suspend(suspensionData);
+                instance.suspend();
+                
+                // Save suspension data to repository
+                suspensionDataRepository.save(instance.getInstanceId(), suspensionData);
 
                 // Store the result from this step as it may contain data to return to user
                 instance.updateContext(currentStep.id(), susp.promptToUser());
@@ -160,7 +175,8 @@ public class WorkflowOrchestrator {
                 String nextStepId = router.findBranchTarget(graph, currentStep.id(), branch.event());
                 if (nextStepId != null) {
                     instance.setCurrentStepId(nextStepId);
-                    instance.updateContext(currentStep.id(), branch.event());
+                    // Don't store the branch event - let the next step use the previous step's output
+                    // The branch event is only for routing, not for data flow
                     stateManager.saveInstance(instance);
                 } else {
                     throw new IllegalStateException(

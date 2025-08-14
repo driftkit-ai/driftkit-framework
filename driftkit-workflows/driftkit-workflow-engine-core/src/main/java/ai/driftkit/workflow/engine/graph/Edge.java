@@ -12,7 +12,8 @@ public record Edge(
     EdgeType type,
     Class<?> eventType,
     Predicate<Object> condition,
-    String description
+    String description,
+    Object branchValue  // For BranchValue edges, stores the expected value
 ) {
     /**
      * Types of edges in the workflow graph.
@@ -58,7 +59,7 @@ public record Edge(
             type = EdgeType.SEQUENTIAL;
         }
         if (description == null || description.isBlank()) {
-            description = generateDescription(type, eventType);
+            description = generateDescription(type, eventType, branchValue);
         }
     }
     
@@ -66,35 +67,42 @@ public record Edge(
      * Creates a simple sequential edge.
      */
     public static Edge sequential(String from, String to) {
-        return new Edge(from, to, EdgeType.SEQUENTIAL, null, null, null);
+        return new Edge(from, to, EdgeType.SEQUENTIAL, null, null, null, null);
     }
     
     /**
      * Creates a branch edge for a specific event type.
      */
     public static Edge branch(String from, String to, Class<?> eventType) {
-        return new Edge(from, to, EdgeType.BRANCH, eventType, null, null);
+        return new Edge(from, to, EdgeType.BRANCH, eventType, null, null, null);
+    }
+    
+    /**
+     * Creates a branch edge for a specific event type with expected value.
+     */
+    public static Edge branchWithValue(String from, String to, Class<?> eventType, Object expectedValue) {
+        return new Edge(from, to, EdgeType.BRANCH, eventType, null, null, expectedValue);
     }
     
     /**
      * Creates a conditional edge with a predicate.
      */
     public static Edge conditional(String from, String to, Predicate<Object> condition, String description) {
-        return new Edge(from, to, EdgeType.CONDITIONAL, null, condition, description);
+        return new Edge(from, to, EdgeType.CONDITIONAL, null, condition, description, null);
     }
     
     /**
      * Creates an error handling edge.
      */
     public static Edge error(String from, String to) {
-        return new Edge(from, to, EdgeType.ERROR, null, null, "On error");
+        return new Edge(from, to, EdgeType.ERROR, null, null, "On error", null);
     }
     
     /**
      * Creates a parallel execution edge.
      */
     public static Edge parallel(String from, String to) {
-        return new Edge(from, to, EdgeType.PARALLEL, null, null, "Parallel execution");
+        return new Edge(from, to, EdgeType.PARALLEL, null, null, "Parallel execution", null);
     }
     
     /**
@@ -106,7 +114,23 @@ public record Edge(
     public boolean shouldFollow(Object stepResult) {
         return switch (type) {
             case SEQUENTIAL -> true; // Always follow sequential edges
-            case BRANCH -> eventType != null && eventType.isInstance(stepResult);
+            case BRANCH -> {
+                if (eventType != null && eventType.isInstance(stepResult)) {
+                    // If we have a branchValue, compare it
+                    if (branchValue != null && stepResult instanceof ai.driftkit.workflow.engine.builder.WorkflowBuilder.BranchValue<?> bv) {
+                        Object actualValue = bv.value();
+                        if (actualValue instanceof Enum<?> && branchValue instanceof Enum<?>) {
+                            // Compare enum by name
+                            yield ((Enum<?>) actualValue).name().equals(((Enum<?>) branchValue).name());
+                        } else {
+                            // Compare by equals
+                            yield branchValue.equals(actualValue);
+                        }
+                    }
+                    yield true;
+                }
+                yield false;
+            }
             case CONDITIONAL -> condition != null && condition.test(stepResult);
             case ERROR -> stepResult instanceof Throwable;
             case PARALLEL -> true; // Parallel edges are always valid
@@ -116,10 +140,20 @@ public record Edge(
     /**
      * Generates a default description based on edge type.
      */
-    private static String generateDescription(EdgeType type, Class<?> eventType) {
+    private static String generateDescription(EdgeType type, Class<?> eventType, Object branchValue) {
         return switch (type) {
             case SEQUENTIAL -> "Continue";
-            case BRANCH -> eventType != null ? "On " + eventType.getSimpleName() : "Branch";
+            case BRANCH -> {
+                if (branchValue instanceof Enum<?> e) {
+                    yield "On " + e.name();
+                } else if (branchValue != null) {
+                    yield "On value";
+                } else if (eventType != null) {
+                    yield "On " + eventType.getSimpleName();
+                } else {
+                    yield "Branch";
+                }
+            }
             case CONDITIONAL -> "Conditional";
             case ERROR -> "On error";
             case PARALLEL -> "Parallel";
