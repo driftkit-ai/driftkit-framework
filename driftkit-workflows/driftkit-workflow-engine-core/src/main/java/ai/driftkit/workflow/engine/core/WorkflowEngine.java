@@ -279,7 +279,7 @@ public class WorkflowEngine {
         instance.updateContext(WorkflowContext.Keys.USER_INPUT, input);
         instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, input.getClass().getName());
 
-        // Find the next step that can handle the user input type
+        // Validate input type if specified in suspension data
         if (suspensionData != null && suspensionData.nextInputClass() != null) {
             Class<?> expectedInputType = suspensionData.nextInputClass();
             if (!expectedInputType.isInstance(input)) {
@@ -288,16 +288,27 @@ public class WorkflowEngine {
                                 " but received " + input.getClass().getName()
                 );
             }
-
-            // Find a step that can handle this input type
-            String nextStepId = stepRouter.findStepForInputType(graph, input.getClass(), suspendedStepId);
+            
+            // When resuming, we need to find the next step after the suspended one
+            // The suspended step already executed and returned Suspend result
+            String nextStepId = stepRouter.findNextStep(graph, suspendedStepId, input);
             if (nextStepId != null) {
                 instance.setCurrentStepId(nextStepId);
-                log.debug("Resume: moving from {} to {} for input type {}",
+                log.debug("Resume: moving from suspended step {} to next step {} for input type {}",
                         suspendedStepId, nextStepId, input.getClass().getSimpleName());
             } else {
-                log.warn("Resume: no step found for input type {}, continuing with suspended step",
-                        input.getClass().getSimpleName());
+                // If no next step found by normal routing, try type-based routing
+                nextStepId = stepRouter.findStepForInputType(graph, input.getClass(), suspendedStepId);
+                if (nextStepId != null) {
+                    instance.setCurrentStepId(nextStepId);
+                    log.debug("Resume: found step {} that accepts input type {} using type-based routing",
+                            nextStepId, input.getClass().getSimpleName());
+                } else {
+                    throw new IllegalStateException(
+                            "No step found that can process resume input of type: " + 
+                            input.getClass().getName()
+                    );
+                }
             }
         }
 

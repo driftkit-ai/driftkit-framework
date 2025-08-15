@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
+import ai.driftkit.workflow.engine.builder.FluentApiAsyncStepMetadata;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
@@ -35,24 +36,28 @@ public class AsyncStepHandler {
         String workflowId = graph.id();
         Object workflowInstance = graph.workflowInstance();
         
-        if (workflowInstance == null) {
-            log.warn("Workflow {} has async steps but no workflow instance", workflowId);
-            return;
-        }
-        
         for (Entry<String, AsyncStepMetadata> entry : graph.asyncStepMetadata().entrySet()) {
             String asyncStepId = entry.getKey();
             AsyncStepMetadata metadata = entry.getValue();
             
             String key = createKey(workflowId, asyncStepId);
-            asyncStepCache.put(key, new AsyncStepInfo(
-                metadata.getMethod(),
-                workflowInstance,
-                metadata.getAnnotation()
-            ));
             
-            log.debug("Registered async step handler {} for workflow {} with id {}", 
-                metadata.getMethod().getName(), workflowId, asyncStepId);
+            // Check if this is a FluentAPI metadata (which has no instance)
+            if (metadata instanceof FluentApiAsyncStepMetadata) {
+                // Store the metadata directly for FluentAPI handlers
+                asyncStepCache.put(key, new FluentApiAsyncStepInfo((FluentApiAsyncStepMetadata) metadata));
+            } else {
+                // Traditional annotation-based handler
+                asyncStepCache.put(key, new AsyncStepInfo(
+                    metadata.getMethod(),
+                    workflowInstance,
+                    metadata.getAnnotation()
+                ));
+            }
+            
+            log.info("Registered async step handler {} for workflow {} with pattern '{}' (FluentAPI: {})", 
+                metadata.getMethod().getName(), workflowId, asyncStepId,
+                metadata instanceof FluentApiAsyncStepMetadata);
         }
     }
     
@@ -89,6 +94,14 @@ public class AsyncStepHandler {
             }
         }
         
+        // If still not found, try wildcard patterns
+        if (info == null) {
+            info = findByPattern(workflowId, primaryId);
+            if (info != null) {
+                log.debug("Found async handler using pattern matching for id {} in workflow {}", primaryId, workflowId);
+            }
+        }
+        
         if (info == null) {
             log.warn("No async handler found for workflow {} with id {} or {}", workflowId, primaryId, fallbackId);
             // If no handler found, continue with the async result
@@ -96,20 +109,34 @@ public class AsyncStepHandler {
         }
         
         try {
-            log.debug("Invoking async handler {} for id {}", info.method.getName(), info == asyncStepCache.get(primaryKey) ? primaryId : fallbackId);
-            
-            // Build method arguments including AsyncProgressReporter
-            Object[] args = buildAsyncMethodArgs(info.method, asyncResult, context, progressReporter);
-            Object result = info.method.invoke(info.workflowInstance, args);
-            
-            if (!(result instanceof StepResult)) {
-                throw new IllegalStateException(
-                    "Async step handler must return StepResult, got: " + 
-                    (result != null ? result.getClass().getName() : "null")
-                );
+            // Check if this is a FluentAPI handler
+            if (info instanceof FluentApiAsyncStepInfo) {
+                FluentApiAsyncStepInfo fluentInfo = (FluentApiAsyncStepInfo) info;
+                log.info("Invoking FluentAPI async handler for id {}", primaryId);
+                
+                // Cast asyncResult to Map for FluentAPI handlers
+                @SuppressWarnings("unchecked")
+                Map<String, Object> taskArgs = (Map<String, Object>) asyncResult;
+                
+                // Invoke the FluentAPI handler directly
+                return fluentInfo.invoke(taskArgs, context, progressReporter);
+            } else {
+                // Traditional annotation-based handler
+                log.debug("Invoking async handler {} for id {}", info.method.getName(), info == asyncStepCache.get(primaryKey) ? primaryId : fallbackId);
+                
+                // Build method arguments including AsyncProgressReporter
+                Object[] args = buildAsyncMethodArgs(info.method, asyncResult, context, progressReporter);
+                Object result = info.method.invoke(info.workflowInstance, args);
+                
+                if (!(result instanceof StepResult)) {
+                    throw new IllegalStateException(
+                        "Async step handler must return StepResult, got: " + 
+                        (result != null ? result.getClass().getName() : "null")
+                    );
+                }
+                
+                return (StepResult<?>) result;
             }
-            
-            return (StepResult<?>) result;
             
         } catch (Exception e) {
             log.error("Error invoking async handler for id {} or {}", primaryId, fallbackId, e);
@@ -123,6 +150,58 @@ public class AsyncStepHandler {
      */
     private String createKey(String workflowId, String asyncStepId) {
         return workflowId + ":" + asyncStepId;
+    }
+    
+    /**
+     * Finds async handler by pattern matching.
+     * Supports wildcard patterns like "*" or "prefix-*".
+     */
+    private AsyncStepInfo findByPattern(String workflowId, String taskId) {
+        String prefix = workflowId + ":";
+        AsyncStepInfo wildcardHandler = null;
+        
+        for (Map.Entry<String, AsyncStepInfo> entry : asyncStepCache.entrySet()) {
+            String key = entry.getKey();
+            
+            // Only check entries for this workflow
+            if (!key.startsWith(prefix)) {
+                continue;
+            }
+            
+            // Extract the pattern part after "workflowId:"
+            String pattern = key.substring(prefix.length());
+            
+            // Check if pattern matches taskId
+            if (matchesPattern(pattern, taskId)) {
+                // If it's a wildcard, save it as fallback
+                if ("*".equals(pattern)) {
+                    wildcardHandler = entry.getValue();
+                } else {
+                    // Non-wildcard pattern has priority
+                    return entry.getValue();
+                }
+            }
+        }
+        
+        // Return wildcard handler if no specific pattern matched
+        return wildcardHandler;
+    }
+    
+    /**
+     * Checks if a taskId matches a pattern.
+     * Supports "*" for match all and "prefix-*" patterns.
+     */
+    private boolean matchesPattern(String pattern, String taskId) {
+        if ("*".equals(pattern)) {
+            return true;
+        }
+        
+        if (pattern.endsWith("*")) {
+            String prefix = pattern.substring(0, pattern.length() - 1);
+            return taskId.startsWith(prefix);
+        }
+        
+        return pattern.equals(taskId);
     }
     
     /**
@@ -191,6 +270,22 @@ public class AsyncStepHandler {
             this.workflowInstance = workflowInstance;
             this.annotation = annotation;
             method.setAccessible(true);
+        }
+    }
+    
+    /**
+     * Internal metadata for FluentAPI async steps.
+     */
+    private static class FluentApiAsyncStepInfo extends AsyncStepInfo {
+        private final FluentApiAsyncStepMetadata fluentMetadata;
+        
+        FluentApiAsyncStepInfo(FluentApiAsyncStepMetadata metadata) {
+            super(metadata.getMethod(), null, metadata.getAnnotation());
+            this.fluentMetadata = metadata;
+        }
+        
+        StepResult<?> invoke(Map<String, Object> taskArgs, WorkflowContext context, AsyncProgressReporter progress) {
+            return fluentMetadata.invoke(taskArgs, context, progress);
         }
     }
 }

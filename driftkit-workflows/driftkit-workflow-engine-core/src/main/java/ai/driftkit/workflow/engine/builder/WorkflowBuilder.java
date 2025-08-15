@@ -2,6 +2,10 @@ package ai.driftkit.workflow.engine.builder;
 
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.core.StepResult;
+import ai.driftkit.workflow.engine.core.AsyncProgressReporter;
+import ai.driftkit.workflow.engine.core.WorkflowAnalyzer;
+import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
+import ai.driftkit.workflow.engine.annotations.AsyncStep;
 import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
@@ -32,6 +36,7 @@ public class WorkflowBuilder<T, R> {
     private String description;
     private StepDefinition lastStepDefinition = null;
     private final Set<Object> asyncHandlers = new HashSet<>(); // Collect all async handlers
+    private final Map<String, AsyncHandlerInfo> registeredAsyncHandlers = new HashMap<>();
     
     private WorkflowBuilder(String id, Class<T> inputType, Class<R> outputType) {
         if (id == null || id.isBlank()) {
@@ -73,6 +78,78 @@ public class WorkflowBuilder<T, R> {
      */
     public WorkflowBuilder<T, R> withDescription(String description) {
         this.description = description;
+        return this;
+    }
+    
+    /**
+     * Registers an async handler for processing async tasks.
+     * The handler will be called when a step returns StepResult.Async with matching taskId pattern.
+     * 
+     * @param taskIdPattern Pattern to match task IDs (supports wildcards like "*")
+     * @param asyncHandler Trifunction that processes async tasks
+     * @return this builder for chaining
+     */
+    public WorkflowBuilder<T, R> withAsyncHandler(String taskIdPattern, 
+                                                  TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> asyncHandler) {
+        if (taskIdPattern == null || taskIdPattern.isBlank()) {
+            throw new IllegalArgumentException("Task ID pattern cannot be null or empty");
+        }
+        if (asyncHandler == null) {
+            throw new IllegalArgumentException("Async handler cannot be null");
+        }
+        
+        // Extract method info if possible
+        String methodName = extractTriFunctionMethodName(asyncHandler);
+        
+        AsyncHandlerInfo handlerInfo = new AsyncHandlerInfo(taskIdPattern, asyncHandler, methodName);
+        registeredAsyncHandlers.put(taskIdPattern, handlerInfo);
+        
+        log.debug("Registered async handler for pattern '{}' (method: {})", taskIdPattern, methodName);
+        return this;
+    }
+    
+    /**
+     * Registers an object containing @AsyncStep annotated methods.
+     * This scans the object for methods with @AsyncStep and registers them automatically.
+     * 
+     * @param asyncHandlerObject Object containing @AsyncStep methods
+     * @return this builder for chaining
+     */
+    public WorkflowBuilder<T, R> withAsyncHandler(Object asyncHandlerObject) {
+        if (asyncHandlerObject == null) {
+            throw new IllegalArgumentException("Async handler object cannot be null");
+        }
+        
+        // Find all @AsyncStep methods in the object
+        Map<String, AsyncStepMetadata> asyncSteps = WorkflowAnalyzer.findAsyncSteps(asyncHandlerObject);
+        
+        log.debug("Found {} @AsyncStep methods in {}", asyncSteps.size(), asyncHandlerObject.getClass().getSimpleName());
+        
+        // Register each async step
+        for (Map.Entry<String, AsyncStepMetadata> entry : asyncSteps.entrySet()) {
+            String pattern = entry.getKey();
+            AsyncStepMetadata metadata = entry.getValue();
+            
+            // Create a wrapper that calls the method via reflection
+            TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> wrapper = 
+                (taskArgs, context, progress) -> {
+                    try {
+                        Method method = metadata.getMethod();
+                        return (StepResult<?>) method.invoke(asyncHandlerObject, taskArgs, context, progress);
+                    } catch (Exception e) {
+                        log.error("Error invoking async handler method", e);
+                        return StepResult.fail(e);
+                    }
+                };
+            
+            AsyncHandlerInfo handlerInfo = new AsyncHandlerInfo(pattern, wrapper, metadata.getMethod().getName());
+            handlerInfo.setFromAnnotation(true);
+            handlerInfo.setAnnotation(metadata.getAnnotation());
+            registeredAsyncHandlers.put(pattern, handlerInfo);
+        }
+        
+        log.debug("Registered {} async handlers from object {}", asyncSteps.size(), asyncHandlerObject.getClass().getSimpleName());
+        asyncHandlers.add(asyncHandlerObject);
         return this;
     }
     
@@ -355,6 +432,27 @@ public class WorkflowBuilder<T, R> {
             });
         }
         
+        // Convert registered async handlers to AsyncStepMetadata format
+        // WITHOUT workflowInstance - we'll use the TriFunction directly
+        Map<String, AsyncStepMetadata> asyncStepMetadata = new HashMap<>();
+        
+        for (Map.Entry<String, AsyncHandlerInfo> entry : registeredAsyncHandlers.entrySet()) {
+            String pattern = entry.getKey();
+            AsyncHandlerInfo info = entry.getValue();
+            
+            // Create a wrapper method that delegates to the TriFunction
+            Method proxyMethod = createProxyMethodForTriFunction();
+            
+            // Create AsyncStepMetadata with null instance - the handler is in the metadata itself
+            AsyncStepMetadata metadata = new FluentApiAsyncStepMetadata(
+                proxyMethod,
+                info.annotation != null ? info.annotation : createSyntheticAsyncAnnotation(pattern),
+                info.handler // Store the actual handler
+            );
+            
+            asyncStepMetadata.put(pattern, metadata);
+        }
+        
         return WorkflowGraph.<T, R>builder()
             .id(id)
             .version(version)
@@ -363,6 +461,8 @@ public class WorkflowBuilder<T, R> {
             .nodes(nodes)
             .edges(edges)
             .initialStepId(initialStepId)
+            .workflowInstance(null) // No instance for FluentAPI
+            .asyncStepMetadata(asyncStepMetadata)
             .build();
     }
     
@@ -901,6 +1001,16 @@ public class WorkflowBuilder<T, R> {
     }
     
     /**
+     * Extract method name from a TriFunction lambda or method reference.
+     * 
+     * @param triFunction The trifunction lambda or method reference
+     * @return The extracted method name or "asyncHandler"
+     */
+    private String extractTriFunctionMethodName(TriFunction<?, ?, ?, ?> triFunction) {
+        return extractLambdaMethodName(triFunction);
+    }
+    
+    /**
      * Extract method name from a lambda or method reference.
      * For method references, tries to extract the actual method name.
      * For anonymous lambdas, generates a unique ID.
@@ -971,4 +1081,79 @@ public class WorkflowBuilder<T, R> {
     private record BranchFalse() {}
     public record BranchValue<V>(V value) {}
     private record BranchOtherwise() {}
+    
+    /**
+     * Creates a proxy method for TriFunction to satisfy AsyncStepMetadata requirements.
+     */
+    private Method createProxyMethodForTriFunction() {
+        try {
+            // Get a method with the right signature from TriFunction interface
+            return TriFunction.class.getMethod("apply", Object.class, Object.class, Object.class);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Failed to create proxy method", e);
+        }
+    }
+    
+    /**
+     * Creates a synthetic AsyncStep annotation.
+     */
+    private AsyncStep createSyntheticAsyncAnnotation(String value) {
+        return new AsyncStep() {
+            @Override
+            public String value() {
+                return value;
+            }
+            
+            @Override
+            public String description() {
+                return "Async handler for pattern: " + value;
+            }
+            
+            @Override
+            public Class<?> inputClass() {
+                return Map.class;
+            }
+            
+            @Override
+            public Class<? extends java.lang.annotation.Annotation> annotationType() {
+                return AsyncStep.class;
+            }
+        };
+    }
+    
+    
+    /**
+     * Information about a registered async handler.
+     */
+    private static class AsyncHandlerInfo {
+        private final String pattern;
+        private final TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> handler;
+        private final String methodName;
+        private boolean fromAnnotation = false;
+        private AsyncStep annotation;
+        
+        AsyncHandlerInfo(String pattern, 
+                        TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> handler,
+                        String methodName) {
+            this.pattern = pattern;
+            this.handler = handler;
+            this.methodName = methodName != null ? methodName : "asyncHandler";
+        }
+        
+        void setFromAnnotation(boolean fromAnnotation) {
+            this.fromAnnotation = fromAnnotation;
+        }
+        
+        void setAnnotation(AsyncStep annotation) {
+            this.annotation = annotation;
+        }
+    }
+    
+    /**
+     * Functional interface for async handlers.
+     */
+    @FunctionalInterface
+    public interface TriFunction<T, U, V, R> {
+        R apply(T t, U u, V v);
+    }
 }
