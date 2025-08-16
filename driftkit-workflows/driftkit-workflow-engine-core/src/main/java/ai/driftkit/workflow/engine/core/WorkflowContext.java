@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.core;
 
+import ai.driftkit.workflow.engine.domain.RetryContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
@@ -7,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +33,10 @@ public class WorkflowContext {
     private final ConcurrentHashMap<String, StepOutput> customData;
     private final String instanceId;
     private volatile String lastStepId;
+    
+    // Retry and execution tracking
+    private final ConcurrentHashMap<String, AtomicInteger> stepExecutionCounts;
+    private final ConcurrentHashMap<String, RetryContext> stepRetryContexts;
     
     /**
      * Well-known keys for special context values.
@@ -70,6 +76,8 @@ public class WorkflowContext {
             this.customData.putAll(customData);
         }
         this.instanceId = instanceId != null ? instanceId : this.runId;
+        this.stepExecutionCounts = new ConcurrentHashMap<>();
+        this.stepRetryContexts = new ConcurrentHashMap<>();
     }
     
     /**
@@ -125,7 +133,6 @@ public class WorkflowContext {
      * @throws NoSuchElementException if the step output doesn't exist
      * @throws ClassCastException if the output cannot be cast to the requested type
      */
-    @SuppressWarnings("unchecked")
     public <T> T getStepResult(String stepId, Class<T> type) {
         StepOutput output = stepOutputs.get(stepId);
         if (output == null || !output.hasValue()) {
@@ -236,7 +243,6 @@ public class WorkflowContext {
      * @param <T> The type parameter
      * @return The value cast to the requested type, or null if not found
      */
-    @SuppressWarnings("unchecked")
     public <T> T getContextValue(String key, Class<T> type) {
         StepOutput output = customData.get(key);
         if (output == null || !output.hasValue()) {
@@ -434,6 +440,87 @@ public class WorkflowContext {
                '}';
     }
     
+    // Retry and execution tracking methods
+    
+    /**
+     * Records a step execution and returns the new count.
+     * 
+     * @param stepId The step ID
+     * @return The new execution count for this step
+     */
+    public int recordStepExecution(String stepId) {
+        AtomicInteger count = stepExecutionCounts.computeIfAbsent(stepId, k -> new AtomicInteger(0));
+        int newCount = count.incrementAndGet();
+        log.debug("Step {} executed {} times in workflow {}", stepId, newCount, runId);
+        return newCount;
+    }
+    
+    /**
+     * Gets the current execution count for a step.
+     * 
+     * @param stepId The step ID
+     * @return The current execution count, or 0 if never executed
+     */
+    public int getStepExecutionCount(String stepId) {
+        AtomicInteger count = stepExecutionCounts.get(stepId);
+        return count != null ? count.get() : 0;
+    }
+    
+    /**
+     * Updates the retry context for a step.
+     * 
+     * @param stepId The step ID
+     * @param retryContext The new retry context
+     */
+    public void updateRetryContext(String stepId, RetryContext retryContext) {
+        stepRetryContexts.put(stepId, retryContext);
+        log.debug("Updated retry context for step {} in workflow {}", stepId, runId);
+    }
+    
+    /**
+     * Gets the retry context for a step.
+     * 
+     * @param stepId The step ID
+     * @return The retry context, or null if no retries have occurred
+     */
+    public RetryContext getRetryContext(String stepId) {
+        return stepRetryContexts.get(stepId);
+    }
+    
+    /**
+     * Gets the current retry context if the executing step has one.
+     * This is a convenience method for steps to access their own retry context.
+     * 
+     * @return The retry context for the current step, or null if not in retry
+     */
+    public RetryContext getCurrentRetryContext() {
+        if (lastStepId != null) {
+            return stepRetryContexts.get(lastStepId);
+        }
+        return null;
+    }
+    
+    /**
+     * Clears retry context for a step (e.g., after successful execution).
+     * 
+     * @param stepId The step ID
+     */
+    public void clearRetryContext(String stepId) {
+        stepRetryContexts.remove(stepId);
+        log.debug("Cleared retry context for step {} in workflow {}", stepId, runId);
+    }
+    
+    /**
+     * Gets all step execution counts.
+     * 
+     * @return Map of step IDs to execution counts
+     */
+    public Map<String, Integer> getAllStepExecutionCounts() {
+        Map<String, Integer> counts = new HashMap<>();
+        stepExecutionCounts.forEach((stepId, count) -> counts.put(stepId, count.get()));
+        return counts;
+    }
+    
     /**
      * Fluent step output access for cleaner syntax in predicates and workflow logic.
      * 
@@ -546,7 +633,6 @@ public class WorkflowContext {
      * @return The value converted to the requested type
      * @throws ClassCastException if conversion fails
      */
-    @SuppressWarnings("unchecked")
     private static <T> T convertToType(Object value, Class<T> type, String description) {
         if (value == null) {
             return null;

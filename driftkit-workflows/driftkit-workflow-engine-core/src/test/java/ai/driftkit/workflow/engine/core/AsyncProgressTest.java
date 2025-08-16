@@ -12,12 +12,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for async workflow execution with progress reporting.
  */
+@Slf4j
 public class AsyncProgressTest {
 
     private WorkflowEngine engine;
@@ -46,21 +48,21 @@ public class AsyncProgressTest {
         // Check initial event
         WorkflowEvent currentResult = engine.getCurrentResult(instanceId).orElseThrow();
         assertNotNull(currentResult);
-        System.out.println("Initial event: " + currentResult.getPercentComplete() + "% - async=" + currentResult.isAsync());
+        log.debug("Initial event: {}% - async={}", currentResult.getPercentComplete(), currentResult.isAsync());
 
         // Reload instance to get latest state
         instance = engine.getWorkflowInstance(instanceId).orElseThrow();
 
         // Check async state is created
-        System.out.println("Current step: " + instance.getCurrentStepId());
-        System.out.println("Status: " + instance.getStatus());
+        log.debug("Current step: {}", instance.getCurrentStepId());
+        log.debug("Status: {}", instance.getStatus());
 
         // Wait for async handler to start and update progress
         Thread.sleep(1000);
 
         // Check progress has been updated
         currentResult = engine.getCurrentResult(instanceId).orElseThrow();
-        System.out.println("Progress after 1000ms: " + currentResult.getPercentComplete() + "% - " + currentResult.getProperties());
+        log.debug("Progress after 1000ms: {}% - {}", currentResult.getPercentComplete(), currentResult.getProperties());
         assertTrue(currentResult.getPercentComplete() > 0, "Expected progress > 0, but was " + currentResult.getPercentComplete());
 
         // Wait for completion
@@ -86,13 +88,13 @@ public class AsyncProgressTest {
 
         // Reload instance to check async state
         WorkflowInstance instance = engine.getWorkflowInstance(instanceId).orElseThrow();
-        System.out.println("Instance status: " + instance.getStatus());
-        System.out.println("Current step: " + instance.getCurrentStepId());
-        System.out.println("Status: " + instance.getStatus());
+        log.debug("Instance status: {}", instance.getStatus());
+        log.debug("Current step: {}", instance.getCurrentStepId());
+        log.debug("Status: {}", instance.getStatus());
 
         // Cancel the operation
         boolean cancelled = engine.cancelAsyncOperation(instanceId);
-        System.out.println("Cancellation result: " + cancelled);
+        log.debug("Cancellation result: {}", cancelled);
         assertTrue(cancelled, "Expected cancellation to succeed");
 
         // Wait for workflow to fail
@@ -107,6 +109,7 @@ public class AsyncProgressTest {
     }
 
     @Workflow(id = "test-async-workflow", version = "1.0")
+    @Slf4j
     public static class TestAsyncWorkflow {
         final AtomicInteger progressUpdates = new AtomicInteger(0);
         final CountDownLatch wasCancelled = new CountDownLatch(1);
@@ -131,7 +134,7 @@ public class AsyncProgressTest {
         public StepResult<String> executeAsync(Map<String, Object> args,
                                                WorkflowContext context,
                                                AsyncProgressReporter progress) {
-            System.out.println("ASYNC HANDLER CALLED with args: " + args);
+            log.debug("ASYNC HANDLER CALLED with args: {}", args);
             String input = (String) args.get("input");
 
             try {
@@ -142,7 +145,7 @@ public class AsyncProgressTest {
                         return new StepResult.Fail<>("Operation cancelled");
                     }
 
-                    System.out.println("Updating progress to " + i + "%");
+                    log.debug("Updating progress to {}%", i);
                     progress.updateProgress(i, "Processing... " + i + "%");
                     progressUpdates.incrementAndGet();
                     Thread.sleep(100);

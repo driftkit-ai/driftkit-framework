@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.core;
 
+import ai.driftkit.workflow.engine.builder.InternalRoutingMarker;
 import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.domain.WorkflowException;
 import ai.driftkit.workflow.engine.graph.StepNode;
@@ -175,8 +176,14 @@ public class WorkflowOrchestrator {
                 String nextStepId = router.findBranchTarget(graph, currentStep.id(), branch.event());
                 if (nextStepId != null) {
                     instance.setCurrentStepId(nextStepId);
-                    // Don't store the branch event - let the next step use the previous step's output
-                    // The branch event is only for routing, not for data flow
+                    // Only store the branch event if it's not an internal routing marker
+                    Object branchEvent = branch.event();
+                    if (!(branchEvent instanceof InternalRoutingMarker)) {
+                        // This is actual data to be used by subsequent steps
+                        instance.updateContext(currentStep.id(), branchEvent);
+                    }
+                    // For internal routing objects, don't store them - let InputPreparer
+                    // find the previous suitable output
                     stateManager.saveInstance(instance);
                 } else {
                     throw new IllegalStateException(

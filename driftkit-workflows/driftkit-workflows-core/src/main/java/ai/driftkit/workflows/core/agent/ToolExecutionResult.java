@@ -16,6 +16,17 @@ public class ToolExecutionResult {
     private final String error;
     
     // Convenience method to get typed result
+    public <T> T getTypedResult(Class<T> type) {
+        if (result == null) {
+            return null;
+        }
+        if (type.isInstance(result)) {
+            return type.cast(result);
+        }
+        throw new ClassCastException("Cannot cast result of type " + result.getClass().getName() + " to " + type.getName());
+    }
+    
+    // Legacy method for backward compatibility
     @SuppressWarnings("unchecked")
     public <T> T getTypedResult() {
         return (T) result;

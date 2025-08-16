@@ -7,7 +7,6 @@ import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,18 +22,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class TasksService {
 
-    @Autowired
-    private MessageTaskRepository messageTaskRepository;
-
-    @Autowired
-    private ChatRepository chatRepository;
-
-    @Autowired
-    private AIService aiService;
+    private final MessageTaskRepository messageTaskRepository;
+    private final ChatRepository chatRepository;
+    private final AIService aiService;
 
     private ExecutorService exec;
 

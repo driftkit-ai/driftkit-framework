@@ -225,6 +225,9 @@ public class WorkflowAnalyzer {
                         .condition(stepAnnotation.condition())
                         .onTrue(stepAnnotation.onTrue())
                         .onFalse(stepAnnotation.onFalse())
+                        .retryPolicy(stepAnnotation.retryPolicy())
+                        .invocationLimit(stepAnnotation.invocationLimit())
+                        .onInvocationsLimit(stepAnnotation.onInvocationsLimit())
                         .build();
             }
 
@@ -340,7 +343,10 @@ public class WorkflowAnalyzer {
                 StepNode node = StepNode.fromMethod(
                         info.getId(),
                         info.getMethod(),
-                        info.getInstance()
+                        info.getInstance(),
+                        info.getRetryPolicy(),
+                        info.getInvocationLimit(),
+                        info.getOnInvocationsLimit()
                 );
 
                 if (info.isInitial()) {

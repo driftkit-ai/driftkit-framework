@@ -79,7 +79,6 @@ public class StepOutput {
      * @return The value cast to the type
      * @throws ClassCastException if the value cannot be cast
      */
-    @SuppressWarnings("unchecked")
     public <T> T getValueAs(Class<T> type) {
         Object value = getValue();
         

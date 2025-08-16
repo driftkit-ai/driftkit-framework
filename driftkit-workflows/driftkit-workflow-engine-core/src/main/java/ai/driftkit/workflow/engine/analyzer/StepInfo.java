@@ -1,5 +1,7 @@
 package ai.driftkit.workflow.engine.analyzer;
 
+import ai.driftkit.workflow.engine.annotations.OnInvocationsLimit;
+import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import lombok.Builder;
 import lombok.Data;
 
@@ -54,6 +56,15 @@ public class StepInfo {
     private final Set<Class<?>> possibleBranchTypes = new HashSet<>();
     
     private ReturnTypeInfo returnTypeInfo;
+    
+    // Retry configuration
+    private RetryPolicy retryPolicy;
+    
+    @Builder.Default
+    private int invocationLimit = 100;
+    
+    @Builder.Default
+    private OnInvocationsLimit onInvocationsLimit = OnInvocationsLimit.ERROR;
     
     /**
      * Holds detailed return type information.

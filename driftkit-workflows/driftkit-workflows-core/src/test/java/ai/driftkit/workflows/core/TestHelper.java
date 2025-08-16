@@ -27,7 +27,7 @@ public class TestHelper {
             config.setApiKey("");
         }
 
-        config.setBaseUrl("https://api.openai.com/");
+        config.setBaseUrl(TestConstants.OPENAI_API_BASE_URL);
         config.setModel("gpt-4o"); // Model that supports vision and structured outputs
         config.setTemperature(0.1); // Low temperature for more consistent results
         config.setMaxTokens(1000);

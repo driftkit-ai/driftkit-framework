@@ -278,8 +278,7 @@ public class ExecutableWorkflowGraph extends WorkflowGraph {
 
         // If result is JsonNode, make it accessible in expression
         if (result instanceof JsonNode) {
-            //TODO: fixme
-            Map<String, Object> response = ModelUtils.OBJECT_MAPPER.convertValue(ModelUtils.OBJECT_MAPPER.readTree(result.toString().toLowerCase()), Map.class);
+            Map<String, Object> response = ModelUtils.OBJECT_MAPPER.convertValue(result, Map.class);
             variables.put("response", response);
         }
 

@@ -207,20 +207,20 @@ public class FluentApiChatWorkflowTest {
             .then(validationSteps::validateOrder)
             .then(processingSteps::calculateOrderTotal)
             .on(ctx -> {
-                System.out.println("DEBUG: Context has steps: " + ctx.getStepCount());
-                System.out.println("DEBUG: Step names: " + ctx.getStepOutputs().keySet());
+                log.debug("Context has steps: {}", ctx.getStepCount());
+                log.debug("Step names: {}", ctx.getStepOutputs().keySet());
                 
                 Optional<OrderTotal> orderTotal = ctx.step("calculateOrderTotal").output(OrderTotal.class);
-                System.out.println("DEBUG: Found OrderTotal in context: " + orderTotal.isPresent());
+                log.debug("Found OrderTotal in context: {}", orderTotal.isPresent());
                 
                 // Try to get last output
                 Optional<OrderTotal> lastOrderTotal = ctx.lastOutput(OrderTotal.class);
-                System.out.println("DEBUG: Found OrderTotal in lastOutput: " + lastOrderTotal.isPresent());
+                log.debug("Found OrderTotal in lastOutput: {}", lastOrderTotal.isPresent());
                 
                 CustomerTier tier = orderTotal.map(OrderTotal::getCustomerTier)
                     .or(() -> lastOrderTotal.map(OrderTotal::getCustomerTier))
                     .orElse(CustomerTier.STANDARD);
-                System.out.println("DEBUG: Selected customer tier: " + tier);
+                log.debug("Selected customer tier: {}", tier);
                 return tier;
             })
                 .is(CustomerTier.GOLD, flow -> flow
@@ -259,16 +259,16 @@ public class FluentApiChatWorkflowTest {
             .then(chatSteps::extractIntent)
             .branch(
                 ctx -> {
-                    System.out.println("DEBUG: Branch condition evaluation");
+                    log.debug("Branch condition evaluation");
                     Optional<IntentAnalysis> analysis = ctx.step("extractIntent").output(IntentAnalysis.class);
-                    System.out.println("DEBUG: Found extractIntent output: " + analysis.isPresent());
+                    log.debug("Found extractIntent output: {}", analysis.isPresent());
                     if (analysis.isEmpty()) {
                         // Try to get it from last output
                         analysis = ctx.lastOutput(IntentAnalysis.class);
-                        System.out.println("DEBUG: Found IntentAnalysis in lastOutput: " + analysis.isPresent());
+                        log.debug("Found IntentAnalysis in lastOutput: {}", analysis.isPresent());
                     }
                     boolean isComplex = analysis.map(a -> a.getIntent() == Intent.COMPLEX_TASK).orElse(false);
-                    System.out.println("DEBUG: Is complex task: " + isComplex);
+                    log.debug("Is complex task: {}", isComplex);
                     return isComplex;
                 },
                 
@@ -308,8 +308,8 @@ public class FluentApiChatWorkflowTest {
         Optional<WorkflowInstance> instance = engine.getWorkflowInstance(execution.getRunId());
         assertTrue(instance.isPresent());
         WorkflowInstance workflowInstance = instance.get();
-        System.out.println("Workflow status: " + workflowInstance.getStatus());
-        System.out.println("Current step: " + workflowInstance.getCurrentStepId());
+        log.debug("Workflow status: {}", workflowInstance.getStatus());
+        log.debug("Current step: {}", workflowInstance.getCurrentStepId());
         assertEquals(WorkflowInstance.WorkflowStatus.SUSPENDED, workflowInstance.getStatus());
         
         // TODO: Fix resume logic
@@ -379,8 +379,8 @@ public class FluentApiChatWorkflowTest {
         DocumentResult result = execution.get(10, TimeUnit.SECONDS);
         assertNotNull(result);
         assertTrue(result.isSuccess());
-        System.out.println("DEBUG: Completed steps: " + result.getCompletedSteps());
-        System.out.println("DEBUG: Completed steps count: " + result.getCompletedSteps().size());
+        log.debug("Completed steps: {}", result.getCompletedSteps());
+        log.debug("Completed steps count: {}", result.getCompletedSteps().size());
         assertEquals(21, result.getCompletedSteps().size()); // All 21 steps completed
     }
     
@@ -436,7 +436,7 @@ public class FluentApiChatWorkflowTest {
         public StepResult<IntentAnalysis> extractIntent(UserMessage request) {
             String message = request.getMessage().toLowerCase();
             IntentAnalysis analysis = new IntentAnalysis();
-            System.out.println("DEBUG: Extracting intent from message: " + message);
+            log.debug("Extracting intent from message: {}", message);
             
             // Check more specific patterns first
             if (message.contains("analyze") || message.contains("process")) {
@@ -452,7 +452,7 @@ public class FluentApiChatWorkflowTest {
             analysis.setConfidence(0.9);
             analysis.setOriginalMessage(request.getMessage());
             
-            System.out.println("DEBUG: Detected intent: " + analysis.getIntent());
+            log.debug("Detected intent: {}", analysis.getIntent());
             return StepResult.continueWith(analysis);
         }
         
@@ -527,7 +527,7 @@ public class FluentApiChatWorkflowTest {
         }
         
         public StepResult<SimpleResult> handleSimpleTask(IntentAnalysis intent) {
-            System.out.println("DEBUG: Handling simple task for intent: " + intent.getIntent());
+            log.debug("Handling simple task for intent: {}", intent.getIntent());
             SimpleResult result = new SimpleResult();
             result.setMessage("Simple task handled");
             result.setSuccess(true);
@@ -609,7 +609,7 @@ public class FluentApiChatWorkflowTest {
         }
         
         public StepResult<TaskInProgress> initiateAsyncTask(IntentAnalysis intent) {
-            System.out.println("DEBUG: Initiating async task for intent: " + intent.getIntent());
+            log.debug("Initiating async task for intent: {}", intent.getIntent());
             TaskInProgress task = new TaskInProgress();
             task.setTaskId(UUID.randomUUID().toString());
             task.setDescription("Processing complex task: " + intent.getOriginalMessage());
@@ -767,7 +767,7 @@ public class FluentApiChatWorkflowTest {
             total.setOrderId(order.getOrderId());
             total.setSubtotal(100.0); // Simplified
             CustomerTier tier = determineCustomerTier(order.getCustomerId());
-            System.out.println("DEBUG calculateOrderTotal: customerId=" + order.getCustomerId() + ", tier=" + tier);
+            log.debug("calculateOrderTotal: customerId={}, tier={}", order.getCustomerId(), tier);
             total.setCustomerTier(tier);
             return StepResult.continueWith(total);
         }

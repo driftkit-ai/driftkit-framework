@@ -128,4 +128,29 @@ public @interface Step {
      * @return The timeout in milliseconds
      */
     long timeoutMs() default -1;
+    
+    /**
+     * Retry policy for this step.
+     * Defines how the step should be retried on failure.
+     * 
+     * @return The retry policy configuration
+     */
+    RetryPolicy retryPolicy() default @RetryPolicy();
+    
+    /**
+     * Maximum number of times this step can be invoked within a single workflow execution.
+     * This helps prevent infinite loops. Default is 100.
+     * Set to -1 for unlimited invocations.
+     * 
+     * @return The maximum invocation count
+     */
+    int invocationLimit() default 100;
+    
+    /**
+     * Behavior when the invocation limit is reached.
+     * Default is ERROR which will fail the workflow.
+     * 
+     * @return The behavior on reaching invocation limit
+     */
+    OnInvocationsLimit onInvocationsLimit() default OnInvocationsLimit.ERROR;
 }

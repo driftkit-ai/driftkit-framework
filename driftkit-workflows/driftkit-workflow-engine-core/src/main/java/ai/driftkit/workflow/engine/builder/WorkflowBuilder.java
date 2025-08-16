@@ -236,6 +236,115 @@ public class WorkflowBuilder<T, R> {
     }
     
     /**
+     * Adds a step that returns a plain value (not StepResult).
+     * The value will be automatically wrapped in StepResult.continueWith().
+     * Method name is automatically extracted from method reference.
+     * 
+     * @param step Function that returns a plain object
+     */
+    public <I, O> WorkflowBuilder<T, R> thenValue(Function<I, O> step) {
+        String stepId = extractLambdaMethodName(step);
+        
+        // Wrap the function to return StepResult
+        Function<I, StepResult<O>> wrappedStep = input -> {
+            O result = step.apply(input);
+            return StepResult.continueWith(result);
+        };
+        
+        StepDefinition stepDef = StepDefinition.of(stepId, wrappedStep);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        
+        return this;
+    }
+    
+    /**
+     * Adds a step that returns a plain value with context access.
+     * The value will be automatically wrapped in StepResult.continueWith().
+     * 
+     * @param step BiFunction that returns a plain object
+     */
+    public <I, O> WorkflowBuilder<T, R> thenValue(BiFunction<I, WorkflowContext, O> step) {
+        String stepId = extractLambdaMethodName(step);
+        
+        // Wrap the function to return StepResult
+        BiFunction<I, WorkflowContext, StepResult<O>> wrappedStep = (input, ctx) -> {
+            O result = step.apply(input, ctx);
+            return StepResult.continueWith(result);
+        };
+        
+        StepDefinition stepDef = StepDefinition.of(stepId, wrappedStep);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        
+        return this;
+    }
+    
+    /**
+     * Adds a step with explicit ID that returns a plain value.
+     * 
+     * @param id Explicit step ID
+     * @param step Function that returns a plain object
+     */
+    public <I, O> WorkflowBuilder<T, R> thenValue(String id, Function<I, O> step, Class<I> inputType, Class<O> outputType) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Step ID cannot be null or empty");
+        }
+        if (inputType == null || outputType == null) {
+            throw new IllegalArgumentException("Input and output types must be specified");
+        }
+        
+        // Wrap the function to return StepResult
+        Function<I, StepResult<O>> wrappedStep = input -> {
+            O result = step.apply(input);
+            return StepResult.continueWith(result);
+        };
+        
+        StepDefinition stepDef = StepDefinition.of(id, wrappedStep).withTypes(inputType, outputType);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        return this;
+    }
+    
+    /**
+     * Adds a final step that returns a plain value (automatically wrapped in StepResult.finish).
+     */
+    public <I, O> WorkflowBuilder<T, R> finishWithValue(Function<I, O> step) {
+        String stepId = extractLambdaMethodName(step);
+        
+        // Wrap the function to return StepResult.finish
+        Function<I, StepResult<O>> wrappedStep = input -> {
+            O result = step.apply(input);
+            return StepResult.finish(result);
+        };
+        
+        StepDefinition stepDef = StepDefinition.of(stepId, wrappedStep);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        
+        return this;
+    }
+    
+    /**
+     * Adds a final step with context that returns a plain value (automatically wrapped in StepResult.finish).
+     */
+    public <I, O> WorkflowBuilder<T, R> finishWithValue(BiFunction<I, WorkflowContext, O> step) {
+        String stepId = extractLambdaMethodName(step);
+        
+        // Wrap the function to return StepResult.finish
+        BiFunction<I, WorkflowContext, StepResult<O>> wrappedStep = (input, ctx) -> {
+            O result = step.apply(input, ctx);
+            return StepResult.finish(result);
+        };
+        
+        StepDefinition stepDef = StepDefinition.of(stepId, wrappedStep);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        
+        return this;
+    }
+    
+    /**
      * Adds parallel steps to the workflow.
      * All steps in the list will be executed concurrently.
      * 
@@ -736,7 +845,10 @@ public class WorkflowBuilder<T, R> {
                 }
             },
             false,
-            context.isFirst()
+            context.isFirst(),
+            stepDef.getRetryPolicy(),
+            stepDef.getInvocationLimit(),
+            stepDef.getOnInvocationsLimit()
         );
     }
     
@@ -989,7 +1101,10 @@ public class WorkflowBuilder<T, R> {
                     }
                 },
                 false,
-                context.isFirst()
+                context.isFirst(),
+                tryStep.getRetryPolicy(),
+                tryStep.getInvocationLimit(),
+                tryStep.getOnInvocationsLimit()
             );
             
             result.nodes.add(tryNode);
@@ -1077,10 +1192,10 @@ public class WorkflowBuilder<T, R> {
     /**
      * Marker types for branch decisions.
      */
-    private record BranchTrue() {}
-    private record BranchFalse() {}
-    public record BranchValue<V>(V value) {}
-    private record BranchOtherwise() {}
+    private record BranchTrue() implements InternalRoutingMarker {}
+    private record BranchFalse() implements InternalRoutingMarker {}
+    public record BranchValue<V>(V value) implements InternalRoutingMarker {}
+    private record BranchOtherwise() implements InternalRoutingMarker {}
     
     /**
      * Creates a proxy method for TriFunction to satisfy AsyncStepMetadata requirements.

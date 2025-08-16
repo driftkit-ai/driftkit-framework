@@ -1,5 +1,7 @@
 package ai.driftkit.workflow.engine.graph;
 
+import ai.driftkit.workflow.engine.annotations.OnInvocationsLimit;
+import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 
@@ -19,7 +21,10 @@ public record StepNode(
     String description,
     StepExecutor executor,
     boolean isAsync,
-    boolean isInitial
+    boolean isInitial,
+    RetryPolicy retryPolicy,
+    int invocationLimit,
+    OnInvocationsLimit onInvocationsLimit
 ) {
     /**
      * Validates the StepNode parameters.
@@ -34,6 +39,14 @@ public record StepNode(
         if (description == null || description.isBlank()) {
             description = "Step: " + id;
         }
+        // Set defaults for retry configuration
+        if (invocationLimit <= 0) {
+            invocationLimit = 100;
+        }
+        if (onInvocationsLimit == null) {
+            onInvocationsLimit = OnInvocationsLimit.ERROR;
+        }
+        // retryPolicy can be null - means no retry
     }
     
     /**
@@ -54,14 +67,28 @@ public record StepNode(
     public static StepNode fromMethod(String id, Method method, Object instance) {
         String desc = "Execute " + method.getName();
         boolean async = CompletableFuture.class.isAssignableFrom(method.getReturnType());
-        return new StepNode(id, desc, new MethodStepExecutor(method, instance), async, false);
+        return new StepNode(id, desc, new MethodStepExecutor(method, instance), async, false, 
+                           null, 100, OnInvocationsLimit.ERROR);
+    }
+    
+    /**
+     * Factory method to create a StepNode from a method reference with retry configuration.
+     */
+    public static StepNode fromMethod(String id, Method method, Object instance,
+                                     RetryPolicy retryPolicy, int invocationLimit, 
+                                     OnInvocationsLimit onInvocationsLimit) {
+        String desc = "Execute " + method.getName();
+        boolean async = CompletableFuture.class.isAssignableFrom(method.getReturnType());
+        return new StepNode(id, desc, new MethodStepExecutor(method, instance), async, false,
+                           retryPolicy, invocationLimit, onInvocationsLimit);
     }
     
     /**
      * Factory method to create a StepNode from a function.
      */
     public static StepNode fromFunction(String id, Function<Object, StepResult<?>> function) {
-        return new StepNode(id, "Function step", new FunctionStepExecutor(function, null, null), false, false);
+        return new StepNode(id, "Function step", new FunctionStepExecutor(function, null, null), false, false,
+                           null, 100, OnInvocationsLimit.ERROR);
     }
     
     /**
@@ -72,14 +99,16 @@ public record StepNode(
                                                Class<I> inputType,
                                                Class<O> outputType) {
         return new StepNode(id, "Function step", 
-            new FunctionStepExecutor(function, inputType, outputType), false, false);
+            new FunctionStepExecutor(function, inputType, outputType), false, false,
+            null, 100, OnInvocationsLimit.ERROR);
     }
     
     /**
      * Factory method to create a StepNode from a bi-function that accepts context.
      */
     public static StepNode fromBiFunction(String id, BiFunction<Object, WorkflowContext, StepResult<?>> function) {
-        return new StepNode(id, "BiFunction step", new BiFunctionStepExecutor(function, null, null), false, false);
+        return new StepNode(id, "BiFunction step", new BiFunctionStepExecutor(function, null, null), false, false,
+                           null, 100, OnInvocationsLimit.ERROR);
     }
     
     /**
@@ -90,28 +119,36 @@ public record StepNode(
                                                  Class<I> inputType,
                                                  Class<O> outputType) {
         return new StepNode(id, "BiFunction step", 
-            new BiFunctionStepExecutor(function, inputType, outputType), false, false);
+            new BiFunctionStepExecutor(function, inputType, outputType), false, false,
+            null, 100, OnInvocationsLimit.ERROR);
     }
     
     /**
      * Creates a new StepNode with the initial flag set.
      */
     public StepNode asInitial() {
-        return new StepNode(id, description, executor, isAsync, true);
+        return new StepNode(id, description, executor, isAsync, true, retryPolicy, invocationLimit, onInvocationsLimit);
     }
     
     /**
      * Creates a new StepNode with the async flag set.
      */
     public StepNode asAsync() {
-        return new StepNode(id, description, executor, true, isInitial);
+        return new StepNode(id, description, executor, true, isInitial, retryPolicy, invocationLimit, onInvocationsLimit);
     }
     
     /**
      * Creates a new StepNode with a different description.
      */
     public StepNode withDescription(String newDescription) {
-        return new StepNode(id, newDescription, executor, isAsync, isInitial);
+        return new StepNode(id, newDescription, executor, isAsync, isInitial, retryPolicy, invocationLimit, onInvocationsLimit);
+    }
+    
+    /**
+     * Creates a new StepNode with retry configuration.
+     */
+    public StepNode withRetry(RetryPolicy retryPolicy, int invocationLimit, OnInvocationsLimit onInvocationsLimit) {
+        return new StepNode(id, description, executor, isAsync, isInitial, retryPolicy, invocationLimit, onInvocationsLimit);
     }
     
     /**

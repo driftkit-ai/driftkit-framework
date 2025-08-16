@@ -1,5 +1,7 @@
 package ai.driftkit.workflow.engine.builder;
 
+import ai.driftkit.workflow.engine.annotations.OnInvocationsLimit;
+import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import lombok.Getter;
@@ -26,9 +28,14 @@ public class StepDefinition {
     private final String description;
     private final Class<?> inputType;
     private final Class<?> outputType;
+    private final RetryPolicy retryPolicy;
+    private final int invocationLimit;
+    private final OnInvocationsLimit onInvocationsLimit;
     
     private StepDefinition(String id, StepExecutor executor, String description, 
-                          Class<?> inputType, Class<?> outputType) {
+                          Class<?> inputType, Class<?> outputType,
+                          RetryPolicy retryPolicy, int invocationLimit, 
+                          OnInvocationsLimit onInvocationsLimit) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Step ID cannot be null or empty");
         }
@@ -41,6 +48,9 @@ public class StepDefinition {
         this.description = description != null ? description : "Step: " + id;
         this.inputType = inputType != null ? inputType : Object.class;
         this.outputType = outputType != null ? outputType : Object.class;
+        this.retryPolicy = retryPolicy;
+        this.invocationLimit = invocationLimit > 0 ? invocationLimit : 100;
+        this.onInvocationsLimit = onInvocationsLimit != null ? onInvocationsLimit : OnInvocationsLimit.ERROR;
     }
     
     /**
@@ -65,7 +75,8 @@ public class StepDefinition {
             },
             null,
             methodInfo.inputType(),
-            methodInfo.outputType()
+            methodInfo.outputType(),
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -91,7 +102,8 @@ public class StepDefinition {
             },
             null,
             methodInfo.inputType(),
-            methodInfo.outputType()
+            methodInfo.outputType(),
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -119,7 +131,8 @@ public class StepDefinition {
             },
             null,
             null, // User must specify via withTypes()
-            null
+            null,
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -147,7 +160,8 @@ public class StepDefinition {
             },
             null,
             null, // User must specify via withTypes()
-            null
+            null,
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -163,7 +177,8 @@ public class StepDefinition {
             (input, context) -> stepFunction.apply(context),
             null,
             Void.class,
-            methodInfo.outputType()
+            methodInfo.outputType(),
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -181,7 +196,8 @@ public class StepDefinition {
             (input, context) -> stepFunction.apply(context),
             null,
             Void.class,
-            null // User must specify via withTypes()
+            null, // User must specify via withTypes()
+            null, 100, OnInvocationsLimit.ERROR
         );
     }
     
@@ -189,7 +205,8 @@ public class StepDefinition {
      * Sets a custom description for this step.
      */
     public StepDefinition withDescription(String description) {
-        return new StepDefinition(this.id, this.executor, description, this.inputType, this.outputType);
+        return new StepDefinition(this.id, this.executor, description, this.inputType, this.outputType,
+                                 this.retryPolicy, this.invocationLimit, this.onInvocationsLimit);
     }
     
     /**
@@ -197,21 +214,69 @@ public class StepDefinition {
      * This is required for lambda-based steps where type information cannot be extracted.
      */
     public StepDefinition withTypes(Class<?> inputType, Class<?> outputType) {
-        return new StepDefinition(this.id, this.executor, this.description, inputType, outputType);
+        return new StepDefinition(this.id, this.executor, this.description, inputType, outputType,
+                                 this.retryPolicy, this.invocationLimit, this.onInvocationsLimit);
     }
     
     /**
      * Sets only the input type, keeping the output type as-is.
      */
     public StepDefinition withInputType(Class<?> inputType) {
-        return new StepDefinition(this.id, this.executor, this.description, inputType, this.outputType);
+        return new StepDefinition(this.id, this.executor, this.description, inputType, this.outputType,
+                                 this.retryPolicy, this.invocationLimit, this.onInvocationsLimit);
     }
     
     /**
      * Sets only the output type, keeping the input type as-is.
      */
     public StepDefinition withOutputType(Class<?> outputType) {
-        return new StepDefinition(this.id, this.executor, this.description, this.inputType, outputType);
+        return new StepDefinition(this.id, this.executor, this.description, this.inputType, outputType,
+                                 this.retryPolicy, this.invocationLimit, this.onInvocationsLimit);
+    }
+    
+    /**
+     * Sets the retry policy for this step.
+     * 
+     * @param retryPolicy The retry policy to apply
+     * @return A new StepDefinition with the retry policy set
+     */
+    public StepDefinition withRetryPolicy(RetryPolicy retryPolicy) {
+        return new StepDefinition(this.id, this.executor, this.description, this.inputType, this.outputType,
+                                 retryPolicy, this.invocationLimit, this.onInvocationsLimit);
+    }
+    
+    /**
+     * Sets the invocation limit for this step.
+     * 
+     * @param invocationLimit Maximum number of times this step can be invoked
+     * @return A new StepDefinition with the invocation limit set
+     */
+    public StepDefinition withInvocationLimit(int invocationLimit) {
+        return new StepDefinition(this.id, this.executor, this.description, this.inputType, this.outputType,
+                                 this.retryPolicy, invocationLimit, this.onInvocationsLimit);
+    }
+    
+    /**
+     * Sets the behavior when invocation limit is reached.
+     * 
+     * @param onInvocationsLimit The behavior when limit is reached
+     * @return A new StepDefinition with the behavior set
+     */
+    public StepDefinition withOnInvocationsLimit(OnInvocationsLimit onInvocationsLimit) {
+        return new StepDefinition(this.id, this.executor, this.description, this.inputType, this.outputType,
+                                 this.retryPolicy, this.invocationLimit, onInvocationsLimit);
+    }
+    
+    /**
+     * Convenience method to set both invocation limit and behavior.
+     * 
+     * @param invocationLimit Maximum number of times this step can be invoked
+     * @param onInvocationsLimit The behavior when limit is reached
+     * @return A new StepDefinition with both settings
+     */
+    public StepDefinition withInvocationControl(int invocationLimit, OnInvocationsLimit onInvocationsLimit) {
+        return new StepDefinition(this.id, this.executor, this.description, this.inputType, this.outputType,
+                                 this.retryPolicy, invocationLimit, onInvocationsLimit);
     }
     
     /**

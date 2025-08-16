@@ -12,6 +12,7 @@ import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.common.domain.Language;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.*;
  * Comprehensive tests for ChatWorkflowExample demonstrating all StepResult types.
  * Tests workflow execution through the WorkflowEngine API with proper state verification.
  */
+@Slf4j
 public class ChatWorkflowExampleTest {
 
     private WorkflowEngine engine;
@@ -46,6 +48,7 @@ public class ChatWorkflowExampleTest {
     /**
      * Test listener to capture workflow execution events.
      */
+    @Slf4j
     private static class TestExecutionListener implements WorkflowEngine.WorkflowExecutionListener {
         private final List<String> executedSteps = new ArrayList<>();
         private final Map<String, StepResult<?>> stepResults = new HashMap<>();
@@ -59,29 +62,26 @@ public class ChatWorkflowExampleTest {
         public void onStepCompleted(WorkflowInstance instance, String stepId, StepResult<?> result) {
             executedSteps.add(stepId);
             stepResults.put(stepId, result);
-            System.out.println("Step completed: " + stepId + " with result type: " + result.getClass().getSimpleName());
+            log.debug("Step completed: {} with result type: {}", stepId, result.getClass().getSimpleName());
         }
 
         @Override
         public void onWorkflowSuspended(WorkflowInstance instance) {
-            System.out.println("Workflow suspended at step: " + instance.getCurrentStepId());
+            log.debug("Workflow suspended at step: {}", instance.getCurrentStepId());
             lastSuspendedInstance = instance;
             suspendLatch.countDown();
         }
 
         @Override
         public void onWorkflowCompleted(WorkflowInstance instance, Object result) {
-            System.out.println("Workflow completed with result: " + result);
+            log.debug("Workflow completed with result: {}", result);
             finalResult = result;
             completeLatch.countDown();
         }
 
         @Override
         public void onWorkflowFailed(WorkflowInstance instance, Throwable error) {
-            System.out.println("Workflow failed with error: " + error.getMessage());
-            if (error != null) {
-                error.printStackTrace();
-            }
+            log.error("Workflow failed with error", error);
             lastError = error;
             completeLatch.countDown();
         }
@@ -249,8 +249,8 @@ public class ChatWorkflowExampleTest {
         // Should suspend asking for task details
         boolean suspended = testListener.awaitSuspension(Duration.ofSeconds(5));
         if (!suspended) {
-            System.out.println("Not suspended. Executed steps: " + testListener.executedSteps);
-            System.out.println("Last error: " + testListener.lastError);
+            log.debug("Not suspended. Executed steps: {}", testListener.executedSteps);
+            log.debug("Last error: {}", testListener.lastError);
         }
         assertTrue(suspended);
 
@@ -275,9 +275,9 @@ public class ChatWorkflowExampleTest {
         Optional<WorkflowInstance> finalInstance = stateRepository.load(execution.getRunId());
         assertTrue(finalInstance.isPresent());
 
-        System.out.println("Final workflow status: " + finalInstance.get().getStatus());
-        System.out.println("Current step: " + finalInstance.get().getCurrentStepId());
-        System.out.println("Executed steps: " + testListener.executedSteps);
+        log.debug("Final workflow status: {}", finalInstance.get().getStatus());
+        log.debug("Current step: {}", finalInstance.get().getCurrentStepId());
+        log.debug("Executed steps: {}", testListener.executedSteps);
 
         // Should complete task execution
         assertEquals(WorkflowInstance.WorkflowStatus.COMPLETED, finalInstance.get().getStatus());
@@ -391,8 +391,8 @@ public class ChatWorkflowExampleTest {
             if (errorMessage == null && testListener.lastError.getCause() != null) {
                 errorMessage = testListener.lastError.getCause().getMessage();
             }
-            System.out.println("Error message: " + errorMessage);
-            System.out.println("Error class: " + testListener.lastError.getClass());
+            log.debug("Error message: {}", errorMessage);
+            log.debug("Error class: {}", testListener.lastError.getClass());
 
             // The error might be wrapped in a WorkflowExecutionException
             assertTrue(errorMessage != null &&
@@ -563,27 +563,26 @@ public class ChatWorkflowExampleTest {
         // Wait for workflow to reach suspended state
         boolean suspended = testListener.awaitSuspension(Duration.ofSeconds(2));
         if (!suspended) {
-            System.err.println("Workflow did not suspend within timeout");
+            log.error("Workflow did not suspend within timeout");
         }
 
         // Check workflow state
         Optional<WorkflowInstance> instance = stateRepository.load(execution.getRunId());
         assertTrue(instance.isPresent());
 
-        System.out.println("Workflow status after suspension: " + instance.get().getStatus());
-        System.out.println("Current step: " + instance.get().getCurrentStepId());
-        System.out.println("Executed steps: " + testListener.executedSteps);
+        log.debug("Workflow status after suspension: {}", instance.get().getStatus());
+        log.debug("Current step: {}", instance.get().getCurrentStepId());
+        log.debug("Executed steps: {}", testListener.executedSteps);
 
         // Check what happened if the workflow failed
         if (instance.get().getStatus() == WorkflowInstance.WorkflowStatus.FAILED) {
-            System.err.println("Workflow failed!");
+            log.error("Workflow failed!");
             if (testListener.lastError != null) {
-                System.err.println("Error details:");
-                testListener.lastError.printStackTrace();
+                log.error("Error details:", testListener.lastError);
             }
             // Check execution history
             instance.get().getExecutionHistory().forEach(record -> {
-                System.err.println("Step " + record.getStepId() + ": " +
+                log.error("Step {}: {}", record.getStepId(),
                         (record.isSuccess() ? "SUCCESS" : "FAILED"));
             });
         }
@@ -598,9 +597,10 @@ public class ChatWorkflowExampleTest {
         // The async handler may have already started processing, check the state
 
         // Debug output
-        System.out.println("Current result - completed: " + currentResult.get().isCompleted() +
-                ", percentComplete: " + currentResult.get().getPercentComplete() +
-                ", properties: " + currentResult.get().getProperties());
+        log.debug("Current result - completed: {}, percentComplete: {}, properties: {}",
+                currentResult.get().isCompleted(),
+                currentResult.get().getPercentComplete(),
+                currentResult.get().getProperties());
 
         // If async handler hasn't completed yet, we should see progress
         if (!currentResult.get().isCompleted()) {
@@ -621,18 +621,17 @@ public class ChatWorkflowExampleTest {
         instance = stateRepository.load(execution.getRunId());
         assertTrue(instance.isPresent());
 
-        System.out.println("Workflow status after async completion: " + instance.get().getStatus());
+        log.debug("Workflow status after async completion: {}", instance.get().getStatus());
 
         // Check what happened if the workflow failed
         if (instance.get().getStatus() == WorkflowInstance.WorkflowStatus.FAILED) {
-            System.err.println("Workflow failed after async!");
+            log.error("Workflow failed after async!");
             if (testListener.lastError != null) {
-                System.err.println("Error details:");
-                testListener.lastError.printStackTrace();
+                log.error("Error details:", testListener.lastError);
             }
             // Check execution history
             instance.get().getExecutionHistory().forEach(record -> {
-                System.err.println("Step " + record.getStepId() + ": " +
+                log.error("Step {}: {}", record.getStepId(),
                         (record.isSuccess() ? "SUCCESS" : "FAILED"));
             });
         }

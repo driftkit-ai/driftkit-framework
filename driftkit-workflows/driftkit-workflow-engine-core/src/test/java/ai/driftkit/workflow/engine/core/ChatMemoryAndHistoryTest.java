@@ -134,28 +134,36 @@ public class ChatMemoryAndHistoryTest {
         
         // Event classes for branching
         @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class IntentAnalysis {
-            private final String intent;
-            private final String originalMessage;
-            private final Map<String, String> entities;
+            private String intent;
+            private String originalMessage;
+            private Map<String, String> entities;
         }
         
         @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class HistoryRequest {
-            private final String chatId;
-            private final int limit;
+            private String chatId;
+            private int limit;
         }
         
         @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class MemoryCheckRequest {
-            private final String chatId;
-            private final String userId;
+            private String chatId;
+            private String userId;
         }
         
         @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class AsyncProcessingRequest {
-            private final String chatId;
-            private final String data;
+            private String chatId;
+            private String data;
         }
         
         // ========== Workflow Steps ==========
@@ -190,7 +198,15 @@ public class ChatMemoryAndHistoryTest {
             return StepResult.continueWith(analysis);
         }
         
-        @Step
+        @Step(
+            nextClasses = {
+                HistoryRequest.class,
+                MemoryCheckRequest.class,
+                AsyncProcessingRequest.class,
+                IntentAnalysis.class,
+                SuspendPrompt.class
+            }
+        )
         public StepResult<?> routeByIntent(IntentAnalysis analysis, WorkflowContext context) {
             log.info("Routing by intent: {}", analysis.getIntent());
             
@@ -607,12 +623,13 @@ public class ChatMemoryAndHistoryTest {
                 msg.getType(), msg.getId(), msg.getPropertiesMap());
         });
         
-        // Should have 4 messages:
+        // Should have 5 messages:
         // 1. Initial request (stored by DefaultWorkflowExecutionService)
         // 2. Suspend response
-        // 3. Resume request (stored by DefaultWorkflowExecutionService)
-        // 4. Resume response
-        assertEquals(4, history.getTotalElements());
+        // 3. Resume request with user input (stored by DefaultWorkflowExecutionService)
+        // 4. Resume request (processed in workflow)
+        // 5. Resume response
+        assertEquals(5, history.getTotalElements());
     }
 
     @Test

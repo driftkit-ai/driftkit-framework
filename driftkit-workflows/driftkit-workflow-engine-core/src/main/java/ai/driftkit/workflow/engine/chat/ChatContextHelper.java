@@ -70,14 +70,17 @@ public class ChatContextHelper {
     /**
      * Track a step invocation.
      */
-    @SuppressWarnings("unchecked")
     public static void trackStepInvocation(WorkflowContext context, String stepName) {
         if (StringUtils.isEmpty(stepName)) {
             return;
         }
         
-        Map<String, Integer> counts = context.getStepResultOrDefault(
-            Keys.STEP_INVOCATION_COUNTS, Map.class, new HashMap<>());
+        Map<String, Integer> counts = context.getMap(
+            Keys.STEP_INVOCATION_COUNTS, String.class, Integer.class);
+        
+        if (counts == null) {
+            counts = new HashMap<>();
+        }
         
         Map<String, Integer> newCounts = new HashMap<>(counts);
         newCounts.merge(stepName, 1, Integer::sum);
@@ -88,15 +91,14 @@ public class ChatContextHelper {
     /**
      * Get the invocation count for a specific step.
      */
-    @SuppressWarnings("unchecked")
     public static int getStepInvocationCount(WorkflowContext context, String stepName) {
         if (StringUtils.isEmpty(stepName)) {
             return 0;
         }
         
-        Map<String, Integer> counts = context.getStepResultOrDefault(
-            Keys.STEP_INVOCATION_COUNTS, Map.class, Map.of());
-        return counts.getOrDefault(stepName, 0);
+        Map<String, Integer> counts = context.getMap(
+            Keys.STEP_INVOCATION_COUNTS, String.class, Integer.class);
+        return counts != null ? counts.getOrDefault(stepName, 0) : 0;
     }
     
     // ========== Async Message Tracking ==========

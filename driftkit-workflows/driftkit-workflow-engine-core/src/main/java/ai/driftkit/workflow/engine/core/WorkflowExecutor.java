@@ -23,12 +23,14 @@ public class WorkflowExecutor {
     private final ProgressTracker progressTracker;
     private final InputPreparer inputPreparer;
     private final List<ExecutionInterceptor> interceptors;
+    private final RetryExecutor retryExecutor;
     
     public WorkflowExecutor(WorkflowEngineConfig config, ProgressTracker progressTracker) {
         this.config = config;
         this.progressTracker = progressTracker;
         this.inputPreparer = new InputPreparer();
         this.interceptors = new ArrayList<>();
+        this.retryExecutor = new RetryExecutor();
     }
     
     /**
@@ -43,6 +45,18 @@ public class WorkflowExecutor {
     public StepResult<?> executeStep(WorkflowInstance instance, 
                                     StepNode step,
                                     WorkflowGraph<?, ?> graph) throws Exception {
+        // Delegate to retry executor
+        return retryExecutor.executeWithRetry(instance, step, (inst, stp) -> {
+            return executeStepInternal(inst, stp, graph);
+        });
+    }
+    
+    /**
+     * Internal step execution logic without retry.
+     */
+    private StepResult<?> executeStepInternal(WorkflowInstance instance,
+                                             StepNode step,
+                                             WorkflowGraph<?, ?> graph) throws Exception {
         String stepId = step.id();
         log.debug("Executing step: {} (instance: {})", stepId, instance.getInstanceId());
         
@@ -60,15 +74,16 @@ public class WorkflowExecutor {
             // Execute the step
             Object result = step.executor().execute(input, instance.getContext());
             
-            // Validate result type
-            if (!(result instanceof StepResult)) {
-                throw new IllegalStateException(
-                    "Step must return StepResult, got: " + 
-                    (result != null ? result.getClass().getName() : "null")
-                );
+            // Auto-wrap non-StepResult values
+            StepResult<?> stepResult;
+            if (result instanceof StepResult) {
+                stepResult = (StepResult<?>) result;
+            } else {
+                // Automatically wrap plain values in StepResult.continueWith()
+                log.debug("Auto-wrapping step result of type {} in StepResult.continueWith()", 
+                    result != null ? result.getClass().getSimpleName() : "null");
+                stepResult = StepResult.continueWith(result);
             }
-            
-            StepResult<?> stepResult = (StepResult<?>) result;
             long duration = System.currentTimeMillis() - startTime;
             
             // Record execution
