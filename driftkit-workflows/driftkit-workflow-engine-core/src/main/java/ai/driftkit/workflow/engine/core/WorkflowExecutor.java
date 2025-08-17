@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.core;
 
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.graph.StepNode;
@@ -24,14 +25,19 @@ public class WorkflowExecutor {
     private final InputPreparer inputPreparer;
     private final List<ExecutionInterceptor> interceptors;
     private final RetryExecutor retryExecutor;
-    
-    public WorkflowExecutor(WorkflowEngineConfig config, ProgressTracker progressTracker) {
+
+    public WorkflowExecutor(WorkflowEngineConfig config, ProgressTracker progressTracker, ChatStore chatStore) {
         this.config = config;
         this.progressTracker = progressTracker;
         this.inputPreparer = new InputPreparer();
         this.interceptors = new ArrayList<>();
         this.retryExecutor = config.getRetryExecutor() != null ? 
             config.getRetryExecutor() : new RetryExecutor();
+        
+        // Add chat tracking interceptor if ChatStore is available
+        if (chatStore != null) {
+            this.interceptors.add(new ChatTrackingInterceptor(chatStore));
+        }
     }
     
     /**

@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.core;
 
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
@@ -57,6 +58,8 @@ public class WorkflowEngine {
     private final WorkflowStateManager stateManager;
     private final AsyncTaskManager asyncTaskManager;
     private final SchemaProvider schemaProvider;
+    @Getter
+    private final ChatStore chatStore;
 
     /**
      * Creates a workflow engine with default configuration.
@@ -89,6 +92,9 @@ public class WorkflowEngine {
         // Initialize schema provider
         this.schemaProvider = config.getSchemaProvider() != null ?
                 config.getSchemaProvider() : new DefaultSchemaProvider();
+                
+        // Initialize chat store (optional)
+        this.chatStore = config.getChatStore();
 
         // Initialize async step handler
         this.asyncStepHandler = new AsyncStepHandler();
@@ -100,7 +106,7 @@ public class WorkflowEngine {
         InputPreparer inputPreparer = new InputPreparer();
         
         // Initialize workflow executor
-        this.workflowExecutor = new WorkflowExecutor(config, progressTracker);
+        this.workflowExecutor = new WorkflowExecutor(config, progressTracker, chatStore);
         
         // Add listener adapter as interceptor
         this.workflowExecutor.addInterceptor(new ListenerAdapterInterceptor());

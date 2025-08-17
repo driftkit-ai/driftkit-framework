@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.domain;
 
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.RetryExecutor;
 import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
@@ -86,6 +87,11 @@ public class WorkflowEngineConfig {
      */
     private ChatHistoryRepository chatHistoryRepository;
     
+    /**
+     * Chat store implementation for unified chat memory management.
+     * If null, chat tracking will be disabled.
+     */
+    private ChatStore chatStore;
     
     /**
      * Async step state repository implementation.

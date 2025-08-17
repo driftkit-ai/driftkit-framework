@@ -1,9 +1,8 @@
 package ai.driftkit.workflow.engine.agent;
 
-import ai.driftkit.common.domain.ChatMessageType;
 import ai.driftkit.common.domain.Language;
-import ai.driftkit.common.domain.Message;
-import ai.driftkit.common.domain.MessageType;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
@@ -11,7 +10,7 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
-import ai.driftkit.common.service.ChatMemory;
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.tools.ToolInfo;
 import ai.driftkit.common.tools.ToolRegistry;
@@ -59,7 +58,8 @@ public class LLMAgent implements Agent {
     private final String agentId;
     
     // Core components
-    private final ChatMemory chatMemory;
+    private final ChatStore chatStore;
+    private final String chatId;
     private final PromptService promptService;
     private final ToolRegistry toolRegistry;
     
@@ -75,7 +75,7 @@ public class LLMAgent implements Agent {
     // Constructor
     protected LLMAgent(ModelClient modelClient, String name, String description, String systemMessage,
                        Double temperature, Integer maxTokens, String model, String imageModel, String agentId,
-                       ChatMemory chatMemory, PromptService promptService, ToolRegistry toolRegistry,
+                       ChatStore chatStore, String chatId, PromptService promptService, ToolRegistry toolRegistry,
                        RequestTracingProvider tracingProvider, boolean autoExecuteTools) {
         this.modelClient = modelClient;
         this.name = name;
@@ -86,7 +86,8 @@ public class LLMAgent implements Agent {
         this.model = model;
         this.imageModel = imageModel;
         this.agentId = agentId != null ? agentId : AIUtils.generateId();
-        this.chatMemory = chatMemory;
+        this.chatStore = chatStore;
+        this.chatId = chatId != null ? chatId : agentId; // Use agentId as chatId if not provided
         this.promptService = promptService;
         this.toolRegistry = toolRegistry;
         this.tracingProvider = tracingProvider;
@@ -560,17 +561,17 @@ public class LLMAgent implements Agent {
      * Clear conversation history
      */
     public void clearHistory() {
-        if (chatMemory != null) {
-            chatMemory.clear();
+        if (chatStore != null) {
+            chatStore.deleteAll(chatId);
         }
     }
     
     /**
      * Get conversation history
      */
-    public List<Message> getConversationHistory() {
-        if (chatMemory != null) {
-            return new ArrayList<>(chatMemory.messages());
+    public List<ChatMessage> getConversationHistory() {
+        if (chatStore != null) {
+            return chatStore.getAll(chatId);
         }
         return Collections.emptyList();
     }
@@ -615,30 +616,14 @@ public class LLMAgent implements Agent {
     }
     
     private void addUserMessage(String content) {
-        if (chatMemory != null) {
-            Message message = Message.builder()
-                .messageId(UUID.randomUUID().toString())
-                .message(content)
-                .type(ChatMessageType.USER)
-                .messageType(MessageType.TEXT)
-                .createdTime(System.currentTimeMillis())
-                .requestInitTime(System.currentTimeMillis())
-                .build();
-            chatMemory.add(message);
+        if (chatStore != null) {
+            chatStore.add(chatId, content, MessageType.USER);
         }
     }
     
     private void addAssistantMessage(String content) {
-        if (chatMemory != null) {
-            Message message = Message.builder()
-                .messageId(UUID.randomUUID().toString())
-                .message(content)
-                .type(ChatMessageType.AI)
-                .messageType(MessageType.TEXT)
-                .createdTime(System.currentTimeMillis())
-                .requestInitTime(System.currentTimeMillis())
-                .build();
-            chatMemory.add(message);
+        if (chatStore != null) {
+            chatStore.add(chatId, content, MessageType.AI);
         }
     }
     
@@ -679,16 +664,19 @@ public class LLMAgent implements Agent {
     }
     
     private List<ModelContentMessage> convertMemoryToMessages() {
-        if (chatMemory == null) {
+        if (chatStore == null) {
             return Collections.emptyList();
         }
         
-        return chatMemory.messages().stream()
+        // Get messages with default token limit
+        List<ChatMessage> messages = chatStore.getRecent(chatId);
+        
+        return messages.stream()
             .map(this::convertMessageToModelMessage)
             .collect(Collectors.toList());
     }
     
-    private ModelContentMessage convertMessageToModelMessage(Message message) {
+    private ModelContentMessage convertMessageToModelMessage(ChatMessage message) {
         Role role = switch (message.getType()) {
             case USER -> Role.user;
             case AI -> Role.assistant;
@@ -696,7 +684,18 @@ public class LLMAgent implements Agent {
             default -> Role.user;
         };
         
-        return ModelContentMessage.create(role, message.getMessage());
+        // Get message content from properties
+        String content = message.getPropertiesMap().get(ChatMessage.PROPERTY_MESSAGE);
+        if (content == null) {
+            // Fallback to JSON representation of all properties
+            try {
+                content = JsonUtils.toJson(message.getPropertiesMap());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        
+        return ModelContentMessage.create(role, content);
     }
     
     private boolean hasToolCalls(ModelTextResponse response) {
@@ -874,7 +873,8 @@ public class LLMAgent implements Agent {
         private String model;
         private String imageModel;
         private String agentId;
-        private ChatMemory chatMemory;
+        private ChatStore chatStore;
+        private String chatId;
         private PromptService promptService;
         private ToolRegistry toolRegistry;
         private RequestTracingProvider tracingProvider;
@@ -932,8 +932,13 @@ public class LLMAgent implements Agent {
             return this;
         }
         
-        public CustomLLMAgentBuilder chatMemory(ChatMemory chatMemory) {
-            this.chatMemory = chatMemory;
+        public CustomLLMAgentBuilder chatStore(ChatStore chatStore) {
+            this.chatStore = chatStore;
+            return this;
+        }
+        
+        public CustomLLMAgentBuilder chatId(String chatId) {
+            this.chatId = chatId;
             return this;
         }
         
@@ -990,7 +995,7 @@ public class LLMAgent implements Agent {
             
             return new LLMAgent(modelClient, name, description, systemMessage,
                     temperature, maxTokens, model, imageModel, agentId,
-                    chatMemory, promptService, toolRegistry,
+                    chatStore, chatId, promptService, toolRegistry,
                     tracingProvider, autoExecuteTools);
         }
     }
