@@ -1047,6 +1047,16 @@ public class WorkflowEngine {
     public Set<String> getRegisteredWorkflows() {
         return new HashSet<>(registeredWorkflows.keySet());
     }
+    
+    /**
+     * Gets the retry executor used by this engine.
+     * Useful for accessing metrics and configuring listeners.
+     * 
+     * @return The retry executor
+     */
+    public RetryExecutor getRetryExecutor() {
+        return workflowExecutor.getRetryExecutor();
+    }
 
     /**
      * Gets the current result of a workflow execution.

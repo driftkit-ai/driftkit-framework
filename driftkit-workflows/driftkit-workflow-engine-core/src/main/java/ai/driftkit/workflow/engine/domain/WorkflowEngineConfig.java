@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.domain;
 
 import ai.driftkit.workflow.engine.async.ProgressTracker;
+import ai.driftkit.workflow.engine.core.RetryExecutor;
 import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.ChatHistoryRepository;
 import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
@@ -97,6 +98,12 @@ public class WorkflowEngineConfig {
      * If null, an in-memory implementation will be used.
      */
     private SuspensionDataRepository suspensionDataRepository;
+    
+    /**
+     * Retry executor implementation.
+     * If null, the default retry executor will be used.
+     */
+    private RetryExecutor retryExecutor;
     
     /**
      * Creates a default configuration.

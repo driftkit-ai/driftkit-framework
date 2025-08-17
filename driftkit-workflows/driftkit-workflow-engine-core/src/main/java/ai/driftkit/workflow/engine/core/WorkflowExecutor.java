@@ -30,7 +30,8 @@ public class WorkflowExecutor {
         this.progressTracker = progressTracker;
         this.inputPreparer = new InputPreparer();
         this.interceptors = new ArrayList<>();
-        this.retryExecutor = new RetryExecutor();
+        this.retryExecutor = config.getRetryExecutor() != null ? 
+            config.getRetryExecutor() : new RetryExecutor();
     }
     
     /**
@@ -114,6 +115,15 @@ public class WorkflowExecutor {
         if (interceptor != null) {
             interceptors.add(interceptor);
         }
+    }
+    
+    /**
+     * Gets the retry executor used by this workflow executor.
+     * 
+     * @return The retry executor
+     */
+    public RetryExecutor getRetryExecutor() {
+        return retryExecutor;
     }
     
     /**
