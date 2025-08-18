@@ -23,6 +23,9 @@ public class SchemaUtils {
     private static final Map<Class<?>, List<AIFunctionSchema>> composableSchemaCache = new ConcurrentHashMap<>();
     private static final List<AIFunctionSchema> schemasList = new CopyOnWriteArrayList<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    
+    // Schema registry for name->class mappings
+    private static final SchemaRegistry SCHEMA_REGISTRY = new InMemorySchemaRegistry();
 
     /**
      * Gets all registered schemas.
@@ -44,6 +47,14 @@ public class SchemaUtils {
         schemasList.add(schema);
     }
 
+    /**
+     * Gets all schemas from a class, handling composable schemas.
+     * Alias for generateComposableSchemas to match SchemaProvider interface.
+     */
+    public static List<AIFunctionSchema> generateComposableSchemas(Class<?> schemaClass) {
+        return getAllSchemasFromClass(schemaClass);
+    }
+    
     /**
      * Gets all schemas from a class, handling composable schemas.
      */
@@ -93,6 +104,14 @@ public class SchemaUtils {
     }
 
     /**
+     * Generates a schema from a class (alias for getSchemaFromClass).
+     * Matches SchemaProvider interface.
+     */
+    public static AIFunctionSchema generateSchema(Class<?> schemaClass) {
+        return getSchemaFromClass(schemaClass);
+    }
+    
+    /**
      * Gets a schema from a class, using cache when possible.
      */
     public static AIFunctionSchema getSchemaFromClass(Class<?> schemaClass) {
@@ -125,6 +144,13 @@ public class SchemaUtils {
         
         schemaCache.put(schemaClass, schema);
         
+        // Register in schema registry
+        String schemaName = getSchemaId(schemaClass);
+        if (schemaName != null) {
+            SCHEMA_REGISTRY.registerSchema(schemaName, schemaClass);
+            log.debug("Registered schema in registry: {} -> {}", schemaName, schemaClass.getName());
+        }
+        
         return schema;
     }
     
@@ -155,6 +181,29 @@ public class SchemaUtils {
     public static void clearCache() {
         schemaCache.clear();
         composableSchemaCache.clear();
+        AIFunctionSchema.clearCache();
+        SCHEMA_REGISTRY.clear();
+    }
+    
+    /**
+     * Gets the Java class for a given schema name.
+     * 
+     * @param schemaName The name of the schema
+     * @return The Java class if registered, null otherwise
+     */
+    public static Class<?> getSchemaClass(String schemaName) {
+        if (schemaName == null) {
+            return null;
+        }
+        return SCHEMA_REGISTRY.getSchemaClass(schemaName).orElse(null);
+    }
+    
+    /**
+     * Converts from map to object (alias for createInstance).
+     * Matches SchemaProvider interface.
+     */
+    public static <T> T convertFromMap(Map<String, String> properties, Class<T> schemaClass) {
+        return createInstance(schemaClass, properties);
     }
     
     /**
@@ -209,6 +258,14 @@ public class SchemaUtils {
             log.error("Error creating instance of {}: {}", schemaClass.getName(), e.getMessage(), e);
             return null;
         }
+    }
+    
+    /**
+     * Converts object to map (alias for extractProperties).
+     * Matches SchemaProvider interface.
+     */
+    public static Map<String, String> convertToMap(Object object) {
+        return extractProperties(object);
     }
     
     /**

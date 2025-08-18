@@ -9,7 +9,6 @@ import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
 import ai.driftkit.workflow.engine.schema.SchemaProperty;
@@ -179,8 +178,8 @@ public class SpringChatWorkflowIntegrationTest {
         }
         
         @Bean
-        public SpringChatWorkflow springChatWorkflow(SchemaProvider schemaProvider, SpringManagedService springManagedService) {
-            return new SpringChatWorkflow(schemaProvider, springManagedService);
+        public SpringChatWorkflow springChatWorkflow(SpringManagedService springManagedService) {
+            return new SpringChatWorkflow(springManagedService);
         }
     }
     
@@ -197,7 +196,6 @@ public class SpringChatWorkflowIntegrationTest {
     )
     public static class SpringChatWorkflow {
         
-        private final SchemaProvider schemaProvider;
         private final SpringManagedService springManagedService;
         
         @InitialStep(description = "Process initial chat request")

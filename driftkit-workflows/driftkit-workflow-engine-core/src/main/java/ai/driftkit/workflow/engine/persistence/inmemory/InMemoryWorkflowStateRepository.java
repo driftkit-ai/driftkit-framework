@@ -289,6 +289,7 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
             .instanceId(instance.getInstanceId())
             .workflowId(instance.getWorkflowId())
             .workflowVersion(instance.getWorkflowVersion())
+            .chatId(instance.getChatId())
             .context(instance.getContext()) // Note: WorkflowContext is immutable
             .status(instance.getStatus())
             .currentStepId(instance.getCurrentStepId())
@@ -300,5 +301,40 @@ public class InMemoryWorkflowStateRepository implements WorkflowStateRepository 
             .metadata(new ConcurrentHashMap<>(instance.getMetadata()))
             .errorInfo(instance.getErrorInfo())
             .build();
+    }
+    
+    @Override
+    public Optional<WorkflowInstance> findLatestByChatId(String chatId) {
+        if (chatId == null) {
+            return Optional.empty();
+        }
+        
+        lock.readLock().lock();
+        try {
+            return instances.values().stream()
+                .filter(instance -> chatId.equals(instance.getChatId()))
+                .max(Comparator.comparing(WorkflowInstance::getCreatedAt))
+                .map(this::cloneInstance);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+    
+    @Override
+    public Optional<WorkflowInstance> findLatestSuspendedByChatId(String chatId) {
+        if (chatId == null) {
+            return Optional.empty();
+        }
+        
+        lock.readLock().lock();
+        try {
+            return instances.values().stream()
+                .filter(instance -> chatId.equals(instance.getChatId()))
+                .filter(instance -> instance.getStatus() == WorkflowInstance.WorkflowStatus.SUSPENDED)
+                .max(Comparator.comparing(WorkflowInstance::getCreatedAt))
+                .map(this::cloneInstance);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 }

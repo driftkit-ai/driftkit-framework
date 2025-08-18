@@ -34,7 +34,6 @@ import java.util.concurrent.CompletableFuture;
 )
 public class ChatWorkflowExample {
     
-    private final SchemaProvider schemaProvider;
     private final ExternalApiService apiService; // Mock external service
     
     @InitialStep(description = "Process initial chat request and determine intent")

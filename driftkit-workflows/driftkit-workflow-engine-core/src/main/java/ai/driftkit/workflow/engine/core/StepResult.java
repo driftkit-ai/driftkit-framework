@@ -2,7 +2,7 @@ package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,14 +20,12 @@ public sealed interface StepResult<R>
     // Static factory methods for better SDK experience
     
     static <T> Suspend<T> suspend(T promptToUser, Class<?> nextInputClass) {
-        SchemaProvider provider = WorkflowEngineHolder.getSchemaProvider();
-        AIFunctionSchema schema = provider.generateSchema(nextInputClass);
+        AIFunctionSchema schema = SchemaUtils.getSchemaFromClass(nextInputClass);
         return new Suspend<>(promptToUser, nextInputClass, schema, new HashMap<>());
     }
     
     static <T> Suspend<T> suspend(T promptToUser, Class<?> nextInputClass, Map<String, Object> metadata) {
-        SchemaProvider provider = WorkflowEngineHolder.getSchemaProvider();
-        AIFunctionSchema schema = provider.generateSchema(nextInputClass);
+        AIFunctionSchema schema = SchemaUtils.getSchemaFromClass(nextInputClass);
         return new Suspend<>(promptToUser, nextInputClass, schema, metadata);
     }
     

@@ -8,9 +8,12 @@ import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
 
 /**
  * Orchestrates the execution of workflows by coordinating between various components.
@@ -25,7 +28,7 @@ public class WorkflowOrchestrator {
     private final StepRouter router;
     private final InputPreparer inputPreparer;
     private final SuspensionDataRepository suspensionDataRepository;
-    private final SchemaProvider schemaProvider;
+    private final ChatStore chatStore;
     
     /**
      * Orchestrates the execution of a workflow instance.
@@ -144,8 +147,8 @@ public class WorkflowOrchestrator {
 
                 // Generate schema for next input class to register it
                 if (susp.nextInputClass() != null) {
-                    schemaProvider.generateSchema(susp.nextInputClass());
-                    String schemaId = schemaProvider.getSchemaId(susp.nextInputClass());
+                    SchemaUtils.getSchemaFromClass(susp.nextInputClass());
+                    String schemaId = SchemaUtils.getSchemaId(susp.nextInputClass());
                     log.debug("Registered schema for class {} with ID: {}", 
                         susp.nextInputClass().getName(), schemaId);
                 }
@@ -167,6 +170,22 @@ public class WorkflowOrchestrator {
 
                 // Store the result from this step as it may contain data to return to user
                 instance.updateContext(currentStep.id(), susp.promptToUser());
+
+                // Auto-track suspended message in ChatStore if available
+                if (chatStore != null && instance.getInstanceId() != null) {
+                    Object promptData = susp.promptToUser();
+                    if (promptData != null) {
+                        Map<String, String> properties = SchemaUtils.extractProperties(promptData);
+                        chatStore.add(instance.getInstanceId(), properties, MessageType.AI);
+                        log.info("Auto-tracked suspended message to ChatStore for instance: {} with properties: {}", 
+                            instance.getInstanceId(), properties);
+                    } else {
+                        log.warn("No prompt data to track for suspended workflow: {}", instance.getInstanceId());
+                    }
+                } else {
+                    log.debug("ChatStore not available or instance ID is null. ChatStore: {}, InstanceId: {}", 
+                        chatStore, instance.getInstanceId());
+                }
 
                 stateManager.saveInstance(instance);
             }
@@ -197,6 +216,19 @@ public class WorkflowOrchestrator {
                 // Workflow completed successfully
                 log.debug("Processing Finish result with value: {}", finish.result());
                 instance.updateContext(WorkflowContext.Keys.FINAL_RESULT, finish.result());
+                
+                // Auto-track finish message in ChatStore if available
+                if (chatStore != null && instance.getInstanceId() != null) {
+                    Object finishData = finish.result();
+                    if (finishData != null) {
+                        chatStore.add(instance.getInstanceId(), 
+                            SchemaUtils.extractProperties(finishData), 
+                            MessageType.AI);
+                        log.debug("Auto-tracked finish message to ChatStore for instance: {}", 
+                            instance.getInstanceId());
+                    }
+                }
+                
                 instance.updateStatus(WorkflowStatus.COMPLETED);
                 stateManager.saveInstance(instance);
                 log.debug("Workflow completed, final result stored under __final__");

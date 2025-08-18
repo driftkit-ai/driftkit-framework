@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
@@ -18,8 +19,7 @@ import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
-import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,7 +57,6 @@ public class WorkflowEngine {
     private final WorkflowOrchestrator orchestrator;
     private final WorkflowStateManager stateManager;
     private final AsyncTaskManager asyncTaskManager;
-    private final SchemaProvider schemaProvider;
     @Getter
     private final ChatStore chatStore;
 
@@ -89,10 +88,6 @@ public class WorkflowEngine {
         this.progressTracker = config.getProgressTracker() != null ?
                 config.getProgressTracker() : new InMemoryProgressTracker();
                 
-        // Initialize schema provider
-        this.schemaProvider = config.getSchemaProvider() != null ?
-                config.getSchemaProvider() : new DefaultSchemaProvider();
-                
         // Initialize chat store (optional)
         this.chatStore = config.getChatStore();
 
@@ -121,7 +116,7 @@ public class WorkflowEngine {
             stepRouter,
             inputPreparer,
             suspensionDataRepository,
-            schemaProvider
+            chatStore
         );
 
         // Initialize thread pools
@@ -140,8 +135,6 @@ public class WorkflowEngine {
             asyncStepStateRepository
         );
         
-        // Initialize SchemaProvider in WorkflowEngineHolder
-        WorkflowEngineHolder.setSchemaProvider(config.getSchemaProvider());
 
         log.info("WorkflowEngine initialized with config: {}", config);
     }
@@ -222,7 +215,58 @@ public class WorkflowEngine {
     }
     
     /**
+     * Starts a new workflow execution with chat context.
+     *
+     * @param workflowId The ID of the workflow to execute
+     * @param input The input data for the workflow
+     * @param instanceId The specific instance ID to use
+     * @param chatId The chat ID to associate with this execution
+     * @return WorkflowExecution handle for tracking the execution
+     */
+    public <T, R> WorkflowExecution<R> execute(String workflowId, T input, String instanceId, String chatId) {
+        // Check if workflow instance already exists
+        Optional<WorkflowInstance> existingInstance = stateRepository.load(instanceId);
+        
+        if (existingInstance.isPresent()) {
+            WorkflowInstance instance = existingInstance.get();
+            
+            // If workflow is suspended, automatically resume it
+            if (instance.getStatus() == WorkflowStatus.SUSPENDED) {
+                log.info("Workflow instance {} is suspended, automatically resuming with provided input", instanceId);
+                return resume(instanceId, input);
+            }
+            
+            // If workflow is in any other state, throw exception
+            throw new IllegalStateException(
+                "Workflow instance already exists with ID: " + instanceId + 
+                " in status: " + instance.getStatus() + 
+                ". Cannot start new execution."
+            );
+        }
+        
+        // No existing instance, create new one with chatId
+        WorkflowGraph<T, R> graph = getWorkflowGraph(workflowId);
+        WorkflowInstance instance = WorkflowInstance.newInstance(graph, input, instanceId, chatId);
+
+        stateRepository.save(instance);
+
+        WorkflowExecution<R> execution = new WorkflowExecution<>(
+                instance.getInstanceId(),
+                workflowId,
+                new CompletableFuture<>(),
+                this
+        );
+
+        // Start execution asynchronously
+        executorService.submit(() -> executeWorkflow(instance, graph, execution));
+
+        return execution;
+    }
+    
+    /**
      * Starts a new workflow execution with specific instance ID.
+     * If a workflow with this instance ID already exists and is suspended,
+     * automatically resumes it with the provided input.
      *
      * @param workflowId The ID of the workflow to execute
      * @param input The input data for the workflow
@@ -230,6 +274,27 @@ public class WorkflowEngine {
      * @return WorkflowExecution handle for tracking the execution
      */
     public <T, R> WorkflowExecution<R> execute(String workflowId, T input, String instanceId) {
+        // Check if workflow instance already exists
+        Optional<WorkflowInstance> existingInstance = stateRepository.load(instanceId);
+        
+        if (existingInstance.isPresent()) {
+            WorkflowInstance instance = existingInstance.get();
+            
+            // If workflow is suspended, automatically resume it
+            if (instance.getStatus() == WorkflowStatus.SUSPENDED) {
+                log.info("Workflow instance {} is suspended, automatically resuming with provided input", instanceId);
+                return resume(instanceId, input);
+            }
+            
+            // If workflow is in any other state, throw exception
+            throw new IllegalStateException(
+                "Workflow instance already exists with ID: " + instanceId + 
+                " in status: " + instance.getStatus() + 
+                ". Cannot start new execution."
+            );
+        }
+        
+        // No existing instance, create new one
         WorkflowGraph<T, R> graph = getWorkflowGraph(workflowId);
         WorkflowInstance instance = WorkflowInstance.newInstance(graph, input, instanceId);
 
@@ -238,7 +303,8 @@ public class WorkflowEngine {
         WorkflowExecution<R> execution = new WorkflowExecution<>(
                 instance.getInstanceId(),
                 workflowId,
-                new CompletableFuture<>()
+                new CompletableFuture<>(),
+                this
         );
 
         // Start execution asynchronously
@@ -319,6 +385,15 @@ public class WorkflowEngine {
         }
 
         instance.resume();
+        
+        // Auto-track user input in ChatStore if available
+        if (chatStore != null && runId != null && input != null) {
+            chatStore.add(runId, 
+                SchemaUtils.extractProperties(input), 
+                ChatMessage.MessageType.USER);
+            log.debug("Auto-tracked user input to ChatStore for instance: {}", runId);
+        }
+        
         // Delete suspension data from repository
         suspensionDataRepository.deleteByInstanceId(runId);
         stateRepository.save(instance);
@@ -326,7 +401,8 @@ public class WorkflowEngine {
         WorkflowExecution<R> execution = new WorkflowExecution<>(
                 instance.getInstanceId(),
                 instance.getWorkflowId(),
-                new CompletableFuture<>()
+                new CompletableFuture<>(),
+                this
         );
 
         // Resume execution asynchronously
@@ -943,11 +1019,13 @@ public class WorkflowEngine {
         private final String runId;
         private final String workflowId;
         private final CompletableFuture<R> future;
+        private final WorkflowEngine engine;
 
-        WorkflowExecution(String runId, String workflowId, CompletableFuture<R> future) {
+        WorkflowExecution(String runId, String workflowId, CompletableFuture<R> future, WorkflowEngine engine) {
             this.runId = runId;
             this.workflowId = workflowId;
             this.future = future;
+            this.engine = engine;
         }
 
         public R get() throws InterruptedException, ExecutionException {
@@ -973,6 +1051,31 @@ public class WorkflowEngine {
 
         public boolean isAsync() {
             return !future.isDone();
+        }
+        
+        /**
+         * Check if the workflow is currently suspended.
+         */
+        public boolean isSuspended() {
+            return engine.getWorkflowInstance(runId)
+                    .map(instance -> instance.getStatus() == WorkflowInstance.WorkflowStatus.SUSPENDED)
+                    .orElse(false);
+        }
+        
+        /**
+         * Check if the workflow has completed successfully.
+         */
+        public boolean isCompleted() {
+            return engine.getWorkflowInstance(runId)
+                    .map(instance -> instance.getStatus() == WorkflowInstance.WorkflowStatus.COMPLETED)
+                    .orElse(false);
+        }
+        
+        /**
+         * Get the current workflow instance state.
+         */
+        public Optional<WorkflowInstance> getInstance() {
+            return engine.getWorkflowInstance(runId);
         }
     }
 

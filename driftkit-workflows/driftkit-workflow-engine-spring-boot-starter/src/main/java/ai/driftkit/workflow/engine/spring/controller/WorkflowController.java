@@ -10,7 +10,7 @@ import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.common.domain.chat.ChatRequest;
@@ -54,7 +54,6 @@ import java.util.*;
 public class WorkflowController {
     
     private final WorkflowEngine engine;
-    private final SchemaProvider schemaProvider;
     private final ProgressTracker progressTracker;
     private final WorkflowService workflowService;
     
@@ -372,11 +371,11 @@ public class WorkflowController {
         try {
             log.debug("Executing workflow: workflowId={}, sessionId={}", workflowId, sessionId);
             
-            // Convert input data using schema provider if needed
+            // Convert input data using schema utils if needed
             Object input = request.properties();
             if (request.inputClass() != null) {
                 Class<?> inputClass = Class.forName(request.inputClass());
-                input = schemaProvider.convertFromMap(request.properties(), inputClass);
+                input = SchemaUtils.createInstance(inputClass, request.properties());
             }
             
             // Execute workflow
@@ -434,7 +433,7 @@ public class WorkflowController {
             Object userInput = request.getUserInput();
             if (request.inputClass() != null) {
                 Class<?> inputClass = Class.forName(request.inputClass());
-                userInput = schemaProvider.convertFromMap(request.properties(), inputClass);
+                userInput = SchemaUtils.createInstance(inputClass, request.properties());
             }
             
             // Resume workflow

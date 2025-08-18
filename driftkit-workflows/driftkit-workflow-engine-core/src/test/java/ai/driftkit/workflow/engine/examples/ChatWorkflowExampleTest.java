@@ -5,8 +5,6 @@ import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecution;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
-import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.examples.ChatWorkflowExample.*;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
@@ -38,7 +36,6 @@ public class ChatWorkflowExampleTest {
 
     private WorkflowEngine engine;
     private ChatWorkflowExample workflow;
-    private SchemaProvider schemaProvider;
     private WorkflowStateRepository stateRepository;
     private TestExecutionListener testListener;
 
@@ -109,8 +106,7 @@ public class ChatWorkflowExampleTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        schemaProvider = new DefaultSchemaProvider();
-        workflow = new ChatWorkflowExample(schemaProvider, apiService);
+        workflow = new ChatWorkflowExample(apiService);
 
         // Create state repository
         stateRepository = new InMemoryWorkflowStateRepository();

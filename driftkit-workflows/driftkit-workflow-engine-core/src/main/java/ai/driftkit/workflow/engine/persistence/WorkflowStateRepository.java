@@ -112,6 +112,25 @@ public interface WorkflowStateRepository {
     }
     
     /**
+     * Finds the most recent workflow instance for a given chat ID.
+     * This is useful for chat-based workflows where multiple executions
+     * can occur within the same conversation.
+     * 
+     * @param chatId The chat ID to search for
+     * @return The most recent workflow instance for the chat, if any
+     */
+    Optional<WorkflowInstance> findLatestByChatId(String chatId);
+    
+    /**
+     * Finds the most recent suspended workflow instance for a given chat ID.
+     * This is useful for resuming chat-based workflows.
+     * 
+     * @param chatId The chat ID to search for
+     * @return The most recent suspended workflow instance for the chat, if any
+     */
+    Optional<WorkflowInstance> findLatestSuspendedByChatId(String chatId);
+    
+    /**
      * Exception thrown when persistence operations fail.
      */
     class PersistenceException extends RuntimeException {

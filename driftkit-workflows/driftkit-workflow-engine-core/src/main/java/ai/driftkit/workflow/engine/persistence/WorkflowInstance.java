@@ -43,6 +43,12 @@ public class WorkflowInstance {
     private String workflowVersion;
     
     /**
+     * Chat ID associated with this workflow instance (optional).
+     * Used for chat-based workflows to group multiple executions within the same conversation.
+     */
+    private String chatId;
+    
+    /**
      * Current execution context containing step outputs and state.
      */
     private WorkflowContext context;
@@ -108,6 +114,13 @@ public class WorkflowInstance {
      * Creates a new workflow instance with specific instance ID.
      */
     public static WorkflowInstance newInstance(WorkflowGraph<?, ?> graph, Object triggerData, String instanceId) {
+        return newInstance(graph, triggerData, instanceId, null);
+    }
+    
+    /**
+     * Creates a new workflow instance with specific instance ID and chat ID.
+     */
+    public static WorkflowInstance newInstance(WorkflowGraph<?, ?> graph, Object triggerData, String instanceId, String chatId) {
         WorkflowContext context = WorkflowContext.newRun(triggerData, instanceId);
         long now = System.currentTimeMillis();
         
@@ -115,6 +128,7 @@ public class WorkflowInstance {
             .instanceId(instanceId)
             .workflowId(graph.id())
             .workflowVersion(graph.version())
+            .chatId(chatId)
             .context(context)
             .status(WorkflowStatus.RUNNING)
             .currentStepId(graph.initialStepId())

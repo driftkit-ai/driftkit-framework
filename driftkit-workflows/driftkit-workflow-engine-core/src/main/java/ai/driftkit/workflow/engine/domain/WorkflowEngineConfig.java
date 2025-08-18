@@ -7,8 +7,6 @@ import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
-import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -67,12 +65,6 @@ public class WorkflowEngineConfig {
      */
     private ProgressTracker progressTracker;
     
-    /**
-     * Schema provider implementation.
-     * If null, the default schema provider will be used.
-     */
-    @Builder.Default
-    private SchemaProvider schemaProvider = new DefaultSchemaProvider();
     
     /**
      * Chat session repository implementation.

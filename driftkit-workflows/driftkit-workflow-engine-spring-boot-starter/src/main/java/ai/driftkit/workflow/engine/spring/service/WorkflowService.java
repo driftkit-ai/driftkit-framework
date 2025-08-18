@@ -9,10 +9,11 @@ import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.WorkflowDetails;
 import ai.driftkit.workflow.engine.domain.WorkflowMetadata;
-import ai.driftkit.workflow.engine.persistence.MemoryManagementService;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
+import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
 import ai.driftkit.workflow.engine.service.DefaultWorkflowExecutionService;
 import ai.driftkit.workflow.engine.service.WorkflowExecutionService;
 import ai.driftkit.workflow.engine.spring.adapter.PageResultAdapter;
@@ -44,10 +45,12 @@ public class WorkflowService {
      */
     @Autowired
     public WorkflowService(WorkflowEngine engine, 
-                          SchemaProvider schemaProvider,
-                          MemoryManagementService memoryService,
+                          ChatSessionRepository chatSessionRepository,
+                          AsyncStepStateRepository asyncStepStateRepository,
+                          SuspensionDataRepository suspensionDataRepository,
                           ChatStore chatStore) {
-        this.coreService = DefaultWorkflowExecutionService.of(engine, schemaProvider, memoryService, chatStore);
+        this.coreService = new DefaultWorkflowExecutionService(engine, chatSessionRepository,
+            asyncStepStateRepository, suspensionDataRepository, chatStore);
     }
     
 

@@ -4,8 +4,7 @@ import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 // Remove framework chat types - workflows should use domain-specific types
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
-import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
 import ai.driftkit.workflow.engine.schema.SchemaProperty;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
@@ -61,7 +60,6 @@ public class FluentApiChatWorkflowTest {
     }
     
     private WorkflowEngine engine;
-    private SchemaProvider schemaProvider;
     private ChatSteps chatSteps;
     private AsyncSteps asyncSteps;
     private ValidationSteps validationSteps;
@@ -70,12 +68,10 @@ public class FluentApiChatWorkflowTest {
     @BeforeEach
     public void setUp() {
         // Initialize test configuration
-        schemaProvider = new DefaultSchemaProvider();
         
         WorkflowEngineConfig config = WorkflowEngineConfig.builder()
             .stateRepository(new InMemoryWorkflowStateRepository())
             .progressTracker(new InMemoryProgressTracker())
-            .schemaProvider(schemaProvider)
             .chatSessionRepository(new InMemoryChatSessionRepository())
             .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
             .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
@@ -88,7 +84,7 @@ public class FluentApiChatWorkflowTest {
         engine = new WorkflowEngine(config);
         
         // Initialize step components
-        chatSteps = new ChatSteps(schemaProvider);
+        chatSteps = new ChatSteps();
         asyncSteps = new AsyncSteps(new MockSearchService());
         validationSteps = new ValidationSteps();
         processingSteps = new ProcessingSteps();
@@ -424,10 +420,7 @@ public class FluentApiChatWorkflowTest {
     // ========== Step Components ==========
     
     static class ChatSteps implements Serializable {
-        private final SchemaProvider schemaProvider;
-        
-        public ChatSteps(SchemaProvider schemaProvider) {
-            this.schemaProvider = schemaProvider;
+        public ChatSteps() {
         }
         
         public StepResult<UserMessage> validateRequest(UserMessage request) {

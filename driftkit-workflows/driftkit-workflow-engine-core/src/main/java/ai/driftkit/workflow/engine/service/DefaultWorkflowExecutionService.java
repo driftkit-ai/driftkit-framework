@@ -14,6 +14,7 @@ import ai.driftkit.workflow.engine.chat.ChatResponseExtensions;
 import ai.driftkit.workflow.engine.chat.converter.ChatMessageTaskConverter;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
+import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecution;
 import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.StepMetadata;
@@ -22,10 +23,13 @@ import ai.driftkit.workflow.engine.domain.WorkflowDetails;
 import ai.driftkit.workflow.engine.domain.WorkflowMetadata;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
-import ai.driftkit.workflow.engine.persistence.MemoryManagementService;
+import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
+import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
-import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
@@ -39,19 +43,35 @@ import java.util.concurrent.TimeUnit;
  * Core business logic extracted from Spring-specific WorkflowService.
  */
 @Slf4j
-@RequiredArgsConstructor(staticName = "of")
 public class DefaultWorkflowExecutionService implements WorkflowExecutionService {
     
     private static final int MAX_WAIT_ITERATIONS = 10000; // 100 seconds max wait
     private static final long WAIT_INTERVAL_MS = 10;
     
     private final WorkflowEngine engine;
-    private final SchemaProvider schemaProvider;
-    private final MemoryManagementService memoryService;
+    private final ChatSessionRepository sessionRepository;
+    private final AsyncStepStateRepository asyncStepStateRepository;
+    private final SuspensionDataRepository suspensionDataRepository;
+    private final WorkflowStateRepository stateRepository;
     private final ChatStore chatStore;
     
     // Optional event publisher for WebSocket notifications
     private WorkflowEventPublisher eventPublisher;
+    
+    // Constructor
+    public DefaultWorkflowExecutionService(WorkflowEngine engine,
+                                         ChatSessionRepository sessionRepository,
+                                         AsyncStepStateRepository asyncStepStateRepository,
+                                         SuspensionDataRepository suspensionDataRepository,
+                                         WorkflowStateRepository stateRepository,
+                                         ChatStore chatStore) {
+        this.engine = engine;
+        this.sessionRepository = sessionRepository;
+        this.asyncStepStateRepository = asyncStepStateRepository;
+        this.suspensionDataRepository = suspensionDataRepository;
+        this.stateRepository = stateRepository;
+        this.chatStore = chatStore;
+    }
     
     /**
      * Sets the event publisher for WebSocket/event notifications.
@@ -75,8 +95,24 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 throw new IllegalArgumentException("No workflow specified in request");
             }
 
-            // Execute workflow with the chat request using chatId as instanceId
-            var execution = engine.execute(workflowId, request, request.getChatId());
+            String chatId = request.getChatId();
+            
+            // Check if there's a suspended workflow for this chat
+            Optional<WorkflowInstance> suspendedInstance = stateRepository.findLatestSuspendedByChatId(chatId);
+            
+            WorkflowExecution<?> execution;
+            if (suspendedInstance.isPresent()) {
+                // Resume the suspended workflow
+                log.info("Found suspended workflow {} for chat {}, resuming", 
+                    suspendedInstance.get().getInstanceId(), chatId);
+                execution = engine.resume(suspendedInstance.get().getInstanceId(), request);
+            } else {
+                // Generate unique instance ID for new execution
+                String instanceId = chatId + "_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
+                
+                // Execute new workflow instance with chatId
+                execution = engine.execute(workflowId, request, instanceId, chatId);
+            }
             String runId = execution.getRunId();
             
             // Notify event publisher if available
@@ -103,7 +139,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             chatStore.add(response);
             
             // Update session last message time
-            memoryService.updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
+            updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
 
             return response;
 
@@ -112,7 +148,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             // Return error response in proper ChatResponse format
             ChatResponse errorResponse = createErrorResponse(request, e);
             chatStore.add(errorResponse);
-            memoryService.updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
+            updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
             return errorResponse;
         }
     }
@@ -131,13 +167,11 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             
             ChatResponse originalResponse = (ChatResponse) originalMessage;
             
-            // Use chatId as instanceId
-            String instanceId = originalResponse.getChatId();
-            
-            // Get the workflow instance
-            Optional<WorkflowInstance> instanceOpt = engine.getWorkflowInstance(instanceId);
+            // Find the suspended workflow instance for this chat
+            String chatId = originalResponse.getChatId();
+            Optional<WorkflowInstance> instanceOpt = stateRepository.findLatestSuspendedByChatId(chatId);
             if (!instanceOpt.isPresent()) {
-                throw new IllegalArgumentException("No workflow instance found for instanceId: " + instanceId);
+                throw new IllegalArgumentException("No suspended workflow instance found for chatId: " + chatId);
             }
             
             WorkflowInstance instance = instanceOpt.get();
@@ -149,12 +183,12 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             Object resumeInput;
             String schemaName = request.getRequestSchemaName();
             if (schemaName != null) {
-                Class<?> expectedInputClass = schemaProvider.getSchemaClass(schemaName);
+                Class<?> expectedInputClass = SchemaUtils.getSchemaClass(schemaName);
                 if (expectedInputClass != null) {
                     // Convert properties map to expected type
-                    resumeInput = schemaProvider.convertFromMap(
-                        request.getPropertiesMap(), 
-                        expectedInputClass
+                    resumeInput = SchemaUtils.createInstance(
+                        expectedInputClass,
+                        request.getPropertiesMap()
                     );
                 } else {
                     log.warn("Schema not found in registry: {}", schemaName);
@@ -188,7 +222,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             
             // Update chat history with response
             chatStore.add(response);
-            memoryService.updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
+            updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
             
             return response;
             
@@ -196,7 +230,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             log.error("Error resuming chat for messageId: {}", messageId, e);
             ChatResponse errorResponse = createErrorResponse(request, e);
             chatStore.add(errorResponse);
-            memoryService.updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
+            updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
             return errorResponse;
         }
     }
@@ -204,7 +238,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     @Override
     public Optional<ChatResponse> getAsyncStatus(String messageId) {
         // Get async state
-        Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(messageId);
+        Optional<AsyncStepState> asyncStateOpt = asyncStepStateRepository.findByMessageId(messageId);
         if (asyncStateOpt.isEmpty()) {
             return Optional.empty();
         }
@@ -247,22 +281,37 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     
     @Override
     public ChatSession getOrCreateSession(String chatId, String userId, String initialMessage) {
-        return memoryService.getOrCreateChatSession(chatId, userId, initialMessage);
+        Optional<ChatSession> existing = sessionRepository.findById(chatId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        
+        String name = StringUtils.isEmpty(initialMessage)
+                ? "New Chat"
+                : abbreviate(initialMessage, 50);
+        
+        ChatSession session = ChatSession.create(chatId, userId, name);
+        return sessionRepository.save(session);
     }
     
     @Override
     public Optional<ChatSession> getChatSession(String chatId) {
-        return memoryService.getChatSession(chatId);
+        return sessionRepository.findById(chatId);
     }
     
     @Override
     public ChatSession createChatSession(String userId, String name) {
-        return memoryService.createChatSession(userId, name);
+        String chatId = UUID.randomUUID().toString();
+        ChatSession session = ChatSession.create(chatId, userId, name);
+        return sessionRepository.save(session);
     }
     
     @Override
     public void archiveChatSession(String chatId) {
-        memoryService.archiveChatSession(chatId);
+        sessionRepository.findById(chatId).ifPresent(session -> {
+            ChatSession archived = session.archive();
+            sessionRepository.save(archived);
+        });
     }
     
     @Override
@@ -270,7 +319,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         if (StringUtils.isEmpty(userId)) {
             return PageResult.empty(pageRequest.getPageNumber(), pageRequest.getPageSize());
         }
-        return memoryService.listActiveChatsForUser(userId, pageRequest);
+        return sessionRepository.findActiveByUserId(userId, pageRequest);
     }
     
     // ========== Chat History ==========
@@ -361,7 +410,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             return null;
         }
 
-        return schemaProvider.generateSchema(inputType);
+        return SchemaUtils.getSchemaFromClass(inputType);
     }
     
     @Override
@@ -381,7 +430,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 if (step.executor() != null) {
                     Class<?> inputType = step.executor().getInputType();
                     if (inputType != null && inputType != void.class && inputType != Void.class) {
-                        AIFunctionSchema inputSchema = schemaProvider.generateSchema(inputType);
+                        AIFunctionSchema inputSchema = SchemaUtils.getSchemaFromClass(inputType);
                         if (inputSchema != null) {
                             uniqueSchemas.add(inputSchema);
                         }
@@ -391,7 +440,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 // Get output schema from executor
                 Class<?> outputType = step.executor().getOutputType();
                 if (outputType != null && outputType != void.class && outputType != Void.class) {
-                    AIFunctionSchema outputSchema = schemaProvider.generateSchema(outputType);
+                    AIFunctionSchema outputSchema = SchemaUtils.getSchemaFromClass(outputType);
                     if (outputSchema != null) {
                         uniqueSchemas.add(outputSchema);
                     }
@@ -433,11 +482,11 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             // For RUNNING status, check if we have suspension data with async flag
             if (status == WorkflowInstance.WorkflowStatus.RUNNING) {
                 // Check if we have suspension data
-                Optional<SuspensionData> suspensionDataOpt = memoryService.getSuspensionData(instance.getInstanceId());
+                Optional<SuspensionData> suspensionDataOpt = suspensionDataRepository.findByInstanceId(instance.getInstanceId());
                 if (suspensionDataOpt.isPresent()) {
                     SuspensionData suspensionData = suspensionDataOpt.get();
                     // Check if this is an async suspension by looking for async step state
-                    Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(suspensionData.messageId());
+                    Optional<AsyncStepState> asyncStateOpt = asyncStepStateRepository.findByMessageId(suspensionData.messageId());
                     if (asyncStateOpt.isPresent()) {
                         // Workflow has async steps - this is also a terminal state for initial response
                         return instance;
@@ -476,10 +525,10 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         
         switch (instance.getStatus()) {
             case SUSPENDED:
-                SuspensionData suspensionData = memoryService.getSuspensionData(instance.getInstanceId()).orElse(null);
+                SuspensionData suspensionData = suspensionDataRepository.findByInstanceId(instance.getInstanceId()).orElse(null);
                 if (suspensionData != null) {
                     // Check if this is an async suspension
-                    Optional<AsyncStepState> asyncStateOpt = memoryService.getAsyncStepState(suspensionData.messageId());
+                    Optional<AsyncStepState> asyncStateOpt = asyncStepStateRepository.findByMessageId(suspensionData.messageId());
                     if (asyncStateOpt.isPresent()) {
                         // Async suspension
                         AsyncStepState asyncState = asyncStateOpt.get();
@@ -494,7 +543,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                         // Regular suspension
                         AIFunctionSchema nextSchema = null;
                         if (suspensionData.nextInputClass() != null) {
-                            nextSchema = schemaProvider.generateSchema(suspensionData.nextInputClass());
+                            nextSchema = SchemaUtils.getSchemaFromClass(suspensionData.nextInputClass());
                         }
                         return createSuspendResponse(
                             chatId, userId, language, workflowId,
@@ -668,7 +717,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             }
         } else {
             // Not a map, use schema provider to extract properties
-            return schemaProvider.convertToMap(data);
+            return SchemaUtils.extractProperties(data);
         }
     }
     
@@ -695,13 +744,13 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         // Get input type from the step executor
         if (step.executor() != null && step.executor().getInputType() != null
                 && step.executor().getInputType() != void.class) {
-            inputSchema = schemaProvider.generateSchema(step.executor().getInputType());
+            inputSchema = SchemaUtils.getSchemaFromClass(step.executor().getInputType());
         }
 
         // Get output type from the step executor
         if (step.executor() != null && step.executor().getOutputType() != null
                 && step.executor().getOutputType() != void.class) {
-            outputSchema = schemaProvider.generateSchema(step.executor().getOutputType());
+            outputSchema = SchemaUtils.getSchemaFromClass(step.executor().getOutputType());
         }
 
         return new StepMetadata(
@@ -711,5 +760,19 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                 inputSchema,
                 outputSchema
         );
+    }
+    
+    private void updateSessionLastMessageTime(String chatId, long timestamp) {
+        sessionRepository.findById(chatId).ifPresent(session -> {
+            ChatSession updated = session.withLastMessageTime(timestamp);
+            sessionRepository.save(updated);
+        });
+    }
+    
+    private String abbreviate(String str, int maxLength) {
+        if (str == null || str.length() <= maxLength) {
+            return str;
+        }
+        return str.substring(0, maxLength - 3) + "...";
     }
 }
