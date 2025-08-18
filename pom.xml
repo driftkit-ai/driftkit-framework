@@ -106,7 +106,7 @@
         <module>driftkit-workflows-examples</module>
         <module>driftkit-audio</module>
         <module>driftkit-rag</module>
-        <module>driftkit-cli</module>
+<!--        <module>driftkit-cli</module>-->
     </modules>
 
     <dependencyManagement>
