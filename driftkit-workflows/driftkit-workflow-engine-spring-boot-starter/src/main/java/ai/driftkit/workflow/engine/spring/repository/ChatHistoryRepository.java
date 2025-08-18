@@ -1,6 +1,6 @@
 package ai.driftkit.workflow.engine.spring.repository;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

@@ -1,11 +1,16 @@
 package ai.driftkit.workflow.engine.service;
 
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage.DataProperty;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.chat.ChatResponse;
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
 import ai.driftkit.workflow.engine.chat.ChatContextHelper;
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
 import ai.driftkit.workflow.engine.chat.ChatMessageTask;
+import ai.driftkit.workflow.engine.chat.ChatResponseExtensions;
 import ai.driftkit.workflow.engine.chat.converter.ChatMessageTaskConverter;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
@@ -34,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * Core business logic extracted from Spring-specific WorkflowService.
  */
 @Slf4j
-@RequiredArgsConstructor
+@RequiredArgsConstructor(staticName = "of")
 public class DefaultWorkflowExecutionService implements WorkflowExecutionService {
     
     private static final int MAX_WAIT_ITERATIONS = 10000; // 100 seconds max wait
@@ -43,6 +48,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     private final WorkflowEngine engine;
     private final SchemaProvider schemaProvider;
     private final MemoryManagementService memoryService;
+    private final ChatStore chatStore;
     
     // Optional event publisher for WebSocket notifications
     private WorkflowEventPublisher eventPublisher;
@@ -61,7 +67,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     public ChatResponse executeChat(ChatRequest request) {
         try {
             // Store the request in chat history
-            memoryService.storeChatRequest(request);
+            chatStore.add(request);
 
             // Determine workflow to use
             String workflowId = request.getWorkflowId();
@@ -94,7 +100,10 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             );
 
             // Update chat history with response
-            memoryService.storeChatResponse(response);
+            chatStore.add(response);
+            
+            // Update session last message time
+            memoryService.updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
 
             return response;
 
@@ -102,7 +111,8 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             log.error("Error processing chat request", e);
             // Return error response in proper ChatResponse format
             ChatResponse errorResponse = createErrorResponse(request, e);
-            memoryService.storeChatResponse(errorResponse);
+            chatStore.add(errorResponse);
+            memoryService.updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
             return errorResponse;
         }
     }
@@ -111,15 +121,15 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     public ChatResponse resumeChat(String messageId, ChatRequest request) {
         try {
             // Store the resume request in chat history
-            memoryService.storeChatRequest(request);
+            chatStore.add(request);
             
             // Find the original message in chat history
-            Optional<ChatMessage> originalMessage = memoryService.getChatMessage(messageId);
-            if (originalMessage.isEmpty() || !(originalMessage.get() instanceof ChatResponse)) {
+            ChatMessage originalMessage = chatStore.getById(messageId);
+            if (originalMessage == null || !(originalMessage instanceof ChatResponse)) {
                 throw new IllegalArgumentException("No chat response found for messageId: " + messageId);
             }
             
-            ChatResponse originalResponse = (ChatResponse) originalMessage.get();
+            ChatResponse originalResponse = (ChatResponse) originalMessage;
             
             // Use chatId as instanceId
             String instanceId = originalResponse.getChatId();
@@ -177,14 +187,16 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             );
             
             // Update chat history with response
-            memoryService.storeChatResponse(response);
+            chatStore.add(response);
+            memoryService.updateSessionLastMessageTime(response.getChatId(), response.getTimestamp());
             
             return response;
             
         } catch (Exception e) {
             log.error("Error resuming chat for messageId: {}", messageId, e);
             ChatResponse errorResponse = createErrorResponse(request, e);
-            memoryService.storeChatResponse(errorResponse);
+            chatStore.add(errorResponse);
+            memoryService.updateSessionLastMessageTime(errorResponse.getChatId(), errorResponse.getTimestamp());
             return errorResponse;
         }
     }
@@ -200,12 +212,12 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         AsyncStepState asyncState = asyncStateOpt.get();
         
         // Get original response from history
-        Optional<ChatMessage> originalMessage = memoryService.getChatMessage(messageId);
-        if (originalMessage.isEmpty() || !(originalMessage.get() instanceof ChatResponse)) {
+        ChatMessage originalMessage = chatStore.getById(messageId);
+        if (originalMessage == null || !(originalMessage instanceof ChatResponse)) {
             return Optional.empty();
         }
         
-        ChatResponse original = (ChatResponse) originalMessage.get();
+        ChatResponse original = (ChatResponse) originalMessage;
         
         // Create updated response based on current async state
         ChatResponse response = new ChatResponse(
@@ -265,7 +277,21 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     
     @Override
     public PageResult<ChatMessage> getChatHistory(String chatId, PageRequest pageRequest, boolean includeContext) {
-        return memoryService.getChatHistory(chatId, pageRequest, includeContext);
+        // For now, return all messages - pagination can be implemented later in ChatStore
+        List<ChatMessage> messages = chatStore.getAll(chatId);
+        
+        // Create PageResult manually
+        int start = pageRequest.getPageNumber() * pageRequest.getPageSize();
+        int end = Math.min(start + pageRequest.getPageSize(), messages.size());
+        List<ChatMessage> pageContent = start < messages.size() ? 
+            messages.subList(start, end) : Collections.emptyList();
+            
+        return new PageResult<>(
+            pageContent,
+            pageRequest.getPageNumber(),
+            pageRequest.getPageSize(),
+            messages.size()
+        );
     }
     
     @Override
@@ -530,7 +556,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         );
         
         if (nextSchema != null) {
-            response.setNextSchemaAsSchema(nextSchema);
+            ChatResponseExtensions.setNextSchemaAsSchema(response, nextSchema);
         }
         
         return response;

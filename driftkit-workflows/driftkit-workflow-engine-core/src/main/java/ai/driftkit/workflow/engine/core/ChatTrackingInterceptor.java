@@ -3,7 +3,6 @@ package ai.driftkit.workflow.engine.core;
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import ai.driftkit.common.service.ChatStore;
-import ai.driftkit.workflow.engine.chat.ChatDomain;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.schema.SchemaUtils;
@@ -34,20 +33,33 @@ public class ChatTrackingInterceptor implements ExecutionInterceptor {
         
         switch (result) {
             case StepResult.Suspend<?> suspend -> {
-                Map<String, String> properties = SchemaUtils.extractProperties(suspend.promptToUser());
-                chatStore.add(chatId, properties, MessageType.SYSTEM);
+                // For simple types like String, create a simple properties map
+                if (suspend.promptToUser() instanceof String prompt) {
+                    chatStore.add(chatId, prompt, MessageType.AI);
+                } else {
+                    Map<String, String> properties = SchemaUtils.extractProperties(suspend.promptToUser());
+                    chatStore.add(chatId, properties, MessageType.AI);
+                }
                 log.debug("Tracked suspend message for chat: {}", chatId);
             }
             
             case StepResult.Async<?> async -> {
-                Map<String, String> properties = SchemaUtils.extractProperties(async.immediateData());
-                chatStore.add(chatId, properties, MessageType.SYSTEM);
+                if (async.immediateData() instanceof String message) {
+                    chatStore.add(chatId, message, MessageType.AI);
+                } else if (async.immediateData() != null) {
+                    Map<String, String> properties = SchemaUtils.extractProperties(async.immediateData());
+                    chatStore.add(chatId, properties, MessageType.AI);
+                }
                 log.debug("Tracked async start message for chat: {}", chatId);
             }
             
             case StepResult.Finish<?> finish -> {
-                Map<String, String> properties = SchemaUtils.extractProperties(finish.result());
-                chatStore.add(chatId, properties, MessageType.AI);
+                if (finish.result() instanceof String message) {
+                    chatStore.add(chatId, message, MessageType.AI);
+                } else if (finish.result() != null) {
+                    Map<String, String> properties = SchemaUtils.extractProperties(finish.result());
+                    chatStore.add(chatId, properties, MessageType.AI);
+                }
                 log.debug("Tracked finish message for chat: {}", chatId);
             }
             

@@ -1,7 +1,7 @@
 package ai.driftkit.workflow.engine.spring.websocket;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatRequest;
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatResponse;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.chat.ChatResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;

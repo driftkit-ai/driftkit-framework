@@ -9,6 +9,10 @@ import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
 import ai.driftkit.workflow.engine.schema.SchemaProperty;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
@@ -73,7 +77,7 @@ public class FluentApiChatWorkflowTest {
             .progressTracker(new InMemoryProgressTracker())
             .schemaProvider(schemaProvider)
             .chatSessionRepository(new InMemoryChatSessionRepository())
-            .chatHistoryRepository(new InMemoryChatHistoryRepository())
+            .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
             .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
             .suspensionDataRepository(new InMemorySuspensionDataRepository())
             .coreThreads(4)

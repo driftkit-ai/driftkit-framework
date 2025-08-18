@@ -1,6 +1,7 @@
 package ai.driftkit.common.domain.chat;
 
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.common.domain.chat.ChatMessage.PropertyType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.AllArgsConstructor;

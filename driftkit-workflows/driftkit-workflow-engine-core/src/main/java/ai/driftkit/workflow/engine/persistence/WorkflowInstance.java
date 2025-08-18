@@ -2,7 +2,6 @@ package ai.driftkit.workflow.engine.persistence;
 
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
-import ai.driftkit.workflow.engine.chat.ChatDomain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,7 +1,7 @@
 package ai.driftkit.workflow.engine.persistence.inmemory;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatMessage;
-import ai.driftkit.workflow.engine.chat.ChatDomain.MessageType;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
 import ai.driftkit.workflow.engine.persistence.ChatHistoryRepository;

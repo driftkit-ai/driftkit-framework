@@ -7,6 +7,10 @@ import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -346,7 +350,7 @@ class InputPreparerTest {
                 .stateRepository(new InMemoryWorkflowStateRepository())
                 .progressTracker(new InMemoryProgressTracker())
                 .chatSessionRepository(new InMemoryChatSessionRepository())
-                .chatHistoryRepository(new InMemoryChatHistoryRepository())
+                .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
                 .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
                 .suspensionDataRepository(new InMemorySuspensionDataRepository())
                 .build();

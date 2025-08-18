@@ -1,8 +1,8 @@
 package ai.driftkit.workflow.engine.chat;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatResponse.NextSchema;
-import ai.driftkit.workflow.engine.chat.ChatDomain.DataProperty;
-import ai.driftkit.workflow.engine.chat.ChatDomain.MessageType;
+import ai.driftkit.common.domain.chat.ChatMessage.DataProperty;
+import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
+import ai.driftkit.common.domain.chat.ChatResponse.NextSchema;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;

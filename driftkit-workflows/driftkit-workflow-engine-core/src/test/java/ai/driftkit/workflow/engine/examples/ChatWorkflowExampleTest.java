@@ -1,12 +1,12 @@
 package ai.driftkit.workflow.engine.examples;
 
+import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecution;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
 import ai.driftkit.workflow.engine.examples.ChatWorkflowExample.*;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;

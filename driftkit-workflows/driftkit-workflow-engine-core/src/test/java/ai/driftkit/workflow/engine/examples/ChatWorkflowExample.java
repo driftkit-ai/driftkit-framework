@@ -1,11 +1,11 @@
 package ai.driftkit.workflow.engine.examples;
 
+import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.annotations.*;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.domain.WorkflowException;
 import ai.driftkit.workflow.engine.schema.*;
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
 import ai.driftkit.workflow.engine.chat.ChatContextHelper;
 import lombok.Data;
 import lombok.NoArgsConstructor;

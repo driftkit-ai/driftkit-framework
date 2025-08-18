@@ -2,6 +2,10 @@ package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,7 +27,7 @@ class StepResultTest {
             .stateRepository(new InMemoryWorkflowStateRepository())
             .progressTracker(new InMemoryProgressTracker())
             .chatSessionRepository(new InMemoryChatSessionRepository())
-            .chatHistoryRepository(new InMemoryChatHistoryRepository())
+            .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
             .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
             .suspensionDataRepository(new InMemorySuspensionDataRepository())
             .build();

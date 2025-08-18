@@ -187,6 +187,11 @@ public class InMemoryChatStore implements ChatStore {
     }
     
     @Override
+    public ChatMessage getById(String messageId) {
+        return messageIndex.get(messageId);
+    }
+    
+    @Override
     public void pruneToTokenLimit(String chatId, int maxTokens) {
         List<ChatMessage> messages = storage.get(chatId);
         if (messages == null || messages.isEmpty()) {

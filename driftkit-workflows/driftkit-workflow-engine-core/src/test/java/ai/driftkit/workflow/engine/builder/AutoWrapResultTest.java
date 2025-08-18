@@ -1,17 +1,24 @@
 package ai.driftkit.workflow.engine.builder;
 
-import ai.driftkit.workflow.engine.core.*;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
+import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
+import ai.driftkit.workflow.engine.core.StepResult;
+import ai.driftkit.workflow.engine.core.WorkflowContext;
+import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
-import ai.driftkit.workflow.engine.persistence.inmemory.*;
-import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryAsyncStepStateRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryChatSessionRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemorySuspensionDataRepository;
+import ai.driftkit.workflow.engine.persistence.inmemory.InMemoryWorkflowStateRepository;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,7 +36,7 @@ public class AutoWrapResultTest {
             .stateRepository(new InMemoryWorkflowStateRepository())
             .progressTracker(new InMemoryProgressTracker())
             .chatSessionRepository(new InMemoryChatSessionRepository())
-            .chatHistoryRepository(new InMemoryChatHistoryRepository())
+            .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
             .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
             .suspensionDataRepository(new InMemorySuspensionDataRepository())
             .build();

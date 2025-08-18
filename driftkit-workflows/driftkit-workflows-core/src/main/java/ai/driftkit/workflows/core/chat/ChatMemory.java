@@ -1,6 +1,4 @@
-package ai.driftkit.common.service;
-
-import ai.driftkit.common.domain.Message;
+package ai.driftkit.workflows.core.chat;
 
 import java.util.List;
 

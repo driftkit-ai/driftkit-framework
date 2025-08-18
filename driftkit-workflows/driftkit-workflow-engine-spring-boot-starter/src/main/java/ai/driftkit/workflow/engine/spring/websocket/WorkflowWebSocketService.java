@@ -1,8 +1,8 @@
 package ai.driftkit.workflow.engine.spring.websocket;
 
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatMessage;
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatResponse;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import lombok.Data;

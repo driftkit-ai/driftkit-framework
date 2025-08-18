@@ -1,6 +1,9 @@
 package ai.driftkit.workflow.engine.spring.service;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatResponse;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.chat.ChatMessageTask;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.ChatSession;
@@ -42,8 +45,9 @@ public class WorkflowService {
     @Autowired
     public WorkflowService(WorkflowEngine engine, 
                           SchemaProvider schemaProvider,
-                          MemoryManagementService memoryService) {
-        this.coreService = new DefaultWorkflowExecutionService(engine, schemaProvider, memoryService);
+                          MemoryManagementService memoryService,
+                          ChatStore chatStore) {
+        this.coreService = DefaultWorkflowExecutionService.of(engine, schemaProvider, memoryService, chatStore);
     }
     
 

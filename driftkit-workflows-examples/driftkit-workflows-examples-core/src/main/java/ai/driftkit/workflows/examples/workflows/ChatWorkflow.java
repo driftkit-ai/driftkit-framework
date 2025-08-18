@@ -2,7 +2,8 @@ package ai.driftkit.workflows.examples.workflows;
 
 import ai.driftkit.common.domain.*;
 import ai.driftkit.common.domain.client.ModelTextResponse;
-import ai.driftkit.common.service.ChatMemory;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.clients.core.ModelClientFactory;
@@ -110,8 +111,8 @@ public class ChatWorkflow extends ModelWorkflow<ChatStartEvent, ChatResult> {
         Message message = new Message(
                 task.getMessageId(),
                 query,
-                ChatMessageType.USER,
-                MessageType.TEXT,
+                ai.driftkit.workflows.core.chat.ChatMessageType.USER,
+                ai.driftkit.workflows.core.chat.MessageType.TEXT,
                 null,
                 null,
                 null,

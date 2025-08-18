@@ -77,6 +77,11 @@ public interface ChatStore {
     boolean chatExists(String chatId);
     
     /**
+     * Get a message by ID.
+     */
+    ChatMessage getById(String messageId);
+    
+    /**
      * Prune old messages to stay within token limit.
      */
     void pruneToTokenLimit(String chatId, int maxTokens);

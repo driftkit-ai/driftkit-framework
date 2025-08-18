@@ -9,8 +9,10 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Base chat message class.
@@ -100,7 +102,20 @@ public class ChatMessage implements Serializable {
         newProp.setType(PropertyType.STRING);
         properties.add(newProp);
     }
-    
+
+    public enum PropertyType {
+        STRING,
+        INTEGER,
+        DOUBLE,
+        BOOLEAN,
+        LITERAL,
+        ENUM,
+        OBJECT,
+        ARRAY_OBJECT,
+        ARRAY,
+        MAP
+    }
+
     /**
      * Message type enumeration.
      */
@@ -109,19 +124,6 @@ public class ChatMessage implements Serializable {
         AI,
         CONTEXT,
         SYSTEM
-    }
-    
-    /**
-     * Property type enumeration.
-     */
-    public enum PropertyType {
-        STRING,
-        NUMBER,
-        BOOLEAN,
-        DATE,
-        FILE,
-        SELECT,
-        MULTI_SELECT
     }
     
     /**

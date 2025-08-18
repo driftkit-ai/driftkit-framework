@@ -5,10 +5,13 @@ import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.persistence.*;
-import ai.driftkit.workflow.engine.memory.WorkflowMemoryConfiguration;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
 import ai.driftkit.workflow.engine.schema.DefaultSchemaProvider;
 import ai.driftkit.workflow.engine.schema.SchemaProvider;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.spring.controller.WorkflowController;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import lombok.extern.slf4j.Slf4j;
@@ -68,9 +71,16 @@ public class WorkflowEngineAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public ChatHistoryRepository chatHistoryRepository() {
-        log.info("Configuring in-memory ChatHistoryRepository");
-        return new InMemoryChatHistoryRepository();
+    public TextTokenizer textTokenizer() {
+        log.info("Configuring SimpleTextTokenizer");
+        return new SimpleTextTokenizer();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public ChatStore chatStore(TextTokenizer textTokenizer) {
+        log.info("Configuring in-memory ChatStore");
+        return new InMemoryChatStore(textTokenizer);
     }
     
     @Bean
@@ -91,17 +101,13 @@ public class WorkflowEngineAutoConfiguration {
     @ConditionalOnMissingBean
     public MemoryManagementService memoryManagementService(
             ChatSessionRepository chatSessionRepository,
-            ChatHistoryRepository chatHistoryRepository,
             AsyncStepStateRepository asyncStepStateRepository,
             SuspensionDataRepository suspensionDataRepository) {
         log.info("Configuring MemoryManagementService");
-        // Use default memory configuration
         return new MemoryManagementService(
             chatSessionRepository,
-            chatHistoryRepository,
             asyncStepStateRepository,
-            suspensionDataRepository,
-            WorkflowMemoryConfiguration.createDefault(chatHistoryRepository)
+            suspensionDataRepository
         );
     }
     
@@ -113,7 +119,7 @@ public class WorkflowEngineAutoConfiguration {
             ProgressTracker progressTracker,
             SchemaProvider schemaProvider,
             ChatSessionRepository chatSessionRepository,
-            ChatHistoryRepository chatHistoryRepository,
+            ChatStore chatStore,
             AsyncStepStateRepository asyncStepStateRepository,
             SuspensionDataRepository suspensionDataRepository) {
         
@@ -129,7 +135,7 @@ public class WorkflowEngineAutoConfiguration {
             .progressTracker(progressTracker)
             .schemaProvider(schemaProvider)
             .chatSessionRepository(chatSessionRepository)
-            .chatHistoryRepository(chatHistoryRepository)
+            .chatStore(chatStore)
             .asyncStepStateRepository(asyncStepStateRepository)
             .suspensionDataRepository(suspensionDataRepository)
             .build();
@@ -142,9 +148,10 @@ public class WorkflowEngineAutoConfiguration {
     public WorkflowService workflowService(
             WorkflowEngine engine,
             SchemaProvider schemaProvider,
-            MemoryManagementService memoryManagementService) {
+            MemoryManagementService memoryManagementService,
+            ChatStore chatStore) {
         log.info("Configuring WorkflowService");
-        return new WorkflowService(engine, schemaProvider, memoryManagementService);
+        return new WorkflowService(engine, schemaProvider, memoryManagementService, chatStore);
     }
     
     @Bean

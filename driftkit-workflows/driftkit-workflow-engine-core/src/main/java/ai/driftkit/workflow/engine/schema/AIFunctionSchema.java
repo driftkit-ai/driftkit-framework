@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.schema;
 
+import ai.driftkit.common.domain.chat.ChatMessage.PropertyType;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -544,19 +545,6 @@ public class AIFunctionSchema implements Serializable {
         }
     }
 
-    public enum PropertyType {
-        STRING,
-        INTEGER,
-        DOUBLE,
-        BOOLEAN,
-        LITERAL,
-        ENUM,
-        OBJECT,
-        ARRAY_OBJECT,
-        ARRAY,
-        MAP
-    }
-    
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     public @interface SchemaName {

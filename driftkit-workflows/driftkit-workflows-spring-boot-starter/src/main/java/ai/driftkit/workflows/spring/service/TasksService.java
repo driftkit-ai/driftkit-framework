@@ -4,6 +4,7 @@ import ai.driftkit.common.domain.*;
 import ai.driftkit.workflows.spring.domain.ChatEntity;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
@@ -120,39 +121,50 @@ public class TasksService {
                 result = new Message(
                         e.getMessageId(),
                         null,
-                        ChatMessageType.AI,
-                        MessageType.IMAGE,
+                        ai.driftkit.workflows.core.chat.ChatMessageType.AI,
+                        ai.driftkit.workflows.core.chat.MessageType.IMAGE,
                         e.getImageTaskId(),
-                        e.getGrade(),
+                        e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                         e.getGradeComment(),
                         e.getWorkflow(),
                         e.getContextJson(),
-                        e.getResponseTime(),
                         e.getCreatedTime(),
-                        e.getResponseTime(),
-                        null // Image messages don't have tokenLogprobs
+                        e.getCreatedTime(),
+                        e.getResponseTime()
                 );
             }
         } else {
             result = new Message(
                     e.getMessageId(),
                     e.getResult(),
-                    ChatMessageType.AI,
-                    MessageType.TEXT,
+                    ai.driftkit.workflows.core.chat.ChatMessageType.AI,
+                    ai.driftkit.workflows.core.chat.MessageType.TEXT,
                     e.getImageTaskId(),
-                    e.getGrade(),
+                    e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                     e.getGradeComment(),
                     e.getWorkflow(),
                     e.getContextJson(),
-                    e.getResponseTime(),
                     e.getCreatedTime(),
-                    e.getResponseTime(),
-                    e.getLogProbs()
+                    e.getCreatedTime(),
+                    e.getResponseTime()
             );
         }
 
         return Stream.of(
-                e.toUserMessage(),
+                new Message(
+                        e.getMessageId(),
+                        e.getMessage(),
+                        ai.driftkit.workflows.core.chat.ChatMessageType.USER,
+                        ai.driftkit.workflows.core.chat.MessageType.TEXT,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        e.getCreatedTime(),
+                        e.getCreatedTime(),
+                        null
+                ),
                 result
         );
     }

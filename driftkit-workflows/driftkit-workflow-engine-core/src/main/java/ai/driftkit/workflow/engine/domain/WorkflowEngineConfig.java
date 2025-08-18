@@ -4,7 +4,6 @@ import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.RetryExecutor;
 import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
-import ai.driftkit.workflow.engine.persistence.ChatHistoryRepository;
 import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
@@ -81,11 +80,6 @@ public class WorkflowEngineConfig {
      */
     private ChatSessionRepository chatSessionRepository;
     
-    /**
-     * Chat history repository implementation.
-     * If null, an in-memory implementation will be used.
-     */
-    private ChatHistoryRepository chatHistoryRepository;
     
     /**
      * Chat store implementation for unified chat memory management.

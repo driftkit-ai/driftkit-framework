@@ -2,13 +2,12 @@ package ai.driftkit.workflows.spring;
 
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.common.service.ChatMemory;
-import ai.driftkit.common.service.TokenWindowChatMemory;
-import ai.driftkit.common.utils.SimpleTokenizer;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.workflows.core.agent.LLMAgent;
-import ai.driftkit.workflows.core.agent.AgentResponse;
 import ai.driftkit.workflows.core.agent.RequestTracingProvider;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.SimpleTokenizer;
+import ai.driftkit.workflows.core.chat.TokenWindowChatMemory;
 import ai.driftkit.workflows.core.domain.ExecutableWorkflow;
 import ai.driftkit.workflows.core.domain.StartEvent;
 import ai.driftkit.workflows.core.domain.WorkflowContext;

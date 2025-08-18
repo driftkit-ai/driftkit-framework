@@ -1,9 +1,9 @@
 package ai.driftkit.workflows.core.agent;
 
-import ai.driftkit.common.domain.ChatMessageType;
+import ai.driftkit.workflows.core.chat.ChatMessageType;
 import ai.driftkit.common.domain.Language;
-import ai.driftkit.common.domain.Message;
-import ai.driftkit.common.domain.MessageType;
+import ai.driftkit.workflows.core.chat.Message;
+import ai.driftkit.workflows.core.chat.MessageType;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
@@ -11,7 +11,7 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
-import ai.driftkit.common.service.ChatMemory;
+import ai.driftkit.workflows.core.chat.ChatMemory;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.tools.ToolInfo;
 import ai.driftkit.common.tools.ToolRegistry;

@@ -1,6 +1,6 @@
 package ai.driftkit.workflow.engine.persistence;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
 

@@ -3,7 +3,7 @@ package ai.driftkit.workflows.examples.workflows;
 import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.Language;
-import ai.driftkit.common.domain.Message;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.common.utils.JsonUtils;

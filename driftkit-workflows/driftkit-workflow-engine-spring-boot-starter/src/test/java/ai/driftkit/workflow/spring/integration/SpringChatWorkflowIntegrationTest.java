@@ -1,9 +1,9 @@
 package ai.driftkit.workflow.spring.integration;
 
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.annotations.*;
 import ai.driftkit.workflow.engine.chat.ChatContextHelper;
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatRequest;
-import ai.driftkit.workflow.engine.chat.ChatDomain.ChatResponse;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;

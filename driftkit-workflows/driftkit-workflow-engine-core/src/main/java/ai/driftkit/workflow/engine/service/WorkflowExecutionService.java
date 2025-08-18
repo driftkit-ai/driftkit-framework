@@ -1,9 +1,11 @@
 package ai.driftkit.workflow.engine.service;
 
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.domain.PageRequest;
 import ai.driftkit.workflow.engine.domain.PageResult;
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
 import ai.driftkit.workflow.engine.chat.ChatMessageTask;
 import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.StepMetadata;

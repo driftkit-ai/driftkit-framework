@@ -1,6 +1,10 @@
 package ai.driftkit.workflow.engine.chat.converter;
 
-import ai.driftkit.workflow.engine.chat.ChatDomain.*;
+import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatMessage.DataProperty;
+import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.chat.ChatMessageTask;
 
 import lombok.extern.slf4j.Slf4j;

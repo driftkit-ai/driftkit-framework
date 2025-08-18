@@ -5,6 +5,10 @@ import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
+import ai.driftkit.common.service.ChatStore;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.InMemoryChatStore;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import lombok.Data;
@@ -31,7 +35,7 @@ public class FluentApiResumeTest {
             .stateRepository(new InMemoryWorkflowStateRepository())
             .progressTracker(new InMemoryProgressTracker())
             .chatSessionRepository(new InMemoryChatSessionRepository())
-            .chatHistoryRepository(new InMemoryChatHistoryRepository())
+            .chatStore(new InMemoryChatStore(new SimpleTextTokenizer()))
             .asyncStepStateRepository(new InMemoryAsyncStepStateRepository())
             .suspensionDataRepository(new InMemorySuspensionDataRepository())
             .build();
