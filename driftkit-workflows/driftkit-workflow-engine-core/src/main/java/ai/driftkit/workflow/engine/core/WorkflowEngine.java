@@ -340,6 +340,9 @@ public class WorkflowEngine {
 
         // Get suspension data from repository
         SuspensionData suspensionData = suspensionDataRepository.findByInstanceId(runId).orElse(null);
+        log.debug("Resume: loaded suspension data for instance {}: {}", runId, 
+                suspensionData != null ? "found (nextInputClass=" + 
+                (suspensionData.nextInputClass() != null ? suspensionData.nextInputClass().getSimpleName() : "null") + ")" : "not found");
 
         if (suspensionData != null && suspensionData.originalStepInput() != null) {
             // Store the original step input back in context for the step to use

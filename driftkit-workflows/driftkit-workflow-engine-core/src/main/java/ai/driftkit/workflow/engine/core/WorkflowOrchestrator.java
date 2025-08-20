@@ -61,6 +61,12 @@ public class WorkflowOrchestrator {
 
                 // Process the result
                 processStepResult(instance, graph, currentStep, result, execution, engine);
+                
+                // Check if workflow was suspended during result processing
+                if (instance.getStatus() == WorkflowStatus.SUSPENDED) {
+                    log.debug("Workflow suspended after processing step result, exiting execution loop");
+                    break;
+                }
             }
 
             // Handle terminal states

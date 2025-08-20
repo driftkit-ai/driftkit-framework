@@ -23,6 +23,12 @@ public class DefaultStepRouter implements StepRouter {
         List<Edge> edges = graph.getOutgoingEdges(currentStepId);
 
         if (edges.isEmpty()) {
+            // No explicit edges - try pure type-based routing
+            if (data != null) {
+                log.debug("No edges from step {}, attempting pure type-based routing for type {}", 
+                         currentStepId, data.getClass().getSimpleName());
+                return findStepForInputType(graph, data.getClass(), currentStepId);
+            }
             return null;
         }
 
@@ -133,6 +139,7 @@ public class DefaultStepRouter implements StepRouter {
     
     @Override
     public String findStepForInputType(WorkflowGraph<?, ?> graph, Class<?> inputType, String excludeStepId) {
+        
         // First, check if there are any outgoing edges from the current step
         List<Edge> edges = graph.getOutgoingEdges(excludeStepId);
 
@@ -146,13 +153,14 @@ public class DefaultStepRouter implements StepRouter {
 
         // If no direct edge found, search all nodes for one that accepts this input type
         for (StepNode node : graph.nodes().values()) {
-            if (!node.id().equals(excludeStepId) && node.canAcceptInput(inputType)) {
+            // Allow steps to process the same input type again (self-loop for type-based routing)
+            if (!node.isInitial() && 
+                node.canAcceptInput(inputType)) {
                 log.debug("Found step {} that can accept input type {}",
                         node.id(), inputType.getSimpleName());
                 return node.id();
             }
         }
-
         return null;
     }
 }

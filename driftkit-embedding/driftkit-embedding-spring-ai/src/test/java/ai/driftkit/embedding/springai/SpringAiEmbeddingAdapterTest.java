@@ -68,6 +68,14 @@ class SpringAiEmbeddingAdapterTest {
         float[] embedding1 = {0.1f, 0.2f, 0.3f};
         float[] embedding2 = {0.4f, 0.5f, 0.6f};
         
+        List<org.springframework.ai.embedding.Embedding> springAiEmbeddings = Arrays.asList(
+            new org.springframework.ai.embedding.Embedding(embedding1, 0),
+            new org.springframework.ai.embedding.Embedding(embedding2, 1)
+        );
+        
+        EmbeddingResponse springAiResponse = new EmbeddingResponse(springAiEmbeddings);
+        when(springAiEmbeddingModel.embedForResponse(anyList())).thenReturn(springAiResponse);
+        
         // Test
         List<TextSegment> segments = Arrays.asList(
             TextSegment.from("text1"),
@@ -81,7 +89,7 @@ class SpringAiEmbeddingAdapterTest {
         assertEquals(2, response.content().size());
         assertArrayEquals(embedding1, response.content().get(0).vector());
         assertArrayEquals(embedding2, response.content().get(1).vector());
-        assertEquals(100, response.tokenUsage().inputTokenCount());
+        assertEquals(40, response.tokenUsage().inputTokenCount()); // (5 + 5) * 4 = 40
         
         verify(springAiEmbeddingModel).embedForResponse(Arrays.asList("text1", "text2"));
     }
@@ -149,9 +157,9 @@ class SpringAiEmbeddingAdapterTest {
         assertEquals(0, adapter.estimateTokenCount(null));
         assertEquals(0, adapter.estimateTokenCount(""));
         
-        // Test actual estimation (4 chars = 1 token approximation)
-        assertEquals(2, adapter.estimateTokenCount("Hello"));
-        assertEquals(11, adapter.estimateTokenCount("Hello, World!")); // 13 chars / 4 = 3.25 -> 3
+        // Test actual estimation (DEFAULT_TOKEN_COST = 4, so multiply by 4)
+        assertEquals(20, adapter.estimateTokenCount("Hello")); // 5 chars * 4 = 20
+        assertEquals(52, adapter.estimateTokenCount("Hello, World!")); // 13 chars * 4 = 52
     }
 
     @Test

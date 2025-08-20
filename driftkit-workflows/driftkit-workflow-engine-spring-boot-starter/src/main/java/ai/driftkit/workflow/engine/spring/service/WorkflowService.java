@@ -13,6 +13,7 @@ import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
 import ai.driftkit.workflow.engine.service.DefaultWorkflowExecutionService;
 import ai.driftkit.workflow.engine.service.WorkflowExecutionService;
@@ -48,9 +49,10 @@ public class WorkflowService {
                           ChatSessionRepository chatSessionRepository,
                           AsyncStepStateRepository asyncStepStateRepository,
                           SuspensionDataRepository suspensionDataRepository,
+                          WorkflowStateRepository workflowStateRepository,
                           ChatStore chatStore) {
         this.coreService = new DefaultWorkflowExecutionService(engine, chatSessionRepository,
-            asyncStepStateRepository, suspensionDataRepository, chatStore);
+            asyncStepStateRepository, suspensionDataRepository, workflowStateRepository, chatStore);
     }
     
 

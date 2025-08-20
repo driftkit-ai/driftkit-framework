@@ -181,34 +181,49 @@ public class WorkflowAnalyzer {
 
             StepInfo stepInfo = null;
 
-            // Check for @InitialStep
+            // Check for @InitialStep and @Step combination
             InitialStep initialAnnotation = method.getAnnotation(InitialStep.class);
-            if (initialAnnotation != null) {
-                if (method.getAnnotation(Step.class) != null ||
-                        method.getAnnotation(AsyncStep.class) != null) {
-                    throw new IllegalArgumentException(
-                            "Method cannot have multiple step annotations: " + method.getName()
-                    );
-                }
+            Step stepAnnotation = method.getAnnotation(Step.class);
+            AsyncStep asyncAnnotation = method.getAnnotation(AsyncStep.class);
+            
+            // Validate combinations
+            if (asyncAnnotation != null && (initialAnnotation != null || stepAnnotation != null)) {
+                throw new IllegalArgumentException(
+                        "Method cannot have @AsyncStep with other step annotations: " + method.getName()
+                );
+            }
 
+            // Handle @InitialStep (with optional @Step)
+            if (initialAnnotation != null) {
                 String id = method.getName();
-                stepInfo = StepInfo.builder()
+                StepInfo.StepInfoBuilder builder = StepInfo.builder()
                         .id(id)
                         .method(method)
                         .instance(instance)
                         .isInitial(true)
-                        .description(initialAnnotation.description())
-                        .build();
-            }
-
-            // Check for @Step
-            Step stepAnnotation = method.getAnnotation(Step.class);
-            if (stepAnnotation != null) {
-                if (initialAnnotation != null || method.getAnnotation(AsyncStep.class) != null) {
-                    throw new IllegalArgumentException(
-                            "Method cannot have multiple step annotations: " + method.getName()
-                    );
+                        .description(initialAnnotation.description());
+                
+                // If @Step is also present, merge its properties
+                if (stepAnnotation != null) {
+                    // Override description if Step provides one
+                    if (StringUtils.isNotBlank(stepAnnotation.description())) {
+                        builder.description(stepAnnotation.description());
+                    }
+                    builder.index(stepAnnotation.index())
+                            .timeoutMs(stepAnnotation.timeoutMs())
+                            .nextClasses(stepAnnotation.nextClasses())
+                            .nextSteps(stepAnnotation.nextSteps())
+                            .condition(stepAnnotation.condition())
+                            .onTrue(stepAnnotation.onTrue())
+                            .onFalse(stepAnnotation.onFalse())
+                            .retryPolicy(stepAnnotation.retryPolicy())
+                            .invocationLimit(stepAnnotation.invocationLimit());
                 }
+                
+                stepInfo = builder.build();
+            }
+            // Handle @Step only (without @InitialStep)
+            else if (stepAnnotation != null) {
 
                 // Determine step ID - priority: value, id, method name
                 String id = StringUtils.isNotBlank(stepAnnotation.id()) ? stepAnnotation.id() : method.getName();
@@ -231,14 +246,9 @@ public class WorkflowAnalyzer {
                         .build();
             }
 
-            // Check for @AsyncStep - skip these, they are handled separately
-            AsyncStep asyncAnnotation = method.getAnnotation(AsyncStep.class);
+            // Check for @AsyncStep - skip these, they are handled separately  
             if (asyncAnnotation != null) {
-                if (initialAnnotation != null || stepAnnotation != null) {
-                    throw new IllegalArgumentException(
-                            "Method cannot have multiple step annotations: " + method.getName()
-                    );
-                }
+                // AsyncStep was already validated above - just skip
                 // Skip adding @AsyncStep methods to the step graph
                 // They are handled separately via asyncStepMetadata
                 continue;
@@ -266,8 +276,6 @@ public class WorkflowAnalyzer {
                 // Override input type if specified in annotation
                 if (stepAnnotation != null && stepAnnotation.inputClass() != void.class) {
                     stepInfo.setInputType(stepAnnotation.inputClass());
-                } else if (asyncAnnotation != null && asyncAnnotation.inputClass() != void.class) {
-                    stepInfo.setInputType(asyncAnnotation.inputClass());
                 }
 
                 // Analyze return type
@@ -415,8 +423,18 @@ public class WorkflowAnalyzer {
             }
 
             // Fourth priority: automatic type-based routing (existing logic)
+            // Add automatic routing if:
+            // 1. No edges were created from explicit routing above
+            // 2. Either step has explicit routing configuration, OR step has no explicit routing (pure type-based)
+            boolean hasExplicitRouting = ArrayUtils.isNotEmpty(fromStep.getNextSteps()) || 
+                                        ArrayUtils.isNotEmpty(fromStep.getNextClasses());
+            
             if (stepEdges.isEmpty()) {
-                log.debug("Step {} has no explicit edges, checking automatic routing", fromStep.getId());
+                if (hasExplicitRouting) {
+                    log.debug("Step {} has explicit routing configuration but no edges found, checking automatic routing", fromStep.getId());
+                } else {
+                    log.debug("Step {} has no explicit routing, adding automatic type-based edges", fromStep.getId());
+                }
                 log.debug("  Continue type: {}", fromStep.getPossibleContinueType());
                 log.debug("  Branch types: {}", fromStep.getPossibleBranchTypes());
 
@@ -464,7 +482,9 @@ public class WorkflowAnalyzer {
         List<StepInfo> compatibleSteps = new ArrayList<>();
 
         for (StepInfo toStep : allSteps.values()) {
-            if (toStep != fromStep && TypeUtils.isTypeCompatible(continueType, toStep.getInputType())) {
+            // Don't create edges to initial steps or to the same step
+            if (toStep != fromStep && !toStep.isInitial() && 
+                TypeUtils.isTypeCompatible(continueType, toStep.getInputType())) {
                 compatibleSteps.add(toStep);
             }
         }
@@ -497,7 +517,9 @@ public class WorkflowAnalyzer {
                 log.debug("Checking compatibility: {} (input: {}) for branch type {}",
                         toStep.getId(), toStep.getInputType(), branchType);
 
-                if (toStep != fromStep && TypeUtils.isTypeCompatible(branchType, toStep.getInputType())) {
+                // Don't create edges to initial steps or to the same step
+                if (toStep != fromStep && !toStep.isInitial() && 
+                    TypeUtils.isTypeCompatible(branchType, toStep.getInputType())) {
                     compatibleSteps.add(toStep);
                 }
             }

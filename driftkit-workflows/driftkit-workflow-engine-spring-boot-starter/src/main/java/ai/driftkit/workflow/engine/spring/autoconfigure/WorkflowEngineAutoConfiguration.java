@@ -127,10 +127,11 @@ public class WorkflowEngineAutoConfiguration {
             ChatSessionRepository chatSessionRepository,
             AsyncStepStateRepository asyncStepStateRepository,
             SuspensionDataRepository suspensionDataRepository,
+            WorkflowStateRepository workflowStateRepository,
             ChatStore chatStore) {
         log.info("Configuring WorkflowService");
         return new WorkflowService(engine, chatSessionRepository, 
-            asyncStepStateRepository, suspensionDataRepository, chatStore);
+            asyncStepStateRepository, suspensionDataRepository, workflowStateRepository, chatStore);
     }
     
     @Bean
