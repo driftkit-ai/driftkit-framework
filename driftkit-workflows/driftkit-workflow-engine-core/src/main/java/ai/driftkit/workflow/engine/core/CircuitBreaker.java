@@ -96,6 +96,33 @@ public class CircuitBreaker {
     }
     
     /**
+     * Exports the state of a circuit breaker for persistence.
+     * 
+     * @param stepId The step identifier
+     * @return The circuit state snapshot or null if not found
+     */
+    public CircuitStateSnapshot exportState(String stepId) {
+        CircuitState state = circuitStates.get(stepId);
+        if (state == null) {
+            return null;
+        }
+        return state.toSnapshot();
+    }
+    
+    /**
+     * Imports a circuit breaker state from persistence.
+     * 
+     * @param stepId The step identifier
+     * @param snapshot The state snapshot to import
+     */
+    public void importState(String stepId, CircuitStateSnapshot snapshot) {
+        if (snapshot != null) {
+            CircuitState state = CircuitState.fromSnapshot(snapshot, config);
+            circuitStates.put(stepId, state);
+        }
+    }
+    
+    /**
      * Circuit breaker states.
      */
     public enum State {
@@ -103,6 +130,18 @@ public class CircuitBreaker {
         OPEN,       // Blocking requests
         HALF_OPEN   // Testing recovery
     }
+    
+    /**
+     * Snapshot of circuit breaker state for persistence.
+     */
+    public record CircuitStateSnapshot(
+        State state,
+        int failureCount,
+        int successCount,
+        int halfOpenAttempts,
+        long lastFailureTime,
+        long stateChangeTime
+    ) {}
     
     /**
      * Configuration for circuit breaker behavior.
@@ -243,6 +282,28 @@ public class CircuitBreaker {
         }
         
         State getState() {
+            return state;
+        }
+        
+        CircuitStateSnapshot toSnapshot() {
+            return new CircuitStateSnapshot(
+                state,
+                failureCount.get(),
+                successCount.get(),
+                halfOpenAttempts.get(),
+                lastFailureTime.get(),
+                stateChangeTime.get()
+            );
+        }
+        
+        static CircuitState fromSnapshot(CircuitStateSnapshot snapshot, CircuitBreakerConfig config) {
+            CircuitState state = new CircuitState(config);
+            state.state = snapshot.state();
+            state.failureCount.set(snapshot.failureCount());
+            state.successCount.set(snapshot.successCount());
+            state.halfOpenAttempts.set(snapshot.halfOpenAttempts());
+            state.lastFailureTime.set(snapshot.lastFailureTime());
+            state.stateChangeTime.set(snapshot.stateChangeTime());
             return state;
         }
     }

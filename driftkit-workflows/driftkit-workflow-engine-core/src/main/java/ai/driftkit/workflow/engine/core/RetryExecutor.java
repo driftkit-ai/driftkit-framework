@@ -339,14 +339,22 @@ public class RetryExecutor {
         return retryMetrics;
     }
     
-    /**
-     * Gets access to the circuit breaker.
-     * 
-     * @return The circuit breaker instance
-     */
-    public CircuitBreaker getCircuitBreaker() {
+    protected RetryStrategy getStrategy() {
+        return retryStrategy;
+    }
+    
+    protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
     }
+    
+    protected RetryMetrics getMetrics() {
+        return retryMetrics;
+    }
+    
+    protected List<RetryListener> getListeners() {
+        return retryListeners;
+    }
+    
     
     /**
      * Exception thrown when invocation limit is exceeded.

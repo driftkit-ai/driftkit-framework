@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.core;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -118,6 +119,15 @@ public class RetryMetrics {
     }
     
     /**
+     * Gets all step metrics.
+     * 
+     * @return Map of all step metrics
+     */
+    public Map<String, StepMetrics> getAllStepMetrics() {
+        return new ConcurrentHashMap<>(stepMetrics);
+    }
+    
+    /**
      * Metrics for a specific step.
      */
     @Getter
@@ -168,6 +178,22 @@ public class RetryMetrics {
             return (double) successCount.get() / total * 100;
         }
         
+        public long getTotalAttempts() {
+            return attemptCount.get();
+        }
+        
+        public long getAbortedCount() {
+            return 0; // TODO: Track aborted count
+        }
+        
+        public double getAverageDuration() {
+            int successes = successCount.get();
+            if (successes == 0) {
+                return 0;
+            }
+            return (double) totalRetryDurationMs.get() / successes;
+        }
+        
         /**
          * Gets average retry delay in milliseconds.
          * 
@@ -200,6 +226,19 @@ public class RetryMetrics {
             this.totalFailures = totalFailures;
             this.totalExhausted = totalExhausted;
             this.uniqueSteps = uniqueSteps;
+        }
+        
+        /**
+         * Gets the global success rate as a percentage.
+         * 
+         * @return Success rate (0-100) or -1 if no executions
+         */
+        public double getSuccessRate() {
+            long total = totalSuccesses + totalExhausted;
+            if (total == 0) {
+                return -1;
+            }
+            return (double) totalSuccesses / total * 100;
         }
         
         /**
