@@ -33,9 +33,11 @@ public class SimplifiedAgentExamples {
         Agent evaluatorAgent = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage(
-                    "Analyze the provided travel plan. If it includes the Louvre, Eiffel Tower, and a boat trip, " +
-                    "respond with JSON: {\"status\": \"COMPLETE\", \"reason\": \"All requirements met\"}. " +
-                    "Otherwise, respond with JSON: {\"status\": \"REVISE\", \"feedback\": \"what is missing\"}")
+                    "Analyze the provided travel plan. Check if it includes all required elements: " +
+                    "1. Visit to the Louvre Museum, " +
+                    "2. Visit to the Eiffel Tower, " +
+                    "3. A boat trip on the Seine. " +
+                    "Determine whether the plan is COMPLETE or needs REVISE status.")
                 .build();
 
         // LoopAgent, который управляет циклом

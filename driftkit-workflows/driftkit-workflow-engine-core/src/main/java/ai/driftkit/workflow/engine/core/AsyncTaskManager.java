@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.async.ProgressTracker;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
@@ -16,6 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -36,7 +39,7 @@ public class AsyncTaskManager {
     private final Map<String, AsyncTaskInfo> runningTasks = new ConcurrentHashMap<>();
     
     /**
-     * Handles an async step result.
+     * Handles an async step result with unified CompletableFuture approach.
      */
     public CompletableFuture<StepResult<?>> handleAsyncStep(
             WorkflowInstance instance,
@@ -47,74 +50,102 @@ public class AsyncTaskManager {
         String taskId = asyncResult.taskId();
         Object immediateData = asyncResult.immediateData();
         
-        // Create async state - it generates its own message ID
+        // Create async state
         AsyncStepState asyncState = AsyncStepState.started(taskId, immediateData);
         asyncStepStateRepository.save(asyncState);
         
-        // Create initial event for tracking
+        // Track the execution
         WorkflowEvent initialEvent = immediateData instanceof WorkflowEvent ? 
             (WorkflowEvent) immediateData : 
             WorkflowEvent.asyncStarted(taskId, "");
-        
-        // Track the execution
         progressTracker.trackExecution(taskId, initialEvent);
         
-        // Create progress reporter
-        AsyncProgressReporter progressReporter = createProgressReporter(
-            instance.getInstanceId(), stepId, taskId);
+        // Create unified progress reporter
+        TaskProgressReporter progressReporter = progressTracker.createReporter(taskId);
+        
+        // Convert to unified CompletableFuture handling
+        CompletableFuture<StepResult<?>> future = createAsyncFuture(
+            instance, graph, stepId, asyncResult, progressReporter);
+        
+        // Apply timeout if specified
+        if (asyncResult.estimatedDurationMs() > 0) {
+            future = future.orTimeout(asyncResult.estimatedDurationMs(), TimeUnit.MILLISECONDS)
+                .exceptionally(error -> {
+                    if (error instanceof TimeoutException) {
+                        log.error("Async task {} timed out after {}ms", taskId, asyncResult.estimatedDurationMs());
+                        return new StepResult.Fail<>(new RuntimeException("Async task timeout", error));
+                    }
+                    return new StepResult.Fail<>(error);
+                });
+        }
+        
+        // Handle completion uniformly
+        CompletableFuture<StepResult<?>> resultFuture = future
+            .whenComplete((result, error) -> {
+                updateAsyncState(instance.getInstanceId(), stepId, state -> {
+                    if (error != null) {
+                        state.fail(error);
+                        progressTracker.onError(taskId, error);
+                    } else {
+                        state.complete(result);
+                        progressTracker.updateExecutionStatus(taskId, 
+                            WorkflowEvent.completed(Map.of("taskId", taskId, "status", "completed")));
+                    }
+                });
+            })
+            .exceptionally(error -> {
+                log.error("Async task {} failed", taskId, error);
+                return new StepResult.Fail<>(error);
+            });
+        
+        // Store task info
+        runningTasks.put(taskId, new AsyncTaskInfo(
+            instance.getInstanceId(), stepId, taskId, resultFuture
+        ));
+        
+        // Clean up on completion
+        resultFuture.whenComplete((result, error) -> {
+            runningTasks.remove(taskId);
+            if (error == null) {
+                log.debug("Async task {} completed successfully", taskId);
+                progressTracker.onComplete(taskId, result);
+            }
+        });
+        
+        return resultFuture;
+    }
+    
+    /**
+     * Creates a unified CompletableFuture for async execution.
+     * Handles both CompletableFuture-based and traditional async handler approaches.
+     */
+    private CompletableFuture<StepResult<?>> createAsyncFuture(
+            WorkflowInstance instance,
+            WorkflowGraph<?, ?> graph,
+            String stepId,
+            StepResult.Async<?> asyncResult,
+            TaskProgressReporter progressReporter) {
+        
+        String taskId = asyncResult.taskId();
         
         // Check if taskArgs contains a CompletableFuture
         Object futureObj = asyncResult.taskArgs().get(WorkflowContext.Keys.ASYNC_FUTURE);
         if (futureObj instanceof CompletableFuture<?>) {
-            // Handle CompletableFuture-based async operation
+            // Handle existing CompletableFuture
             @SuppressWarnings("unchecked")
-            CompletableFuture<Object> future = (CompletableFuture<Object>) futureObj;
+            CompletableFuture<Object> existingFuture = (CompletableFuture<Object>) futureObj;
             
-            return future.handle((result, error) -> {
-                StepResult<?> handlerResult;
-                if (error != null) {
-                    log.error("Async task {} failed for step {}", taskId, stepId, error);
-                    handlerResult = new StepResult.Fail<>(error);
-                } else {
-                    log.debug("Async task {} completed for step {}", taskId, stepId);
-                    // Check if result is already a StepResult
-                    if (result instanceof StepResult<?>) {
-                        handlerResult = (StepResult<?>) result;
-                    } else {
-                        // Check if current step has any outgoing edges (next steps)
-                        var node = graph.nodes().get(stepId);
-                        boolean isFinalStep = node != null && graph.getOutgoingEdges(stepId).isEmpty();
-                        
-                        if (isFinalStep) {
-                            // This is a final step, wrap as Finish
-                            handlerResult = new StepResult.Finish<>(result);
-                        } else {
-                            // Not a final step, wrap as Continue
-                            handlerResult = new StepResult.Continue<>(result);
-                        }
-                    }
-                }
-                
-                // Update async state with completion
-                updateAsyncState(instance.getInstanceId(), stepId, state -> {
-                    state.complete(handlerResult);
-                    WorkflowEvent completedEvent = WorkflowEvent.completed(Map.of(
-                        "taskId", taskId,
-                        "status", "completed"
-                    ));
-                    progressTracker.updateExecutionStatus(taskId, completedEvent);
-                });
-                
-                return handlerResult;
+            return existingFuture.thenApply(result -> {
+                log.debug("Async future completed for task {}", taskId);
+                return normalizeResult(result, graph, stepId);
             });
         }
         
-        // Create async task for traditional async handlers
-        Supplier<StepResult<?>> asyncTask = () -> {
+        // Create CompletableFuture for traditional async handler
+        return CompletableFuture.supplyAsync(() -> {
             try {
-                log.debug("Executing async task {} for step {}", taskId, stepId);
+                log.debug("Executing async handler for task {} on step {}", taskId, stepId);
                 
-                // Execute the async handler
                 StepResult<?> handlerResult = asyncStepHandler.handleAsyncResult(
                     graph,
                     taskId,
@@ -124,49 +155,39 @@ public class AsyncTaskManager {
                     progressReporter
                 );
                 
-                // Update async state with completion
-                updateAsyncState(instance.getInstanceId(), stepId, state -> {
-                    state.complete(handlerResult);
-                    WorkflowEvent completedEvent = WorkflowEvent.completed(Map.of(
-                        "taskId", taskId,
-                        "status", "completed"
-                    ));
-                    progressTracker.updateExecutionStatus(taskId, completedEvent);
-                });
+                if (handlerResult == null) {
+                    throw new IllegalStateException(
+                        "Async handler returned null result for task " + taskId + 
+                        ". Async handlers must return a valid StepResult.");
+                }
                 
-                return handlerResult != null ? handlerResult : new StepResult.Continue<>(null);
+                return handlerResult;
                 
             } catch (Exception e) {
-                log.error("Async task {} failed for step {}", taskId, stepId, e);
-                updateAsyncState(instance.getInstanceId(), stepId, state -> state.fail(e));
-                progressTracker.onError(taskId, e);
+                log.error("Async handler failed for task {}", taskId, e);
                 throw new RuntimeException("Async execution failed", e);
             }
-        };
+        }, executorService);
+    }
+    
+    /**
+     * Normalizes the result to ensure it's a StepResult.
+     * Automatically wraps plain values and determines Continue vs Finish based on graph structure.
+     */
+    private StepResult<?> normalizeResult(Object result, WorkflowGraph<?, ?> graph, String stepId) {
+        if (result instanceof StepResult<?>) {
+            return (StepResult<?>) result;
+        }
         
-        // Execute async task
-        CompletableFuture<StepResult<?>> future = CompletableFuture
-            .supplyAsync(asyncTask, executorService)
-            .exceptionally(error -> {
-                log.error("Async task {} completed with error", taskId, error);
-                return new StepResult.Fail<>(error);
-            });
+        // Check if current step has any outgoing edges
+        var node = graph.nodes().get(stepId);
+        boolean isFinalStep = node != null && graph.getOutgoingEdges(stepId).isEmpty();
         
-        // Store task info
-        runningTasks.put(taskId, new AsyncTaskInfo(
-            instance.getInstanceId(), stepId, taskId, future
-        ));
-        
-        // Clean up on completion
-        future.whenComplete((result, error) -> {
-            runningTasks.remove(taskId);
-            if (error == null) {
-                log.debug("Async task {} completed successfully", taskId);
-                progressTracker.onComplete(taskId, result);
-            }
-        });
-        
-        return future;
+        if (isFinalStep) {
+            return new StepResult.Finish<>(result);
+        } else {
+            return new StepResult.Continue<>(result);
+        }
     }
     
     /**
@@ -206,24 +227,6 @@ public class AsyncTaskManager {
             ));
     }
     
-    /**
-     * Creates a progress reporter for async tasks.
-     */
-    private AsyncProgressReporter createProgressReporter(
-            String instanceId, String stepId, String taskId) {
-        
-        return new AsyncProgressReporter() {
-            @Override
-            public void updateProgress(int percentComplete, String message) {
-                progressTracker.updateProgress(taskId, percentComplete, message);
-            }
-            
-            @Override
-            public boolean isCancelled() {
-                return !runningTasks.containsKey(taskId);
-            }
-        };
-    }
     
     /**
      * Updates async state for a step.

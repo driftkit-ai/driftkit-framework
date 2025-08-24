@@ -46,7 +46,7 @@ public class SpringAiEmbeddingAutoConfiguration {
             
             String modelName = properties.getModelName();
             if (modelName == null) {
-                modelName = "spring-ai-default";
+                throw new IllegalArgumentException("modelName is required");
             }
             
             log.info("Creating Spring AI embedding adapter with name: {}", modelName);

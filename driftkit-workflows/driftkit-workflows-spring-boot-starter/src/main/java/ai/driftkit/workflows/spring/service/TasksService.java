@@ -121,8 +121,8 @@ public class TasksService {
                 result = new Message(
                         e.getMessageId(),
                         null,
-                        ai.driftkit.workflows.core.chat.ChatMessageType.AI,
-                        ai.driftkit.workflows.core.chat.MessageType.IMAGE,
+                        ChatMessageType.AI,
+                        MessageType.IMAGE,
                         e.getImageTaskId(),
                         e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                         e.getGradeComment(),
@@ -137,8 +137,8 @@ public class TasksService {
             result = new Message(
                     e.getMessageId(),
                     e.getResult(),
-                    ai.driftkit.workflows.core.chat.ChatMessageType.AI,
-                    ai.driftkit.workflows.core.chat.MessageType.TEXT,
+                    ChatMessageType.AI,
+                    MessageType.TEXT,
                     e.getImageTaskId(),
                     e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                     e.getGradeComment(),
@@ -154,8 +154,8 @@ public class TasksService {
                 new Message(
                         e.getMessageId(),
                         e.getMessage(),
-                        ai.driftkit.workflows.core.chat.ChatMessageType.USER,
-                        ai.driftkit.workflows.core.chat.MessageType.TEXT,
+                        ChatMessageType.USER,
+                        MessageType.TEXT,
                         null,
                         null,
                         null,

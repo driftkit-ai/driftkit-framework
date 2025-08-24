@@ -43,8 +43,8 @@ public class LLMMemoryProvider {
             chatMemory.add(new Message(
                     null,
                     chat.getSystemMessage(),
-                    ai.driftkit.workflows.core.chat.ChatMessageType.SYSTEM,
-                    ai.driftkit.workflows.core.chat.MessageType.TEXT,
+                    ChatMessageType.SYSTEM,
+                    MessageType.TEXT,
                     null,
                     null,
                     null,

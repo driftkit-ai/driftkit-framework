@@ -106,18 +106,29 @@ class InMemoryChatStoreTest {
     }
     
     @Test
-    void testAutoPruning() {
-        // Given - token limit is 100, each message ~5 tokens
+    void testSlidingWindowContext() {
+        // Given - add many messages exceeding token limit
         for (int i = 0; i < 30; i++) {
             chatStore.add(CHAT_ID, "Message number " + i, MessageType.USER);
         }
         
-        // Then - should have pruned old messages to stay under 100 tokens
-        List<ChatMessage> messages = chatStore.getAll(CHAT_ID);
-        assertTrue(messages.size() < 30);
+        // When - get recent messages with default token limit
+        List<ChatMessage> recentWithTokenLimit = chatStore.getRecent(CHAT_ID);
+        List<ChatMessage> allMessages = chatStore.getAll(CHAT_ID);
         
-        int totalTokens = chatStore.getTotalTokens(CHAT_ID);
-        assertTrue(totalTokens <= 100);
+        // Then
+        assertEquals(30, allMessages.size(), "All messages should be preserved");
+        assertTrue(recentWithTokenLimit.size() < allMessages.size(), "Recent should return fewer messages due to token limit");
+        
+        // Verify we get the most recent messages
+        String lastMessageInWindow = recentWithTokenLimit.get(recentWithTokenLimit.size() - 1)
+                .getPropertiesMap().get(PROPERTY_MESSAGE);
+        assertEquals("Message number 29", lastMessageInWindow, "Should include the most recent message");
+        
+        // Verify older messages are excluded from window but still exist
+        String firstMessageInWindow = recentWithTokenLimit.get(0)
+                .getPropertiesMap().get(PROPERTY_MESSAGE);
+        assertNotEquals("Message number 0", firstMessageInWindow, "Oldest messages should be outside the window");
     }
     
     @Test

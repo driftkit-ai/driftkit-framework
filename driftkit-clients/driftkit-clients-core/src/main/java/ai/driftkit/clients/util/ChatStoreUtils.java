@@ -6,6 +6,8 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.utils.JsonUtils;
+import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +29,7 @@ public class ChatStoreUtils {
     /**
      * Convert a single ChatMessage to ModelContentMessage.
      */
+    @SneakyThrows
     public static ModelContentMessage toModelMessage(ChatMessage message) {
         Role role = switch (message.getType()) {
             case USER -> Role.user;
@@ -36,14 +39,10 @@ public class ChatStoreUtils {
         };
         
         // Get content from properties
-        String content = message.getPropertiesMap().get("message");
-        if (content == null || content.isEmpty()) {
+        String content = message.getPropertiesMap().get(ChatMessage.PROPERTY_MESSAGE);
+        if (StringUtils.isBlank(content)) {
             // If no "message" property, use JSON representation of all properties
-            try {
-                content = JsonUtils.toJson(message.getPropertiesMap());
-            } catch (Exception e) {
-                content = message.getPropertiesMap().toString();
-            }
+            content = JsonUtils.toJson(message.getPropertiesMap());
         }
         
         return ModelContentMessage.create(role, content);

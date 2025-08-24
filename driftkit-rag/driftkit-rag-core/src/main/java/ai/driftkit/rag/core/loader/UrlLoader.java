@@ -91,7 +91,6 @@ public class UrlLoader implements DocumentLoader {
         
         return urls.stream()
             .map(this::loadUrl)
-            .filter(doc -> doc != null)
             .toList();
     }
     
@@ -101,8 +100,7 @@ public class UrlLoader implements DocumentLoader {
     @Override
     public Stream<LoadedDocument> loadStream() throws Exception {
         return urls.stream()
-            .map(this::loadUrl)
-            .filter(doc -> doc != null);
+            .map(this::loadUrl);
     }
     
     /**
@@ -155,7 +153,8 @@ public class UrlLoader implements DocumentLoader {
                 // Check content size
                 if (content.length > maxContentSizeBytes) {
                     log.warn("Content from {} exceeds size limit: {} bytes", urlString, content.length);
-                    return null;
+                    return createErrorDocument(urlString, response.statusCode(), 
+                        new IOException("Content size exceeds limit: " + content.length + " bytes"));
                 }
                 
                 // Determine ContentType enum based on MIME type
@@ -198,16 +197,18 @@ public class UrlLoader implements DocumentLoader {
                     .source(urlString)
                     .mimeType(mimeType)
                     .metadata(metadata)
+                    .state(LoadedDocument.State.LOADED)
                     .build();
                     
             } else {
                 log.error("Failed to load URL: {} - HTTP {}", urlString, response.statusCode());
-                return null;
+                return createErrorDocument(urlString, response.statusCode(), 
+                    new IOException("HTTP error: " + response.statusCode()));
             }
             
         } catch (Exception e) {
             log.error("Failed to load URL: {}", urlString, e);
-            return null;
+            return createErrorDocument(urlString, -1, e);
         }
     }
     
@@ -263,6 +264,29 @@ public class UrlLoader implements DocumentLoader {
         return UrlLoader.builder()
             .urls(urls)
             .parser(parser)
+            .build();
+    }
+    
+    /**
+     * Create an error document when URL loading fails.
+     * This allows tracking which URLs failed to load and why.
+     */
+    private LoadedDocument createErrorDocument(String urlString, int httpStatus, Exception error) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("url", urlString);
+        if (httpStatus > 0) {
+            metadata.put("httpStatus", httpStatus);
+        }
+        metadata.put("errorMessage", error.getMessage());
+        metadata.put("errorType", error.getClass().getName());
+        
+        return LoadedDocument.builder()
+            .id("error-" + urlString.hashCode())
+            .content(null) // No content for error documents
+            .source(urlString)
+            .mimeType("application/octet-stream") // Unknown mime type
+            .metadata(metadata)
+            .state(LoadedDocument.State.ERROR)
             .build();
     }
 }

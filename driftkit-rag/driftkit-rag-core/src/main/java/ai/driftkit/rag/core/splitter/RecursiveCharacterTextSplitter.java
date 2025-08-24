@@ -2,10 +2,12 @@ package ai.driftkit.rag.core.splitter;
 
 import ai.driftkit.common.utils.DocumentSplitter;
 import ai.driftkit.rag.core.domain.LoadedDocument;
+import ai.driftkit.rag.core.domain.LoadedDocument.State;
 import ai.driftkit.vector.core.domain.Document;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,7 +41,7 @@ public class RecursiveCharacterTextSplitter implements TextSplitter {
      */
     @Override
     public List<Document> split(LoadedDocument document) {
-        if (document.getContent() == null || document.getContent().isEmpty()) {
+        if (StringUtils.isBlank(document.getContent()) || document.getState() != State.LOADED) {
             log.warn("Document {} has no content to split", document.getId());
             return List.of();
         }

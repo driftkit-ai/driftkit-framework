@@ -13,6 +13,7 @@ import ai.driftkit.workflow.engine.annotations.Workflow;
 import ai.driftkit.workflow.engine.annotations.InitialStep;
 import ai.driftkit.workflow.engine.annotations.Step;
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.common.domain.chat.ChatResponse;
@@ -383,7 +384,7 @@ public class ChatMemoryAndHistoryTest {
         public StepResult<AssistantResponse> processDataAsync(
                 Map<String, Object> taskArgs,
                 WorkflowContext context,
-                AsyncProgressReporter progress) {
+                TaskProgressReporter progress) {
             
             try {
                 String data = (String) taskArgs.get("data");

@@ -9,6 +9,7 @@ import ai.driftkit.common.service.TextTokenizer;
 import ai.driftkit.common.service.impl.InMemoryChatStore;
 import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -149,7 +150,7 @@ public class FluentApiAsyncTest {
     // Async handler using TriFunction
     private StepResult<DataResult> processDataAsync(Map<String, Object> taskArgs, 
                                                    WorkflowContext context, 
-                                                   AsyncProgressReporter progress) {
+                                                   TaskProgressReporter progress) {
         @SuppressWarnings("unchecked")
         CompletableFuture<DataResult> future = (CompletableFuture<DataResult>) taskArgs.get("future");
         
@@ -183,7 +184,7 @@ public class FluentApiAsyncTest {
     // Async handlers for different patterns
     private StepResult<MultiTaskResult> analyzeAsync(Map<String, Object> taskArgs,
                                                      WorkflowContext context,
-                                                     AsyncProgressReporter progress) {
+                                                     TaskProgressReporter progress) {
         String data = (String) taskArgs.get("data");
         progress.updateProgress(100, "Analysis complete");
         
@@ -195,7 +196,7 @@ public class FluentApiAsyncTest {
     
     private StepResult<MultiTaskResult> transformAsync(Map<String, Object> taskArgs,
                                                        WorkflowContext context,
-                                                       AsyncProgressReporter progress) {
+                                                       TaskProgressReporter progress) {
         String data = (String) taskArgs.get("data");
         progress.updateProgress(100, "Transform complete");
         
@@ -207,7 +208,7 @@ public class FluentApiAsyncTest {
     
     private StepResult<MultiTaskResult> defaultAsync(Map<String, Object> taskArgs,
                                                      WorkflowContext context,
-                                                     AsyncProgressReporter progress) {
+                                                     TaskProgressReporter progress) {
         String data = (String) taskArgs.get("data");
         progress.updateProgress(100, "Default processing complete");
         

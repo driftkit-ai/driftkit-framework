@@ -1,4 +1,4 @@
-package ai.driftkit.audio.util;
+package ai.driftkit.common.util;
 
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;

@@ -139,10 +139,10 @@ public class FileSystemLoader implements DocumentLoader {
                     return loadFile(path);
                 } catch (Exception e) {
                     log.error("Failed to load file: {}", path, e);
-                    return null;
+                    // Return error document instead of null
+                    return createErrorDocument(path, e);
                 }
-            })
-            .filter(Objects::nonNull);
+            });
     }
     
     /**
@@ -227,6 +227,40 @@ public class FileSystemLoader implements DocumentLoader {
             .source(path.toString())
             .mimeType(contentType.getMimeType())
             .metadata(metadata)
+            .state(LoadedDocument.State.LOADED)
+            .build();
+    }
+    
+    /**
+     * Create an error document when file loading fails.
+     * This allows tracking which files failed to load and why.
+     */
+    private LoadedDocument createErrorDocument(Path path, Exception error) {
+        String fileName = path.getFileName().toString();
+        String extension = FilenameUtils.getExtension(fileName).toLowerCase();
+        
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("fileName", fileName);
+        metadata.put("filePath", path.toString());
+        metadata.put("extension", extension);
+        metadata.put("errorMessage", error.getMessage());
+        metadata.put("errorType", error.getClass().getName());
+        
+        // Try to get file size if possible
+        try {
+            metadata.put("fileSize", Files.size(path));
+            metadata.put("lastModified", Files.getLastModifiedTime(path).toMillis());
+        } catch (IOException e) {
+            log.trace("Could not get file attributes for error document: {}", path);
+        }
+        
+        return LoadedDocument.builder()
+            .id("error-" + path.toString().hashCode())
+            .content(null) // Empty content for error documents
+            .source(path.toString())
+            .mimeType("application/octet-stream") // Unknown mime type
+            .metadata(metadata)
+            .state(LoadedDocument.State.ERROR)
             .build();
     }
 }

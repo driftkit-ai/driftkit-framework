@@ -6,6 +6,7 @@ import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
 import ai.driftkit.rag.core.reranker.Reranker;
 import ai.driftkit.rag.core.reranker.Reranker.RerankConfig;
+import ai.driftkit.rag.core.reranker.Reranker.RerankResult;
 import ai.driftkit.rag.core.retriever.Retriever;
 import ai.driftkit.rag.core.retriever.Retriever.RetrievalConfig;
 import ai.driftkit.rag.core.retriever.Retriever.RetrievalResult;
@@ -128,8 +129,13 @@ public class RetrievalPipeline {
         if (reranker != null && !retrievalResults.isEmpty()) {
             log.debug("Applying reranking");
             RerankConfig rerankConfig = new RerankConfig(effectiveTopK, Map.of());
-            retrievalResults = reranker.rerank(query, retrievalResults, rerankConfig);
-            log.debug("Reranking complete, {} documents remaining", retrievalResults.size());
+            List<RerankResult> rerankResults = reranker.rerank(query, retrievalResults, rerankConfig);
+            log.debug("Reranking complete, {} documents remaining", rerankResults.size());
+            
+            // Convert RerankResult back to RetrievalResult for consistency
+            retrievalResults = rerankResults.stream()
+                .map(RerankResult::toRetrievalResult)
+                .toList();
         }
         
         // Convert to Document list

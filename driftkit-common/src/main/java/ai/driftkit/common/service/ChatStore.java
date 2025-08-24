@@ -38,16 +38,22 @@ public interface ChatStore {
     
     /**
      * Get recent messages within token limit.
+     * Returns a sliding window of the most recent messages that fit within the token limit.
+     * Does not delete any messages, only limits what is returned.
      */
     List<ChatMessage> getRecentWithinTokens(String chatId, int maxTokens);
     
     /**
      * Get recent messages with default token limit (4096).
+     * Returns a sliding window of the most recent messages.
+     * Does not delete any messages, only limits what is returned.
      */
     List<ChatMessage> getRecent(String chatId);
     
     /**
      * Get recent messages with count limit.
+     * Returns the last N messages.
+     * Does not delete any messages, only limits what is returned.
      */
     List<ChatMessage> getRecent(String chatId, int limit);
     
@@ -80,9 +86,4 @@ public interface ChatStore {
      * Get a message by ID.
      */
     ChatMessage getById(String messageId);
-    
-    /**
-     * Prune old messages to stay within token limit.
-     */
-    void pruneToTokenLimit(String chatId, int maxTokens);
 }

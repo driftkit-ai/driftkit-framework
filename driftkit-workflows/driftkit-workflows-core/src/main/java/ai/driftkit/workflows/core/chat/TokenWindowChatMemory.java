@@ -1,5 +1,6 @@
 package ai.driftkit.workflows.core.chat;
 
+import ai.driftkit.common.domain.ChatMessageType;
 import ai.driftkit.common.utils.ValidationUtils;
 import lombok.extern.slf4j.Slf4j;
 

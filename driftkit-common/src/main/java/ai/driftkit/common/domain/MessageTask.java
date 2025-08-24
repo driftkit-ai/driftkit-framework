@@ -63,25 +63,6 @@ public class MessageTask extends AITask {
         this.logProbs = logProbs;
     }
 
-    // Commented out - Message class moved to workflows-core module
-    // public Message toUserMessage() {
-    //     return new Message(
-    //             this.getMessageId(),
-    //             this.getMessage(),
-    //             ChatMessageType.USER,
-    //             MessageType.TEXT,
-    //             null,
-    //             null,
-    //             null,
-    //             null,
-    //             null,
-    //             this.getCreatedTime(),
-    //             this.getCreatedTime(),
-    //             null,
-    //             null  // User messages don't have tokenLogprobs
-    //     );
-    // }
-
     /**
      * Extract and save token logprobs from a model response if available.
      *

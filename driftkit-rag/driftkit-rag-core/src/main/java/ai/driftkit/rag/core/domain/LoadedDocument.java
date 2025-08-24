@@ -19,9 +19,25 @@ import java.util.Map;
 public class LoadedDocument {
     
     /**
+     * Document loading state
+     */
+    public enum State {
+        PENDING,      // Document is queued for loading
+        IN_PROGRESS,  // Document is currently being loaded
+        LOADED,       // Document loaded successfully
+        ERROR         // Document failed to load
+    }
+    
+    /**
      * Unique identifier for the document
      */
     private String id;
+    
+    /**
+     * Current state of the document
+     */
+    @Builder.Default
+    private State state = State.LOADED;
     
     /**
      * Raw content of the document

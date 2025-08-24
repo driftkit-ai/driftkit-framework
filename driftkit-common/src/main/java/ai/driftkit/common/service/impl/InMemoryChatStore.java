@@ -71,9 +71,6 @@ public class InMemoryChatStore implements ChatStore {
         // Add to index
         messageIndex.put(message.getId(), message);
         
-        // Prune if needed
-        pruneIfNeeded(message.getChatId());
-        
         log.debug("Added message {} to chat {}", message.getId(), message.getChatId());
     }
     
@@ -189,30 +186,6 @@ public class InMemoryChatStore implements ChatStore {
     @Override
     public ChatMessage getById(String messageId) {
         return messageIndex.get(messageId);
-    }
-    
-    @Override
-    public void pruneToTokenLimit(String chatId, int maxTokens) {
-        List<ChatMessage> messages = storage.get(chatId);
-        if (messages == null || messages.isEmpty()) {
-            return;
-        }
-        
-        // Calculate total tokens
-        int totalTokens = messages.stream().mapToInt(this::estimateTokens).sum();
-        
-        // Remove oldest messages until under limit
-        while (totalTokens > maxTokens && !messages.isEmpty()) {
-            ChatMessage removed = messages.remove(0);
-            messageIndex.remove(removed.getId());
-            totalTokens -= estimateTokens(removed);
-            log.debug("Pruned message {} from chat {} to stay under {} tokens", 
-                     removed.getId(), chatId, maxTokens);
-        }
-    }
-    
-    private void pruneIfNeeded(String chatId) {
-        pruneToTokenLimit(chatId, defaultMaxTokens);
     }
     
     private int estimateTokens(ChatMessage message) {

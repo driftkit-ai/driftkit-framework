@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Chat request message from user.
@@ -42,8 +43,21 @@ public class ChatRequest extends ChatMessage {
     @JsonIgnore
     public String getMessage() {
         Map<String, String> propsMap = getPropertiesMap();
-        return propsMap.get("message");
+        return propsMap.get(ChatMessage.PROPERTY_MESSAGE);
     }
+    
+    private static final Map<String, Consumer<PropertyContext>> PROPERTY_HANDLERS = Map.of(
+        "name", ctx -> ctx.prop.setName(ctx.node.asText()),
+        "value", ctx -> ctx.prop.setValue(ctx.node.asText()),
+        "nameId", ctx -> ctx.prop.setNameId(ctx.node.asText()),
+        "dataNameId", ctx -> ctx.prop.setDataNameId(ctx.node.asText()),
+        "data", ctx -> ctx.prop.setData(ctx.node.asText()),
+        "multiSelect", ctx -> ctx.prop.setMultiSelect(ctx.node.asBoolean()),
+        "type", ctx -> ctx.prop.setType(PropertyType.valueOf(ctx.node.asText())),
+        "valueAsNameId", ctx -> ctx.prop.setValueAsNameId(ctx.node.asBoolean())
+    );
+    
+    private record PropertyContext(DataProperty prop, JsonNode node) {}
     
     @JsonSetter("properties")
     public void setPropertiesFromJson(JsonNode node) {
@@ -56,14 +70,13 @@ public class ChatRequest extends ChatMessage {
             this.properties = new ArrayList<>();
             for (JsonNode propNode : node) {
                 DataProperty prop = new DataProperty();
-                if (propNode.has("name")) prop.setName(propNode.get("name").asText());
-                if (propNode.has("value")) prop.setValue(propNode.get("value").asText());
-                if (propNode.has("nameId")) prop.setNameId(propNode.get("nameId").asText());
-                if (propNode.has("dataNameId")) prop.setDataNameId(propNode.get("dataNameId").asText());
-                if (propNode.has("data")) prop.setData(propNode.get("data").asText());
-                if (propNode.has("multiSelect")) prop.setMultiSelect(propNode.get("multiSelect").asBoolean());
-                if (propNode.has("type")) prop.setType(PropertyType.valueOf(propNode.get("type").asText()));
-                if (propNode.has("valueAsNameId")) prop.setValueAsNameId(propNode.get("valueAsNameId").asBoolean());
+                
+                PROPERTY_HANDLERS.forEach((fieldName, handler) -> {
+                    if (propNode.has(fieldName)) {
+                        handler.accept(new PropertyContext(prop, propNode.get(fieldName)));
+                    }
+                });
+                
                 this.properties.add(prop);
             }
         } else if (node.isObject()) {

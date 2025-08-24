@@ -2,7 +2,7 @@ package ai.driftkit.workflow.engine.builder;
 
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.core.StepResult;
-import ai.driftkit.workflow.engine.core.AsyncProgressReporter;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
@@ -90,7 +90,7 @@ public class WorkflowBuilder<T, R> {
      * @return this builder for chaining
      */
     public WorkflowBuilder<T, R> withAsyncHandler(String taskIdPattern, 
-                                                  TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> asyncHandler) {
+                                                  TriFunction<Map<String, Object>, WorkflowContext, TaskProgressReporter, StepResult<?>> asyncHandler) {
         if (taskIdPattern == null || taskIdPattern.isBlank()) {
             throw new IllegalArgumentException("Task ID pattern cannot be null or empty");
         }
@@ -131,7 +131,7 @@ public class WorkflowBuilder<T, R> {
             AsyncStepMetadata metadata = entry.getValue();
             
             // Create a wrapper that calls the method via reflection
-            TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> wrapper = 
+            TriFunction<Map<String, Object>, WorkflowContext, TaskProgressReporter, StepResult<?>> wrapper = 
                 (taskArgs, context, progress) -> {
                     try {
                         Method method = metadata.getMethod();
@@ -1242,13 +1242,13 @@ public class WorkflowBuilder<T, R> {
      */
     private static class AsyncHandlerInfo {
         private final String pattern;
-        private final TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> handler;
+        private final TriFunction<Map<String, Object>, WorkflowContext, TaskProgressReporter, StepResult<?>> handler;
         private final String methodName;
         private boolean fromAnnotation = false;
         private AsyncStep annotation;
         
         AsyncHandlerInfo(String pattern, 
-                        TriFunction<Map<String, Object>, WorkflowContext, AsyncProgressReporter, StepResult<?>> handler,
+                        TriFunction<Map<String, Object>, WorkflowContext, TaskProgressReporter, StepResult<?>> handler,
                         String methodName) {
             this.pattern = pattern;
             this.handler = handler;

@@ -21,6 +21,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -317,7 +318,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         for (ModelClient.Tool tool : tools) {
             try {
                 // Create a function implementation using Java Function interface
-                java.util.function.Function<Map<String, Object>, Map<String, Object>> functionImpl = params -> {
+                Function<Map<String, Object>, Map<String, Object>> functionImpl = params -> {
                     String toolName = tool.getFunction() != null ? tool.getFunction().getName() : "unknown";
                     log.debug("Executing tool: {} with params: {}", toolName, params);
                     

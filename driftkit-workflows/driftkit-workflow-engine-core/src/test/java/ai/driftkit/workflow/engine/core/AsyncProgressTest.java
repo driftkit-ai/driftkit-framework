@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.core;
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
 import ai.driftkit.workflow.engine.annotations.InitialStep;
 import ai.driftkit.workflow.engine.annotations.Workflow;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,7 +134,7 @@ public class AsyncProgressTest {
         @AsyncStep("test-async")
         public StepResult<String> executeAsync(Map<String, Object> args,
                                                WorkflowContext context,
-                                               AsyncProgressReporter progress) {
+                                               TaskProgressReporter progress) {
             log.debug("ASYNC HANDLER CALLED with args: {}", args);
             String input = (String) args.get("input");
 

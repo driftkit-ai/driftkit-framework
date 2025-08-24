@@ -73,9 +73,9 @@ public class ModelBasedReranker implements Reranker {
      * Rerank documents based on the query.
      */
     @Override
-    public List<RetrievalResult> rerank(String query, List<RetrievalResult> results, RerankConfig config) throws Exception {
+    public List<RerankResult> rerank(String query, List<RetrievalResult> results, RerankConfig config) throws Exception {
         if (results.isEmpty()) {
-            return results;
+            return List.of();
         }
         
         log.debug("Reranking {} documents for query: {}", results.size(), query);
@@ -138,33 +138,24 @@ public class ModelBasedReranker implements Reranker {
         Map<String, Float> scores = rerankingScores.getDocumentScores();
         
         // Create reranked results
-        List<RetrievalResult> rerankedResults = new ArrayList<>();
+        List<RerankResult> rerankedResults = new ArrayList<>();
         
         for (Map.Entry<String, Float> entry : scores.entrySet()) {
             RetrievalResult originalResult = resultMap.get(entry.getKey());
             if (originalResult != null) {
-                // Create new result with updated score
-                Map<String, Object> metadata = new HashMap<>(originalResult.metadata());
-                metadata.put("originalScore", originalResult.score());
-                metadata.put("rerankScore", entry.getValue());
-                
-                RetrievalResult rerankedResult = new RetrievalResult(
-                    originalResult.document(),
-                    entry.getValue(),
-                    metadata
-                );
-                
+                // Create RerankResult with both original and rerank scores
+                RerankResult rerankedResult = RerankResult.from(originalResult, entry.getValue());
                 rerankedResults.add(rerankedResult);
             }
         }
         
-        // Sort by score descending
-        rerankedResults.sort((a, b) -> Float.compare(b.score(), a.score()));
+        // Sort by rerank score descending
+        rerankedResults.sort((a, b) -> Float.compare(b.rerankScore(), a.rerankScore()));
         
         // Apply topK limit from config
         int limit = config.topK() > 0 ? Math.min(config.topK(), rerankedResults.size()) : rerankedResults.size();
         
-        List<RetrievalResult> finalResults = rerankedResults.subList(0, limit);
+        List<RerankResult> finalResults = rerankedResults.subList(0, limit);
         
         log.debug("Reranking complete. Returning {} documents", finalResults.size());
         

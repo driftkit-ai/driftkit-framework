@@ -4,6 +4,7 @@ import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.SuspensionData;
@@ -629,12 +630,15 @@ public class WorkflowEngine {
             try {
                 log.debug("Executing async task {} for step {}", asyncTaskId, currentStep.id());
 
-                // Create progress reporter for async method
-                AsyncProgressReporter progressReporter = new AsyncProgressReporter() {
+                // Create progress reporter that also updates the repository
+                TaskProgressReporter baseReporter = progressTracker.createReporter(asyncTaskId);
+                TaskProgressReporter progressReporter = new TaskProgressReporter() {
                     @Override
                     public void updateProgress(int percentComplete, String message) {
-                        // Update async state
-                        // Update progress directly in repository
+                        // Update base reporter
+                        baseReporter.updateProgress(percentComplete, message);
+                        
+                        // Also update async state in repository
                         if (percentComplete >= 0) {
                             asyncStepStateRepository.updateProgress(messageId, percentComplete, message);
                         } else {
@@ -643,20 +647,29 @@ public class WorkflowEngine {
                                 asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
                             });
                         }
-                        
-                        // Update progress tracker
-                        progressTracker.updateProgress(asyncTaskId, percentComplete >= 0 ? percentComplete : 0, message);
+                    }
+
+                    @Override
+                    public void updateProgress(int percentComplete) {
+                        baseReporter.updateProgress(percentComplete);
+                        asyncStepStateRepository.updateProgress(messageId, percentComplete, 
+                            "Processing... " + percentComplete + "%");
+                    }
+
+                    @Override
+                    public void updateMessage(String message) {
+                        baseReporter.updateMessage(message);
+                        asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
+                            asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
+                        });
                     }
 
                     @Override
                     public boolean isCancelled() {
-                        WorkflowInstance latestInstance = stateRepository.load(instance.getInstanceId())
-                                .orElse(instance);
-
                         // Check if cancelled directly from repository
                         return asyncStepStateRepository.findByMessageId(messageId)
                                 .map(state -> state.getStatus() == AsyncStepState.AsyncStatus.CANCELLED)
-                                .orElse(false);
+                                .orElse(baseReporter.isCancelled());
                     }
                 };
 

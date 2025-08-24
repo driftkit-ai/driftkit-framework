@@ -111,8 +111,8 @@ public class ChatWorkflow extends ModelWorkflow<ChatStartEvent, ChatResult> {
         Message message = new Message(
                 task.getMessageId(),
                 query,
-                ai.driftkit.workflows.core.chat.ChatMessageType.USER,
-                ai.driftkit.workflows.core.chat.MessageType.TEXT,
+                ChatMessageType.USER,
+                MessageType.TEXT,
                 null,
                 null,
                 null,

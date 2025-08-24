@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.builder;
 
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 // Remove framework chat types - workflows should use domain-specific types
@@ -590,7 +591,7 @@ public class FluentApiChatWorkflowTest {
         @AsyncStep("search-*")
         public StepResult<SearchResult> completeSearch(Map<String, Object> taskArgs,
                                                        WorkflowContext context,
-                                                       AsyncProgressReporter progress) {
+                                                       TaskProgressReporter progress) {
             @SuppressWarnings("unchecked")
             CompletableFuture<SearchResult> future = 
                 (CompletableFuture<SearchResult>) taskArgs.get("future");
@@ -636,7 +637,7 @@ public class FluentApiChatWorkflowTest {
         @AsyncStep("*")
         public StepResult<TaskResult> waitForCompletion(Map<String, Object> taskArgs,
                                                         WorkflowContext context,
-                                                        AsyncProgressReporter progress) {
+                                                        TaskProgressReporter progress) {
             @SuppressWarnings("unchecked")
             CompletableFuture<TaskResult> future = 
                 (CompletableFuture<TaskResult>) taskArgs.get("future");

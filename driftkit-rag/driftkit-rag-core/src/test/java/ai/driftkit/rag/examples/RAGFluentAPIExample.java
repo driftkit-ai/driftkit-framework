@@ -8,6 +8,7 @@ import ai.driftkit.rag.core.loader.UrlLoader;
 import ai.driftkit.rag.core.reranker.ModelBasedReranker;
 import ai.driftkit.rag.core.splitter.RecursiveCharacterTextSplitter;
 import ai.driftkit.rag.core.splitter.SemanticTextSplitter;
+import ai.driftkit.rag.ingestion.IngestionException;
 import ai.driftkit.rag.ingestion.IngestionPipeline;
 import ai.driftkit.rag.retrieval.RetrievalPipeline;
 import ai.driftkit.vector.core.domain.Document;
@@ -157,13 +158,21 @@ public class RAGFluentAPIExample {
             .build();
         
         // Run with progress tracking
-        pipeline.run(result -> {
-            log.info("Document {} processed in {}ms", 
-                result.documentId(), result.processingTimeMs());
-        }, progressListener);
-        
-        log.info("Ingestion complete: {} documents, {} chunks total", 
-            totalDocs.get(), totalChunks.get());
+        try {
+            pipeline.run(result -> {
+                log.info("Document {} processed in {}ms", 
+                    result.documentId(), result.processingTimeMs());
+            }, progressListener);
+            
+            log.info("Ingestion complete: {} documents, {} chunks total", 
+                totalDocs.get(), totalChunks.get());
+        } catch (IngestionException e) {
+            log.error("Ingestion failed with errors", e);
+            // Could analyze errors here if needed
+            if (e.hasCriticalErrors()) {
+                log.error("Critical errors found: {}", e.getCriticalErrors().size());
+            }
+        }
     }
     
     /**
@@ -216,9 +225,7 @@ public class RAGFluentAPIExample {
         
         log.info("Retrieved and reranked {} documents for query: {}", results.size(), query);
         results.forEach(doc -> {
-            log.info("Document: {} (Score: {})", 
-                doc.getId(), 
-                doc.getMetadata().get("rerankScore"));
+            log.info("Document: {}", doc.getId());
         });
     }
     

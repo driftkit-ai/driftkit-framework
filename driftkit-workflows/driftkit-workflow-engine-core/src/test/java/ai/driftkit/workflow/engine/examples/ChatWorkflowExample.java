@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.examples;
 import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.annotations.*;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import ai.driftkit.workflow.engine.domain.WorkflowException;
 import ai.driftkit.workflow.engine.schema.*;
@@ -276,7 +277,7 @@ public class ChatWorkflowExample {
     public StepResult<TaskResult> executeTaskAsync(
             Map<String, Object> taskArgs,
             WorkflowContext context,
-            AsyncProgressReporter progressReporter) {
+            TaskProgressReporter progressReporter) {
         
         log.info("Processing task asynchronously");
         
@@ -306,7 +307,7 @@ public class ChatWorkflowExample {
     public StepResult<ChatResponse> handleQuestionAsync(
             Map<String, Object> taskArgs,
             WorkflowContext context,
-            AsyncProgressReporter progressReporter) {
+            TaskProgressReporter progressReporter) {
         
         log.info("Processing async search result");
         

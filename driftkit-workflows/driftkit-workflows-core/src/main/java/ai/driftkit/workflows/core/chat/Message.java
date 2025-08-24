@@ -1,5 +1,7 @@
 package ai.driftkit.workflows.core.chat;
 
+import ai.driftkit.common.domain.ChatMessageType;
+import ai.driftkit.common.domain.MessageType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.Builder;

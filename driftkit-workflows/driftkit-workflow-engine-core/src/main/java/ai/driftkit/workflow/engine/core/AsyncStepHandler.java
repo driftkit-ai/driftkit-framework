@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.builder.FluentApiAsyncStepMetadata;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
 import ai.driftkit.workflow.engine.graph.StepNode;
@@ -78,7 +79,7 @@ public class AsyncStepHandler {
                                           String fallbackId,
                                           Object asyncResult, 
                                           WorkflowContext context,
-                                          AsyncProgressReporter progressReporter) {
+                                          TaskProgressReporter progressReporter) {
         String workflowId = graph.id();
         
         // Try primary ID first (usually taskId)
@@ -215,10 +216,10 @@ public class AsyncStepHandler {
     
     /**
      * Builds method arguments for async step invocation.
-     * Async methods must accept: (Map<String, Object> taskArgs, WorkflowContext context, AsyncProgressReporter progress)
+     * Async methods must accept: (Map<String, Object> taskArgs, WorkflowContext context, TaskProgressReporter progress)
      */
     private Object[] buildAsyncMethodArgs(Method method, Object asyncResult, 
-                                         WorkflowContext context, AsyncProgressReporter progressReporter) {
+                                         WorkflowContext context, TaskProgressReporter progressReporter) {
         Class<?>[] paramTypes = method.getParameterTypes();
         Object[] args = new Object[paramTypes.length];
         
@@ -236,7 +237,7 @@ public class AsyncStepHandler {
             } else if (!hasContext && WorkflowContext.class.isAssignableFrom(paramType)) {
                 args[i] = context;
                 hasContext = true;
-            } else if (!hasProgress && AsyncProgressReporter.class.isAssignableFrom(paramType)) {
+            } else if (!hasProgress && TaskProgressReporter.class.isAssignableFrom(paramType)) {
                 args[i] = progressReporter;
                 hasProgress = true;
             } else {
@@ -250,7 +251,7 @@ public class AsyncStepHandler {
         // Validate that all required parameters are present
         if (!hasProgress) {
             throw new IllegalArgumentException(
-                "Async method " + method.getName() + " must accept AsyncProgressReporter parameter"
+                "Async method " + method.getName() + " must accept TaskProgressReporter parameter"
             );
         }
         
@@ -284,7 +285,7 @@ public class AsyncStepHandler {
             this.fluentMetadata = metadata;
         }
         
-        StepResult<?> invoke(Map<String, Object> taskArgs, WorkflowContext context, AsyncProgressReporter progress) {
+        StepResult<?> invoke(Map<String, Object> taskArgs, WorkflowContext context, TaskProgressReporter progress) {
             return fluentMetadata.invoke(taskArgs, context, progress);
         }
     }

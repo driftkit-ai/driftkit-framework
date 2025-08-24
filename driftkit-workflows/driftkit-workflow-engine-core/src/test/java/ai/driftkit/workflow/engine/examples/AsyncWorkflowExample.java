@@ -4,6 +4,7 @@ import ai.driftkit.workflow.engine.annotations.AsyncStep;
 import ai.driftkit.workflow.engine.annotations.InitialStep;
 import ai.driftkit.workflow.engine.annotations.Step;
 import ai.driftkit.workflow.engine.annotations.Workflow;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
 import lombok.Data;
@@ -118,7 +119,7 @@ public class AsyncWorkflowExample {
     )
     public StepResult<ExtractedText> extractTextAsync(Map<String, Object> taskArgs, 
                                                       WorkflowContext context,
-                                                      AsyncProgressReporter progress) {
+                                                      TaskProgressReporter progress) {
         String documentUrl = (String) taskArgs.get("documentUrl");
         String documentId = (String) taskArgs.get("documentId");
         
@@ -215,7 +216,7 @@ public class AsyncWorkflowExample {
     )
     public StepResult<AnalysisResult> performAnalysisAsync(Map<String, Object> taskArgs, 
                                                            WorkflowContext context,
-                                                           AsyncProgressReporter progress) {
+                                                           TaskProgressReporter progress) {
         String text = (String) taskArgs.get("text");
         String analysisType = (String) taskArgs.get("analysisType");
         String documentId = (String) taskArgs.get("documentId");

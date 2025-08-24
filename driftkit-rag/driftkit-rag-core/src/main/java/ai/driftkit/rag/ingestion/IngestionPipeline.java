@@ -1,5 +1,7 @@
 package ai.driftkit.rag.ingestion;
 
+import ai.driftkit.common.util.Retrier;
+import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.Response;
 import ai.driftkit.embedding.core.domain.TextSegment;
@@ -66,6 +68,14 @@ public class IngestionPipeline {
         void onDocumentFailed(String documentId, Exception error);
         void onChunkStored(String chunkId);
         void onProgress(long processed, long total);
+        
+        /**
+         * Called when an error occurs in the result handler.
+         * Default implementation logs the error.
+         */
+        default void onResultHandlerError(String documentId, Exception error) {
+            log.error("Error in result handler for document: {}", documentId, error);
+        }
     }
     
     /**
@@ -132,16 +142,54 @@ public class IngestionPipeline {
     /**
      * Run the ingestion pipeline with a consumer for handling results.
      * This allows for acknowledgment pattern.
+     * 
+     * @throws IngestionException if any errors occur during processing or in result handlers
      */
-    public void run(Consumer<DocumentResult> resultHandler, ProgressListener progressListener) {
+    public void run(Consumer<DocumentResult> resultHandler, ProgressListener progressListener) throws IngestionException {
+        List<IngestionException.ErrorDetail> accumulatedErrors = new ArrayList<>();
+        
         try (Stream<DocumentResult> results = run(progressListener)) {
             results.forEach(result -> {
+                // Check for document processing errors
+                if (!result.errors().isEmpty()) {
+                    for (Exception error : result.errors()) {
+                        accumulatedErrors.add(new IngestionException.ErrorDetail(
+                            result.documentId(),
+                            result.source(),
+                            error,
+                            IngestionException.ErrorType.DOCUMENT_PROCESSING
+                        ));
+                    }
+                }
+                
+                // Handle result
                 try {
                     resultHandler.accept(result);
                 } catch (Exception e) {
                     log.error("Error in result handler for document: {}", result.documentId(), e);
+                    
+                    // Notify listener if available
+                    if (progressListener != null) {
+                        progressListener.onResultHandlerError(result.documentId(), e);
+                    }
+                    
+                    // Accumulate error
+                    accumulatedErrors.add(new IngestionException.ErrorDetail(
+                        result.documentId(),
+                        result.source(),
+                        e,
+                        IngestionException.ErrorType.RESULT_HANDLER
+                    ));
                 }
             });
+        } catch (Exception e) {
+            // Pipeline initialization or streaming error
+            throw new IngestionException("Failed to execute ingestion pipeline", e);
+        }
+        
+        // If there were any errors, throw exception with all details
+        if (!accumulatedErrors.isEmpty()) {
+            throw new IngestionException("Ingestion completed with errors", accumulatedErrors);
         }
     }
     
@@ -150,53 +198,36 @@ public class IngestionPipeline {
      */
     private DocumentResult processDocumentWithRetry(LoadedDocument document, ProgressListener listener) {
         long startTime = System.currentTimeMillis();
-        String docId = document.getId() != null ? document.getId() : UUID.randomUUID().toString();
+        String docId = document.getId() != null ? document.getId() : AIUtils.generateId();
         
         if (listener != null) {
             listener.onDocumentLoaded(docId, document.getSource());
         }
         
-        int attempts = 0;
         Exception lastError = null;
         
-        while (attempts < maxRetries) {
-            try {
-                DocumentResult result = processDocument(document, docId, listener);
+        try {
+            // Use Retrier to handle the retry logic
+            DocumentResult result = Retrier.retry(() -> {
+                DocumentResult processResult = processDocument(document, docId, listener);
                 
-                if (result.isSuccess()) {
-                    return result;
+                if (processResult.isSuccess()) {
+                    return processResult;
                 }
                 
-                // If there were errors but we want to retry
-                if (!result.errors().isEmpty()) {
-                    lastError = result.errors().get(0);
-                    attempts++;
-                    
-                    if (attempts < maxRetries) {
-                        log.warn("Document {} processing had errors (attempt {}/{}), retrying...", 
-                            docId, attempts, maxRetries);
-                        Thread.sleep(retryDelayMs * attempts); // Exponential backoff
-                    }
-                } else {
-                    return result; // Partial success, don't retry
+                // If there were errors, throw exception to trigger retry
+                if (!processResult.errors().isEmpty()) {
+                    throw new RuntimeException("Document processing had errors", processResult.errors().getFirst());
                 }
                 
-            } catch (Exception e) {
-                lastError = e;
-                attempts++;
-                
-                if (attempts < maxRetries) {
-                    log.warn("Error processing document {} (attempt {}/{}), retrying...", 
-                        docId, attempts, maxRetries, e);
-                    
-                    try {
-                        Thread.sleep(retryDelayMs * attempts);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
+                return processResult; // Partial success, don't retry
+            }, maxRetries, retryDelayMs, 1);
+            
+            return result;
+            
+        } catch (Exception e) {
+            lastError = e;
+            log.error("All retry attempts failed for document: {}", docId, e);
         }
         
         // All retries failed
@@ -273,55 +304,23 @@ public class IngestionPipeline {
             List<Exception> errors,
             ProgressListener listener) {
         
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-        
-        for (int i = 0; i < chunks.size(); i++) {
-            Document chunk = chunks.get(i);
-            String chunkId = docId + "-" + i;
+        processChunksAsync(chunks, docId, sourceDoc, chunksStored, errors, listener, (chunk, chunkId, chunkIndex) -> {
+            // Create document without embedding (TextVectorStore will handle it)
+            Document doc = new Document(
+                chunkId,
+                null, // No vector needed
+                chunk.getPageContent(),
+                chunk.getMetadata()
+            );
             
-            Runnable task = () -> {
-                try {
-                    // Create document without embedding (TextVectorStore will handle it)
-                    Document doc = new Document(
-                        chunkId,
-                        null, // No vector needed
-                        chunk.getPageContent(),
-                        chunk.getMetadata()
-                    );
-                    
-                    // Add source metadata
-                    doc.getMetadata().put("source", sourceDoc.getSource());
-                    doc.getMetadata().put("sourceDocId", docId);
-                    doc.getMetadata().put("chunkIndex", chunkId.substring(chunkId.lastIndexOf('-') + 1));
-                    
-                    // Store in vector store
-                    textStore.addDocument(indexName, doc);
-                    
-                    chunksStored.incrementAndGet();
-                    
-                    if (listener != null) {
-                        listener.onChunkStored(chunkId);
-                    }
-                    
-                    log.trace("Successfully stored chunk: {}", chunkId);
-                    
-                } catch (Exception e) {
-                    log.error("Failed to store chunk: {}", chunkId, e);
-                    synchronized (errors) {
-                        errors.add(new RuntimeException("Failed to store chunk " + chunkId, e));
-                    }
-                }
-            };
+            // Add source metadata
+            enrichDocumentMetadata(doc, sourceDoc, docId, chunkIndex);
             
-            CompletableFuture<Void> future = useVirtualThreads 
-                ? CompletableFuture.runAsync(task, command -> Thread.ofVirtual().start(command))
-                : CompletableFuture.runAsync(task);
-                
-            futures.add(future);
-        }
-        
-        // Wait for all chunks
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // Store in vector store
+            textStore.addDocument(indexName, doc);
+            
+            return doc;
+        });
     }
     
     /**
@@ -336,6 +335,43 @@ public class IngestionPipeline {
             List<Exception> errors,
             ProgressListener listener) {
         
+        processChunksAsync(chunks, docId, sourceDoc, chunksStored, errors, listener, (chunk, chunkId, chunkIndex) -> {
+            // Generate embedding
+            Response<Embedding> response = embeddingClient.embed(
+                TextSegment.from(chunk.getPageContent())
+            );
+            float[] vector = response.content().vector();
+            
+            // Create document with embedding
+            Document embeddedDoc = new Document(
+                chunkId,
+                vector,
+                chunk.getPageContent(),
+                chunk.getMetadata()
+            );
+            
+            // Add source metadata
+            enrichDocumentMetadata(embeddedDoc, sourceDoc, docId, chunkIndex);
+            
+            // Store in vector store
+            embeddingStore.addDocument(indexName, embeddedDoc);
+            
+            return embeddedDoc;
+        });
+    }
+    
+    /**
+     * Common async processing logic for chunks.
+     */
+    private void processChunksAsync(
+            List<Document> chunks,
+            String docId,
+            LoadedDocument sourceDoc,
+            AtomicInteger chunksStored,
+            List<Exception> errors,
+            ProgressListener listener,
+            ChunkProcessor processor) {
+        
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         
         for (int i = 0; i < chunks.size(); i++) {
@@ -345,27 +381,8 @@ public class IngestionPipeline {
             
             Runnable task = () -> {
                 try {
-                    // Generate embedding
-                    Response<Embedding> response = embeddingClient.embed(
-                        TextSegment.from(chunk.getPageContent())
-                    );
-                    float[] vector = response.content().vector();
-                    
-                    // Create document with embedding
-                    Document embeddedDoc = new Document(
-                        chunkId,
-                        vector,
-                        chunk.getPageContent(),
-                        chunk.getMetadata()
-                    );
-                    
-                    // Add source metadata
-                    embeddedDoc.getMetadata().put("source", sourceDoc.getSource());
-                    embeddedDoc.getMetadata().put("sourceDocId", docId);
-                    embeddedDoc.getMetadata().put("chunkIndex", chunkIndex);
-                    
-                    // Store in vector store
-                    embeddingStore.addDocument(indexName, embeddedDoc);
+                    // Process chunk using the provided processor
+                    processor.process(chunk, chunkId, chunkIndex);
                     
                     chunksStored.incrementAndGet();
                     
@@ -373,7 +390,7 @@ public class IngestionPipeline {
                         listener.onChunkStored(chunkId);
                     }
                     
-                    log.trace("Successfully stored embedded chunk: {}", chunkId);
+                    log.trace("Successfully stored chunk: {}", chunkId);
                     
                 } catch (Exception e) {
                     log.error("Failed to process chunk: {}", chunkId, e);
@@ -392,5 +409,22 @@ public class IngestionPipeline {
         
         // Wait for all chunks
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+    
+    /**
+     * Enrich document with source metadata.
+     */
+    private void enrichDocumentMetadata(Document doc, LoadedDocument sourceDoc, String docId, int chunkIndex) {
+        doc.getMetadata().put("source", sourceDoc.getSource());
+        doc.getMetadata().put("sourceDocId", docId);
+        doc.getMetadata().put("chunkIndex", chunkIndex);
+    }
+    
+    /**
+     * Functional interface for processing individual chunks.
+     */
+    @FunctionalInterface
+    private interface ChunkProcessor {
+        Document process(Document chunk, String chunkId, int chunkIndex) throws Exception;
     }
 }

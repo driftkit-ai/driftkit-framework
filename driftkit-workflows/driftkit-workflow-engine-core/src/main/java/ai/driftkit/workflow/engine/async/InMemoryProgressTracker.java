@@ -145,4 +145,37 @@ public class InMemoryProgressTracker implements ProgressTracker {
     public Optional<Progress> getProgress(String taskId) {
         return Optional.ofNullable(progressMap.get(taskId));
     }
+    
+    @Override
+    public boolean isCancelled(String taskId) {
+        Progress progress = progressMap.get(taskId);
+        return progress != null && progress.status() == Progress.ProgressStatus.CANCELLED;
+    }
+    
+    @Override
+    public boolean cancelTask(String taskId) {
+        Progress existing = progressMap.compute(taskId, (id, progress) -> {
+            if (progress == null || 
+                progress.status() == Progress.ProgressStatus.COMPLETED ||
+                progress.status() == Progress.ProgressStatus.FAILED) {
+                return progress; // Can't cancel if not exists or already finished
+            }
+            return new Progress(taskId, progress.percentComplete(), "Cancelled", 
+                Progress.ProgressStatus.CANCELLED, progress.startTime(), System.currentTimeMillis());
+        });
+        
+        boolean cancelled = existing != null && existing.status() == Progress.ProgressStatus.CANCELLED;
+        
+        if (cancelled) {
+            // Update workflow event
+            WorkflowEvent event = executions.get(taskId);
+            if (event != null) {
+                event.setError("Task cancelled");
+                event.setCompleted(true);
+            }
+            log.info("Task cancelled: taskId={}", taskId);
+        }
+        
+        return cancelled;
+    }
 }

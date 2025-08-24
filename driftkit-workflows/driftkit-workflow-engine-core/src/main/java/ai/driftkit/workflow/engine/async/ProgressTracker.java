@@ -98,6 +98,56 @@ public interface ProgressTracker {
     Optional<Progress> getProgress(String taskId);
     
     /**
+     * Check if a task has been cancelled
+     * 
+     * @param taskId The task ID
+     * @return true if the task has been cancelled
+     */
+    boolean isCancelled(String taskId);
+    
+    /**
+     * Cancel a task
+     * 
+     * @param taskId The task ID to cancel
+     * @return true if the task was successfully cancelled
+     */
+    boolean cancelTask(String taskId);
+    
+    /**
+     * Creates a progress reporter for a specific task.
+     * This replaces the separate AsyncProgressReporter interface.
+     * 
+     * @param taskId The task ID
+     * @return Progress reporter for the task
+     */
+    default TaskProgressReporter createReporter(String taskId) {
+        return new TaskProgressReporter() {
+            @Override
+            public void updateProgress(int percentComplete, String message) {
+                ProgressTracker.this.updateProgress(taskId, percentComplete, message);
+            }
+            
+            @Override
+            public void updateProgress(int percentComplete) {
+                ProgressTracker.this.updateProgress(taskId, percentComplete, 
+                    "Processing... " + percentComplete + "%");
+            }
+            
+            @Override
+            public void updateMessage(String message) {
+                Optional<Progress> current = ProgressTracker.this.getProgress(taskId);
+                int currentPercent = current.map(Progress::percentComplete).orElse(0);
+                ProgressTracker.this.updateProgress(taskId, currentPercent, message);
+            }
+            
+            @Override
+            public boolean isCancelled() {
+                return ProgressTracker.this.isCancelled(taskId);
+            }
+        };
+    }
+    
+    /**
      * Progress information for a task
      */
     record Progress(

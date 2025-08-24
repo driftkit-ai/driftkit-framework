@@ -5,11 +5,13 @@ import ai.driftkit.embedding.core.domain.Response;
 import ai.driftkit.embedding.core.domain.TextSegment;
 import ai.driftkit.embedding.core.service.EmbeddingModel;
 import ai.driftkit.rag.core.domain.LoadedDocument;
+import ai.driftkit.rag.core.domain.LoadedDocument.State;
 import ai.driftkit.vector.core.domain.Document;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.text.BreakIterator;
 import java.util.*;
@@ -49,7 +51,7 @@ public class SemanticTextSplitter implements TextSplitter {
      */
     @Override
     public List<Document> split(LoadedDocument document) {
-        if (document.getContent() == null || document.getContent().isEmpty()) {
+        if (StringUtils.isBlank(document.getContent()) || document.getState() != State.LOADED) {
             log.warn("Document {} has no content to split", document.getId());
             return List.of();
         }
@@ -184,8 +186,8 @@ public class SemanticTextSplitter implements TextSplitter {
         // Add any remaining sentences
         if (!currentChunk.isEmpty()) {
             // If the last chunk is too small, merge with previous
-            if (chunks.size() > 0 && currentSize < minChunkSize) {
-                List<String> lastChunk = chunks.get(chunks.size() - 1);
+            if (!chunks.isEmpty() && currentSize < minChunkSize) {
+                List<String> lastChunk = chunks.getLast();
                 lastChunk.addAll(currentChunk);
             } else {
                 chunks.add(currentChunk);

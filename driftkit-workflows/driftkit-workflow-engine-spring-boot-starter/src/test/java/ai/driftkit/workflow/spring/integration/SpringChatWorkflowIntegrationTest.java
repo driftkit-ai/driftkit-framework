@@ -3,6 +3,7 @@ package ai.driftkit.workflow.spring.integration;
 import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.annotations.*;
+import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.chat.ChatContextHelper;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.workflow.engine.core.*;
@@ -278,7 +279,7 @@ public class SpringChatWorkflowIntegrationTest {
         public StepResult<SimpleChatResponse> processSearchResult(
                 Map<String, Object> taskArgs,
                 WorkflowContext context,
-                AsyncProgressReporter progress) {
+                TaskProgressReporter progress) {
             
             // Get the future from task args
             @SuppressWarnings("unchecked")
