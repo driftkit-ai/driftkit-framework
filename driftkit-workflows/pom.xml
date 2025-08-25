@@ -23,5 +23,6 @@
         <module>driftkit-workflow-engine-core</module>
         <module>driftkit-workflow-engine-agents</module>
         <module>driftkit-workflow-engine-spring-boot-starter</module>
+        <module>driftkit-workflow-test-framework</module>
     </modules>
 </project>

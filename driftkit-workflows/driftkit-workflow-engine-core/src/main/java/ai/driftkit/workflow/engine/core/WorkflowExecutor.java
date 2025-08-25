@@ -11,6 +11,7 @@ import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Handles the execution of individual workflow steps.
@@ -78,18 +79,28 @@ public class WorkflowExecutor {
             // Call interceptors before execution
             notifyBeforeStep(instance, step, input);
             
-            // Execute the step
-            Object result = step.executor().execute(input, instance.getContext());
+            // Check if any interceptor wants to override the execution
+            Optional<StepResult<?>> interceptedResult = checkInterceptors(instance, step, input);
             
-            // Auto-wrap non-StepResult values
             StepResult<?> stepResult;
-            if (result instanceof StepResult) {
-                stepResult = (StepResult<?>) result;
+            if (interceptedResult.isPresent()) {
+                // Use the intercepted result instead of executing the step
+                stepResult = interceptedResult.get();
+                log.debug("Step execution intercepted for: {} with result type: {}", 
+                    stepId, stepResult.getClass().getSimpleName());
             } else {
-                // Automatically wrap plain values in StepResult.continueWith()
-                log.debug("Auto-wrapping step result of type {} in StepResult.continueWith()", 
-                    result != null ? result.getClass().getSimpleName() : "null");
-                stepResult = StepResult.continueWith(result);
+                // Execute the step normally
+                Object result = step.executor().execute(input, instance.getContext());
+                
+                // Auto-wrap non-StepResult values
+                if (result instanceof StepResult) {
+                    stepResult = (StepResult<?>) result;
+                } else {
+                    // Automatically wrap plain values in StepResult.continueWith()
+                    log.debug("Auto-wrapping step result of type {} in StepResult.continueWith()", 
+                        result != null ? result.getClass().getSimpleName() : "null");
+                    stepResult = StepResult.continueWith(result);
+                }
             }
             long duration = System.currentTimeMillis() - startTime;
             
@@ -181,5 +192,23 @@ public class WorkflowExecutor {
         }
     }
     
+    private Optional<StepResult<?>> checkInterceptors(WorkflowInstance instance, StepNode step, Object input) {
+        if (CollectionUtils.isEmpty(interceptors)) {
+            return Optional.empty();
+        }
+        
+        for (ExecutionInterceptor interceptor : interceptors) {
+            try {
+                Optional<StepResult<?>> result = interceptor.interceptExecution(instance, step, input);
+                if (result.isPresent()) {
+                    return result;
+                }
+            } catch (Exception e) {
+                log.warn("Interceptor {} failed in interceptExecution", interceptor.getClass().getSimpleName(), e);
+            }
+        }
+        
+        return Optional.empty();
+    }
     
 }

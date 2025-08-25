@@ -6,10 +6,12 @@ import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer;
 import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
 import ai.driftkit.workflow.engine.annotations.AsyncStep;
+import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
@@ -39,7 +41,7 @@ public class WorkflowBuilder<T, R> {
     private final Map<String, AsyncHandlerInfo> registeredAsyncHandlers = new HashMap<>();
     
     private WorkflowBuilder(String id, Class<T> inputType, Class<R> outputType) {
-        if (id == null || id.isBlank()) {
+        if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("WorkflowBuilder ID cannot be null or empty");
         }
         if (inputType == null) {
@@ -91,7 +93,7 @@ public class WorkflowBuilder<T, R> {
      */
     public WorkflowBuilder<T, R> withAsyncHandler(String taskIdPattern, 
                                                   TriFunction<Map<String, Object>, WorkflowContext, TaskProgressReporter, StepResult<?>> asyncHandler) {
-        if (taskIdPattern == null || taskIdPattern.isBlank()) {
+        if (StringUtils.isBlank(taskIdPattern)) {
             throw new IllegalArgumentException("Task ID pattern cannot be null or empty");
         }
         if (asyncHandler == null) {
@@ -208,7 +210,7 @@ public class WorkflowBuilder<T, R> {
      * @param step Function that returns StepResult
      */
     public <I, O> WorkflowBuilder<T, R> then(String id, Function<I, StepResult<O>> step, Class<I> inputType, Class<O> outputType) {
-        if (id == null || id.isBlank()) {
+        if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("Step ID cannot be null or empty");
         }
         if (inputType == null || outputType == null) {
@@ -227,11 +229,65 @@ public class WorkflowBuilder<T, R> {
      * @param step BiFunction that takes input and context and returns StepResult
      */
     public <I, O> WorkflowBuilder<T, R> then(String id, BiFunction<I, WorkflowContext, StepResult<O>> step) {
-        if (id == null || id.isBlank()) {
+        if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("Step ID cannot be null or empty");
         }
         StepDefinition stepDef = StepDefinition.of(id, step);
         buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        return this;
+    }
+    
+    /**
+     * Adds a step with retry policy using Function.
+     * 
+     * @param id Step ID
+     * @param step Function that takes input and returns StepResult
+     * @param retryPolicy Retry policy for this step
+     */
+    public <I, O> WorkflowBuilder<T, R> thenWithRetry(String id, Function<I, StepResult<O>> step, 
+                                                      RetryPolicy retryPolicy) {
+        if (StringUtils.isBlank(id)) {
+            throw new IllegalArgumentException("Step ID cannot be null or empty");
+        }
+        
+        StepDefinition stepDef = StepDefinition.of(id, step).withRetryPolicy(retryPolicy);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        return this;
+    }
+    
+    /**
+     * Adds a step with retry policy using BiFunction with context.
+     * 
+     * @param id Step ID
+     * @param step BiFunction that takes input and context and returns StepResult
+     * @param retryPolicy Retry policy for this step
+     */
+    public <I, O> WorkflowBuilder<T, R> thenWithRetry(String id, BiFunction<I, WorkflowContext, StepResult<O>> step,
+                                                      RetryPolicy retryPolicy) {
+        if (StringUtils.isBlank(id)) {
+            throw new IllegalArgumentException("Step ID cannot be null or empty");
+        }
+        
+        StepDefinition stepDef = StepDefinition.of(id, step).withRetryPolicy(retryPolicy);
+        buildSteps.add(new SequentialStep(stepDef));
+        lastStepDefinition = stepDef;
+        return this;
+    }
+    
+    /**
+     * Applies a retry policy to the last added step.
+     * Can be chained after then() methods.
+     * 
+     * @param retryPolicy Retry policy to apply
+     */
+    public WorkflowBuilder<T, R> withRetryPolicy(RetryPolicy retryPolicy) {
+        if (lastStepDefinition == null) {
+            throw new IllegalStateException("No step to apply retry policy to. Add a step first.");
+        }
+        
+        lastStepDefinition.withRetryPolicy(retryPolicy);
         return this;
     }
     
@@ -287,7 +343,7 @@ public class WorkflowBuilder<T, R> {
      * @param step Function that returns a plain object
      */
     public <I, O> WorkflowBuilder<T, R> thenValue(String id, Function<I, O> step, Class<I> inputType, Class<O> outputType) {
-        if (id == null || id.isBlank()) {
+        if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("Step ID cannot be null or empty");
         }
         if (inputType == null || outputType == null) {

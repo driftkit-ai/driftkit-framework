@@ -988,6 +988,25 @@ public class WorkflowEngine {
     }
 
     /**
+     * Add an execution interceptor to the workflow engine.
+     * Interceptors can observe and modify workflow execution.
+     * 
+     * @param interceptor The interceptor to add
+     */
+    public void addInterceptor(ExecutionInterceptor interceptor) {
+        workflowExecutor.addInterceptor(interceptor);
+    }
+    
+    /**
+     * Remove an execution interceptor from the workflow engine.
+     * 
+     * @param interceptor The interceptor to remove
+     */
+    public void removeInterceptor(ExecutionInterceptor interceptor) {
+        workflowExecutor.removeInterceptor(interceptor);
+    }
+    
+    /**
      * Shuts down the workflow engine.
      */
     public void shutdown() {
