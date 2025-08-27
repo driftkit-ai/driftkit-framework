@@ -10,11 +10,10 @@ import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.utils.ReflectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.Serializable;
-import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,7 +27,8 @@ import java.util.function.BiFunction;
  * Inspired by mastra.ai's workflow definition approach.
  */
 @Slf4j
-public class WorkflowBuilder<T, R> {
+public class
+WorkflowBuilder<T, R> {
     
     private final String id;
     private final Class<T> inputType;
@@ -101,7 +101,7 @@ public class WorkflowBuilder<T, R> {
         }
         
         // Extract method info if possible
-        String methodName = extractTriFunctionMethodName(asyncHandler);
+        String methodName = ReflectionUtils.extractLambdaMethodName(asyncHandler);
         
         AsyncHandlerInfo handlerInfo = new AsyncHandlerInfo(taskIdPattern, asyncHandler, methodName);
         registeredAsyncHandlers.put(taskIdPattern, handlerInfo);
@@ -174,7 +174,7 @@ public class WorkflowBuilder<T, R> {
      */
     public <I, O> WorkflowBuilder<T, R> then(Function<I, StepResult<O>> step) {
         // Extract step ID from method reference or generate one
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Create step definition
         StepDefinition stepDef = StepDefinition.of(stepId, step);
@@ -192,7 +192,7 @@ public class WorkflowBuilder<T, R> {
      */
     public <I, O> WorkflowBuilder<T, R> then(BiFunction<I, WorkflowContext, StepResult<O>> step) {
         // Extract step ID from method reference or generate one
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Create step definition
         StepDefinition stepDef = StepDefinition.of(stepId, step);
@@ -299,7 +299,7 @@ public class WorkflowBuilder<T, R> {
      * @param step Function that returns a plain object
      */
     public <I, O> WorkflowBuilder<T, R> thenValue(Function<I, O> step) {
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Wrap the function to return StepResult
         Function<I, StepResult<O>> wrappedStep = input -> {
@@ -321,7 +321,7 @@ public class WorkflowBuilder<T, R> {
      * @param step BiFunction that returns a plain object
      */
     public <I, O> WorkflowBuilder<T, R> thenValue(BiFunction<I, WorkflowContext, O> step) {
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Wrap the function to return StepResult
         BiFunction<I, WorkflowContext, StepResult<O>> wrappedStep = (input, ctx) -> {
@@ -366,7 +366,7 @@ public class WorkflowBuilder<T, R> {
      * Adds a final step that returns a plain value (automatically wrapped in StepResult.finish).
      */
     public <I, O> WorkflowBuilder<T, R> finishWithValue(Function<I, O> step) {
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Wrap the function to return StepResult.finish
         Function<I, StepResult<O>> wrappedStep = input -> {
@@ -385,7 +385,7 @@ public class WorkflowBuilder<T, R> {
      * Adds a final step with context that returns a plain value (automatically wrapped in StepResult.finish).
      */
     public <I, O> WorkflowBuilder<T, R> finishWithValue(BiFunction<I, WorkflowContext, O> step) {
-        String stepId = extractLambdaMethodName(step);
+        String stepId = ReflectionUtils.extractLambdaMethodName(step);
         
         // Wrap the function to return StepResult.finish
         BiFunction<I, WorkflowContext, StepResult<O>> wrappedStep = (input, ctx) -> {
@@ -428,7 +428,7 @@ public class WorkflowBuilder<T, R> {
         
         List<StepDefinition> stepDefs = new ArrayList<>();
         for (Function<I, StepResult<O>> step : steps) {
-            String stepId = extractLambdaMethodName(step);
+            String stepId = ReflectionUtils.extractLambdaMethodName(step);
             stepDefs.add(StepDefinition.of(stepId, step));
         }
         
@@ -450,7 +450,7 @@ public class WorkflowBuilder<T, R> {
         
         List<StepDefinition> stepDefs = new ArrayList<>();
         for (BiFunction<I, WorkflowContext, StepResult<O>> step : steps) {
-            String stepId = extractLambdaMethodName(step);
+            String stepId = ReflectionUtils.extractLambdaMethodName(step);
             stepDefs.add(StepDefinition.of(stepId, step));
         }
         
@@ -514,109 +514,22 @@ public class WorkflowBuilder<T, R> {
             throw new IllegalStateException("WorkflowBuilder must have at least one step");
         }
         
+        // Initialize graph components
         Map<String, StepNode> nodes = new HashMap<>();
         Map<String, List<Edge>> edges = new HashMap<>();
-        String initialStepId = null;
         
-        // Build the graph
-        GraphBuildContext context = new GraphBuildContext();
-        String lastStepId = null;
-        List<String> lastExitPoints = null;
-        
-        for (int i = 0; i < buildSteps.size(); i++) {
-            BuildStep buildStep = buildSteps.get(i);
-            BuildStepResult result = buildStep.build(context, lastStepId);
-            
-            // Add nodes
-            result.nodes.forEach(node -> {
-                if (nodes.containsKey(node.id())) {
-                    throw new IllegalStateException("Duplicate step ID: " + node.id());
-                }
-                nodes.put(node.id(), node);
-            });
-            
-            // Add edges
-            result.edges.forEach((from, edgeList) -> {
-                edges.computeIfAbsent(from, k -> new ArrayList<>()).addAll(edgeList);
-            });
-            
-            // Set initial step
-            if (i == 0 && !result.entryPoints.isEmpty()) {
-                initialStepId = result.entryPoints.get(0);
-            }
-            
-            // Connect to previous step(s)
-            if (lastStepId != null && !result.entryPoints.isEmpty()) {
-                // Single previous step to multiple entry points
-                for (String entryPoint : result.entryPoints) {
-                    edges.computeIfAbsent(lastStepId, k -> new ArrayList<>())
-                        .add(Edge.sequential(lastStepId, entryPoint));
-                }
-            } else if (lastExitPoints != null && !lastExitPoints.isEmpty() && !result.entryPoints.isEmpty()) {
-                // Multiple previous exit points (from branch) to entry points
-                for (String exitPoint : lastExitPoints) {
-                    for (String entryPoint : result.entryPoints) {
-                        edges.computeIfAbsent(exitPoint, k -> new ArrayList<>())
-                            .add(Edge.sequential(exitPoint, entryPoint));
-                    }
-                }
-            }
-            
-            // Update last step tracking
-            if (!result.exitPoints.isEmpty()) {
-                if (result.exitPoints.size() == 1) {
-                    lastStepId = result.exitPoints.get(0);
-                    lastExitPoints = null;
-                } else {
-                    // Multiple exit points (e.g., from branches)
-                    lastStepId = null;
-                    lastExitPoints = new ArrayList<>(result.exitPoints);
-                }
-            } else {
-                lastStepId = null;
-                lastExitPoints = null;
-            }
-        }
+        // Build the graph from steps
+        GraphBuildResult buildResult = buildGraphFromSteps(nodes, edges);
+        String initialStepId = buildResult.initialStepId();
         
         // Validate the graph
         validateGraph(nodes, edges, initialStepId);
         
-        int totalEdges = edges.values().stream().mapToInt(List::size).sum();
-        log.info("Built workflow graph: {} with {} nodes and {} edges", 
-            id, nodes.size(), totalEdges);
+        // Log graph information
+        logGraphInfo(nodes, edges);
         
-        // Debug: print graph structure
-        if (log.isDebugEnabled()) {
-            log.debug("Graph structure for {}:", id);
-            nodes.forEach((nodeId, node) -> {
-                log.debug("  Node: {} ({})", nodeId, node.description());
-                List<Edge> outgoing = edges.getOrDefault(nodeId, List.of());
-                outgoing.forEach(edge -> {
-                    log.debug("    -> {} ({})", edge.toStepId(), edge.type());
-                });
-            });
-        }
-        
-        // Convert registered async handlers to AsyncStepMetadata format
-        // WITHOUT workflowInstance - we'll use the TriFunction directly
-        Map<String, AsyncStepMetadata> asyncStepMetadata = new HashMap<>();
-        
-        for (Map.Entry<String, AsyncHandlerInfo> entry : registeredAsyncHandlers.entrySet()) {
-            String pattern = entry.getKey();
-            AsyncHandlerInfo info = entry.getValue();
-            
-            // Create a wrapper method that delegates to the TriFunction
-            Method proxyMethod = createProxyMethodForTriFunction();
-            
-            // Create AsyncStepMetadata with null instance - the handler is in the metadata itself
-            AsyncStepMetadata metadata = new FluentApiAsyncStepMetadata(
-                proxyMethod,
-                info.annotation != null ? info.annotation : createSyntheticAsyncAnnotation(pattern),
-                info.handler // Store the actual handler
-            );
-            
-            asyncStepMetadata.put(pattern, metadata);
-        }
+        // Convert async handlers to metadata
+        Map<String, AsyncStepMetadata> asyncStepMetadata = buildAsyncStepMetadata();
         
         return WorkflowGraph.<T, R>builder()
             .id(id)
@@ -675,6 +588,157 @@ public class WorkflowBuilder<T, R> {
     List<BuildStep> getBuildSteps() {
         return buildSteps;
     }
+    
+    /**
+     * Builds the graph from the build steps.
+     */
+    private GraphBuildResult buildGraphFromSteps(Map<String, StepNode> nodes, 
+                                                  Map<String, List<Edge>> edges) {
+        GraphBuildContext context = new GraphBuildContext();
+        String lastStepId = null;
+        List<String> lastExitPoints = null;
+        String initialStepId = null;
+        
+        for (int i = 0; i < buildSteps.size(); i++) {
+            BuildStep buildStep = buildSteps.get(i);
+            BuildStepResult result = buildStep.build(context, lastStepId);
+            
+            // Process the build step result
+            processBuildStepResult(result, nodes, edges);
+            
+            // Set initial step
+            if (i == 0 && !result.entryPoints.isEmpty()) {
+                initialStepId = result.entryPoints.get(0);
+            }
+            
+            // Connect to previous step(s)
+            connectToPreviousSteps(result, edges, lastStepId, lastExitPoints);
+            
+            // Update last step tracking
+            LastStepInfo lastStepInfo = updateLastStepTracking(result);
+            lastStepId = lastStepInfo.lastStepId();
+            lastExitPoints = lastStepInfo.lastExitPoints();
+        }
+        
+        return new GraphBuildResult(initialStepId);
+    }
+    
+    /**
+     * Processes the result from a build step.
+     */
+    private void processBuildStepResult(BuildStepResult result, 
+                                        Map<String, StepNode> nodes,
+                                        Map<String, List<Edge>> edges) {
+        // Add nodes
+        result.nodes.forEach(node -> {
+            if (nodes.containsKey(node.id())) {
+                throw new IllegalStateException("Duplicate step ID: " + node.id());
+            }
+            nodes.put(node.id(), node);
+        });
+        
+        // Add edges
+        result.edges.forEach((from, edgeList) -> {
+            edges.computeIfAbsent(from, k -> new ArrayList<>()).addAll(edgeList);
+        });
+    }
+    
+    /**
+     * Connects the current step to previous steps.
+     */
+    private void connectToPreviousSteps(BuildStepResult result,
+                                        Map<String, List<Edge>> edges,
+                                        String lastStepId,
+                                        List<String> lastExitPoints) {
+        if (lastStepId != null && !result.entryPoints.isEmpty()) {
+            // Single previous step to multiple entry points
+            for (String entryPoint : result.entryPoints) {
+                edges.computeIfAbsent(lastStepId, k -> new ArrayList<>())
+                    .add(Edge.sequential(lastStepId, entryPoint));
+            }
+        } else if (lastExitPoints != null && !lastExitPoints.isEmpty() && !result.entryPoints.isEmpty()) {
+            // Multiple previous exit points (from branch) to entry points
+            for (String exitPoint : lastExitPoints) {
+                for (String entryPoint : result.entryPoints) {
+                    edges.computeIfAbsent(exitPoint, k -> new ArrayList<>())
+                        .add(Edge.sequential(exitPoint, entryPoint));
+                }
+            }
+        }
+    }
+    
+    /**
+     * Updates tracking of the last step based on exit points.
+     */
+    private LastStepInfo updateLastStepTracking(BuildStepResult result) {
+        if (!result.exitPoints.isEmpty()) {
+            if (result.exitPoints.size() == 1) {
+                return new LastStepInfo(result.exitPoints.get(0), null);
+            } else {
+                // Multiple exit points (e.g., from branches)
+                return new LastStepInfo(null, new ArrayList<>(result.exitPoints));
+            }
+        } else {
+            return new LastStepInfo(null, null);
+        }
+    }
+    
+    /**
+     * Logs information about the constructed graph.
+     */
+    private void logGraphInfo(Map<String, StepNode> nodes, Map<String, List<Edge>> edges) {
+        int totalEdges = edges.values().stream().mapToInt(List::size).sum();
+        log.info("Built workflow graph: {} with {} nodes and {} edges", 
+            id, nodes.size(), totalEdges);
+        
+        // Debug: print graph structure
+        if (log.isDebugEnabled()) {
+            log.debug("Graph structure for {}:", id);
+            nodes.forEach((nodeId, node) -> {
+                log.debug("  Node: {} ({})", nodeId, node.description());
+                List<Edge> outgoing = edges.getOrDefault(nodeId, List.of());
+                outgoing.forEach(edge -> {
+                    log.debug("    -> {} ({})", edge.toStepId(), edge.type());
+                });
+            });
+        }
+    }
+    
+    /**
+     * Builds async step metadata from registered handlers.
+     */
+    private Map<String, AsyncStepMetadata> buildAsyncStepMetadata() {
+        Map<String, AsyncStepMetadata> asyncStepMetadata = new HashMap<>();
+        
+        for (Map.Entry<String, AsyncHandlerInfo> entry : registeredAsyncHandlers.entrySet()) {
+            String pattern = entry.getKey();
+            AsyncHandlerInfo info = entry.getValue();
+            
+            // Create a wrapper method that delegates to the TriFunction
+            Method proxyMethod = createProxyMethodForTriFunction();
+            
+            // Create AsyncStepMetadata with null instance - the handler is in the metadata itself
+            AsyncStepMetadata metadata = new FluentApiAsyncStepMetadata(
+                proxyMethod,
+                info.annotation != null ? info.annotation : createSyntheticAsyncAnnotation(pattern),
+                info.handler // Store the actual handler
+            );
+            
+            asyncStepMetadata.put(pattern, metadata);
+        }
+        
+        return asyncStepMetadata;
+    }
+    
+    /**
+     * Result of building the graph.
+     */
+    private record GraphBuildResult(String initialStepId) {}
+    
+    /**
+     * Information about the last step in the build process.
+     */
+    private record LastStepInfo(String lastStepId, List<String> lastExitPoints) {}
     
     /**
      * Validates the constructed graph.
@@ -1171,79 +1235,7 @@ public class WorkflowBuilder<T, R> {
         }
     }
     
-    /**
-     * Extract method name from a TriFunction lambda or method reference.
-     * 
-     * @param triFunction The trifunction lambda or method reference
-     * @return The extracted method name or "asyncHandler"
-     */
-    private String extractTriFunctionMethodName(TriFunction<?, ?, ?, ?> triFunction) {
-        return extractLambdaMethodName(triFunction);
-    }
     
-    /**
-     * Extract method name from a lambda or method reference.
-     * For method references, tries to extract the actual method name.
-     * For anonymous lambdas, generates a unique ID.
-     * 
-     * @param lambda The lambda or method reference
-     * @return The extracted method name or generated ID
-     */
-    private String extractLambdaMethodName(Object lambda) {
-        if (lambda == null) {
-            throw new IllegalArgumentException("Lambda cannot be null");
-        }
-        
-        // Try SerializedLambda approach first (works when lambda is Serializable)
-        if (lambda instanceof Serializable) {
-            try {
-                Method writeReplace = lambda.getClass().getDeclaredMethod("writeReplace");
-                writeReplace.setAccessible(true);
-                SerializedLambda serializedLambda = (SerializedLambda) writeReplace.invoke(lambda);
-                
-                String implMethodName = serializedLambda.getImplMethodName();
-                
-                // Check if it's a synthetic lambda (starts with "lambda$")
-                if (implMethodName.startsWith("lambda$")) {
-                    // Generate a more meaningful ID
-                    return generateStepId();
-                }
-                
-                // It's a method reference, return the method name
-                log.debug("Extracted method name from SerializedLambda: {}", implMethodName);
-                return implMethodName;
-                
-            } catch (Exception e) {
-                log.debug("Could not extract method name from SerializedLambda: {}", e.getMessage());
-            }
-        }
-        
-        // Fallback: try to extract from class name
-        String className = lambda.getClass().getName();
-        
-        if (className.contains("$$Lambda$")) {
-            // Extract the base class name as a hint
-            int lambdaIndex = className.indexOf("$$Lambda$");
-            String baseClass = className.substring(0, lambdaIndex);
-            int lastDot = baseClass.lastIndexOf('.');
-            if (lastDot >= 0) {
-                baseClass = baseClass.substring(lastDot + 1);
-            }
-            return baseClass.toLowerCase() + "_" + generateStepId().substring(5); // Remove "step_" prefix
-        }
-        
-        // Ultimate fallback
-        return generateStepId();
-    }
-    
-    /**
-     * Generate a unique step ID.
-     * 
-     * @return A unique step ID
-     */
-    private String generateStepId() {
-        return "step_" + UUID.randomUUID().toString().substring(0, 8);
-    }
     
     /**
      * Marker types for branch decisions.

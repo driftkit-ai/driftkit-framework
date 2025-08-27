@@ -3,7 +3,11 @@ package ai.driftkit.workflow.test.core;
 import ai.driftkit.workflow.engine.core.StepResult;
 import lombok.RequiredArgsConstructor;
 
+import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -95,6 +99,17 @@ public class MockBuilder {
             }
             return new TimedBehaviorBuilder(registry, workflowId, stepId, times);
         }
+        
+        /**
+         * Creates a mock using an existing mock object (e.g., Mockito mock).
+         * 
+         * @param mockObject the mock object to use
+         * @return registration builder
+         */
+        public MockRegistrationBuilder mockWith(Object mockObject) {
+            Objects.requireNonNull(mockObject, "mockObject cannot be null");
+            return new MockRegistrationBuilder(registry, workflowId, stepId, mockObject);
+        }
     }
     
     /**
@@ -122,7 +137,8 @@ public class MockBuilder {
             MockDefinition<I> mock = MockDefinition.of(workflowId, stepId, inputType, resultProvider);
             
             if (condition != null) {
-                registry.registerConditional(workflowId, stepId, condition.castPredicate(), mock);
+                // Use type-safe registration with the condition's input type and predicate
+                condition.registerConditionalMock(registry, workflowId, stepId, mock);
             } else {
                 registry.register(mock);
             }
@@ -152,7 +168,7 @@ public class MockBuilder {
             MockDefinition<Object> mock = MockDefinition.throwing(workflowId, stepId, Object.class, exception);
             
             if (condition != null) {
-                registry.registerConditional(workflowId, stepId, condition.castPredicate(), mock);
+                condition.registerConditionalMock(registry, workflowId, stepId, mock);
             } else {
                 registry.register(mock);
             }
@@ -170,7 +186,7 @@ public class MockBuilder {
             );
             
             if (condition != null) {
-                registry.registerConditional(workflowId, stepId, condition.castPredicate(), mock);
+                condition.registerConditionalMock(registry, workflowId, stepId, mock);
             } else {
                 registry.register(mock);
             }
@@ -247,9 +263,11 @@ public class MockBuilder {
             Objects.requireNonNull(inputType, "inputType cannot be null");
             Objects.requireNonNull(resultProvider, "resultProvider cannot be null");
             
-            // Cast to wildcard type
-            @SuppressWarnings("unchecked")
-            Function<I, StepResult<?>> wildcardProvider = (Function<I, StepResult<?>>) (Function<?, ?>) resultProvider;
+            // Create a safe wrapper that converts the typed result to wildcard
+            Function<I, StepResult<?>> wildcardProvider = input -> {
+                StepResult<O> typedResult = resultProvider.apply(input);
+                return typedResult; // Safe upcast from StepResult<O> to StepResult<?>
+            };
             
             FailureThenSuccessMock mock = new FailureThenSuccessMock(
                 workflowId, stepId, failTimes, failureException, 
@@ -271,9 +289,11 @@ public class MockBuilder {
             this.predicate = predicate;
         }
         
-        @SuppressWarnings("unchecked")
-        Predicate<Object> castPredicate() {
-            return obj -> inputType.isInstance(obj) && predicate.test((I) obj);
+        /**
+         * Registers a conditional mock with proper type safety.
+         */
+        void registerConditionalMock(MockRegistry registry, String workflowId, String stepId, MockDefinition<?> mock) {
+            registry.registerConditional(workflowId, stepId, inputType, predicate, mock);
         }
     }
     
@@ -281,10 +301,15 @@ public class MockBuilder {
      * Mock that fails a certain number of times then succeeds.
      */
     private static class FailureThenSuccessMock extends MockDefinition<Object> {
-        private int attemptCount = 0;
+        // Use a map to track attempts per workflow instance to handle concurrent tests
+        private final Map<String, Integer> attemptCounts = new ConcurrentHashMap<>();
         private final int failTimes;
         private final Exception failureException;
         private final Object successResult;
+        // Track completed executions for cleanup
+        private final Set<String> completedExecutions = ConcurrentHashMap.newKeySet();
+        // Max entries before forced cleanup
+        private static final int MAX_TRACKED_EXECUTIONS = 1000;
         
         FailureThenSuccessMock(String workflowId, String stepId, int failTimes, 
                               Exception failureException, Object successResult) {
@@ -296,10 +321,24 @@ public class MockBuilder {
         
         @Override
         public StepResult<?> execute(Object input, StepContext context) {
-            attemptCount++;
-            if (attemptCount <= failTimes) {
-                throw new RuntimeException(failureException);
+            // Perform cleanup if too many entries
+            if (attemptCounts.size() > MAX_TRACKED_EXECUTIONS) {
+                cleanupCompletedExecutions();
             }
+            
+            // Use workflow instance ID to track attempts per execution
+            String instanceKey = context.getRunId();
+            int attemptCount = attemptCounts.compute(instanceKey, (k, v) -> v == null ? 1 : v + 1);
+            
+            if (attemptCount <= failTimes) {
+                // Return StepResult.Fail instead of throwing exception
+                // This ensures the retry mechanism sees the failure
+                return StepResult.fail(failureException);
+            }
+            
+            // Clean up the count after success to avoid memory leak
+            attemptCounts.remove(instanceKey);
+            completedExecutions.add(instanceKey);
             
             if (successResult instanceof StepResult) {
                 return (StepResult<?>) successResult;
@@ -308,6 +347,22 @@ public class MockBuilder {
             } else {
                 return StepResult.continueWith(successResult);
             }
+        }
+        
+        /**
+         * Clean up completed executions from the attempt counts map.
+         */
+        private void cleanupCompletedExecutions() {
+            completedExecutions.forEach(attemptCounts::remove);
+            completedExecutions.clear();
+        }
+        
+        /**
+         * Clean up all tracked state.
+         */
+        public void cleanup() {
+            attemptCounts.clear();
+            completedExecutions.clear();
         }
     }
     
@@ -323,15 +378,115 @@ public class MockBuilder {
             this.provider = provider;
         }
         
-        @SuppressWarnings("unchecked")
+        /**
+         * Provides result with safe type casting.
+         * 
+         * @param input the input object to process
+         * @return the step result
+         * @throws IllegalArgumentException if input type doesn't match expected type
+         */
         StepResult<?> provide(Object input) {
             if (!inputType.isInstance(input)) {
                 throw new IllegalArgumentException(
-                    "Expected input of type " + inputType + " but got " + 
-                    (input != null ? input.getClass() : "null")
+                    "Expected input of type " + inputType.getName() + " but got " + 
+                    (input != null ? input.getClass().getName() : "null")
                 );
             }
-            return provider.apply((I) input);
+            
+            try {
+                I typedInput = inputType.cast(input);
+                return provider.apply(typedInput);
+            } catch (ClassCastException e) {
+                // This should not happen since we checked with isInstance
+                throw new IllegalStateException(
+                    "Type casting failed: expected " + inputType.getName() + 
+                    " but got " + (input != null ? input.getClass().getName() : "null"), e
+                );
+            }
+        }
+    }
+    
+    /**
+     * Builder for registering existing mock objects.
+     */
+    @RequiredArgsConstructor
+    public static class MockRegistrationBuilder {
+        private final MockRegistry registry;
+        private final String workflowId;
+        private final String stepId;
+        private final Object mockObject;
+        
+        /**
+         * Registers the mock object.
+         */
+        public void register() {
+            // Create a mock definition that delegates to the mock object
+            MockDefinition<Object> mockDef = new DelegatingMockDefinition(
+                workflowId, stepId, mockObject
+            );
+            registry.register(mockDef);
+        }
+    }
+    
+    /**
+     * Mock definition that delegates to an external mock object.
+     */
+    private static class DelegatingMockDefinition extends MockDefinition<Object> {
+        private final Object mockObject;
+        
+        DelegatingMockDefinition(String workflowId, String stepId, Object mockObject) {
+            super(workflowId, stepId, Object.class, null);
+            this.mockObject = mockObject;
+        }
+        
+        @Override
+        public StepResult<?> execute(Object input, StepContext context) {
+            try {
+                // Find and invoke method that matches the input type
+                for (Method method : mockObject.getClass().getMethods()) {
+                    if (method.getName().equals("process") || 
+                        method.getName().equals("execute") ||
+                        method.getName().equals("apply")) {
+                        
+                        Class<?>[] paramTypes = method.getParameterTypes();
+                        if (paramTypes.length == 1 && paramTypes[0].isInstance(input)) {
+                            Object result = method.invoke(mockObject, input);
+                            
+                            // Convert result to StepResult if needed
+                            if (result instanceof StepResult) {
+                                return (StepResult<?>) result;
+                            } else {
+                                return StepResult.continueWith(result);
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback: try to invoke with no args
+                for (Method method : mockObject.getClass().getMethods()) {
+                    if (method.getName().equals("process") || 
+                        method.getName().equals("execute") ||
+                        method.getName().equals("get")) {
+                        
+                        if (method.getParameterCount() == 0) {
+                            Object result = method.invoke(mockObject);
+                            
+                            if (result instanceof StepResult) {
+                                return (StepResult<?>) result;
+                            } else {
+                                return StepResult.continueWith(result);
+                            }
+                        }
+                    }
+                }
+                
+                throw new IllegalStateException(
+                    "Mock object does not have a suitable method: " + mockObject.getClass()
+                );
+                
+            } catch (Exception e) {
+                return StepResult.fail(e);
+            }
         }
     }
 }

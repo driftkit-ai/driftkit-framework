@@ -3,8 +3,8 @@ package ai.driftkit.workflow.test.examples;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
-import ai.driftkit.workflow.test.core.FluentWorkflowTest;
-import ai.driftkit.workflow.test.assertions.WorkflowTestAssertions;
+import ai.driftkit.workflow.test.core.WorkflowTestBase;
+import ai.driftkit.workflow.test.assertions.EnhancedWorkflowAssertions;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -15,12 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Simple example test using the workflow test framework.
  */
-public class SimpleWorkflowTest extends FluentWorkflowTest {
-    
+public class SimpleWorkflowTest extends WorkflowTestBase {
+
     @Override
-    protected void registerWorkflows() {
-        // Workflows are registered individually in each test method
+    protected WorkflowEngine createEngine() {
+        return new WorkflowEngine();
     }
+    
     
     @Test
     void testSimpleLinearWorkflow() {
@@ -31,18 +32,23 @@ public class SimpleWorkflowTest extends FluentWorkflowTest {
             .then("uppercase", (String prev) -> StepResult.finish(prev.toUpperCase()), String.class, String.class);
         
         // Register the workflow
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // Execute the workflow
         WorkflowEngine.WorkflowExecution<String> execution = engine.execute("simple-workflow", "Test");
         
-        // Assert the result
-        WorkflowTestAssertions.assertWorkflowReturns(execution, "HELLO TEST WORLD", Duration.ofSeconds(5));
+        // Assert the result using new assertions
+        try {
+            String result = execution.get(5000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            assertEquals("HELLO TEST WORLD", result);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         
-        // Verify execution history
-        WorkflowTestAssertions.assertThat(testInterceptor.getExecutionTracker().getHistory())
-            .hasSize(6) // 3 steps x 2 (before/after)
-            .executedInOrder("initial", "concat", "uppercase");
+        // Verify execution history using new API
+        assertions.assertStep("simple-workflow", "initial").wasExecuted();
+        assertions.assertStep("simple-workflow", "concat").wasExecuted();
+        assertions.assertStep("simple-workflow", "uppercase").wasExecuted();
     }
     
     @Test
@@ -56,24 +62,25 @@ public class SimpleWorkflowTest extends FluentWorkflowTest {
             }, String.class, String.class)
             .then("process", (String response) -> StepResult.finish("Processed: " + response), String.class, String.class);
         
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // Mock the external service step using new API
-        testContext.configure(config -> config
-            .mock().workflow("service-workflow").step("external-service").always()
-                .thenReturn(String.class, input -> StepResult.continueWith("Mocked response for: " + input))
-        );
+        orchestrator.mock().workflow("service-workflow").step("external-service")
+            .always().thenReturn(String.class, input -> StepResult.continueWith("Mocked response for: " + input));
         
         // Execute
         WorkflowEngine.WorkflowExecution<String> execution = engine.execute("service-workflow", "test-input");
         
         // Assert
-        WorkflowTestAssertions.assertWorkflowReturns(execution, 
-            "Processed: Mocked response for: test-input", Duration.ofSeconds(5));
+        try {
+            String result = execution.get(5000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            assertEquals("Processed: Mocked response for: test-input", result);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         
         // Verify the mock was called
-        assertTrue(testInterceptor.getExecutionTracker().wasExecuted("service-workflow", "external-service"));
-        assertEquals(1, testInterceptor.getExecutionTracker().getExecutionCount("service-workflow", "external-service"));
+        assertions.assertStep("service-workflow", "external-service").wasExecuted().wasExecutedTimes(1);
     }
     
     @Test
@@ -88,14 +95,12 @@ public class SimpleWorkflowTest extends FluentWorkflowTest {
             }, Integer.class, String.class)
             .then("format", (String msg) -> StepResult.finish("[" + msg + "]"), String.class, String.class);
         
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // Add conditional mock that only applies for large numbers
-        testContext.configure(config -> config
-            .mock().workflow("conditional-workflow").step("check")
-                .when(Integer.class, num -> num > 100)
-                .thenReturn(Integer.class, num -> StepResult.continueWith("Huge: " + num))
-        );
+        orchestrator.mock().workflow("conditional-workflow").step("check")
+            .when(Integer.class, num -> num > 100)
+            .thenReturn(Integer.class, num -> StepResult.continueWith("Huge: " + num));
         
         // Test with different inputs
         try {

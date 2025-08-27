@@ -7,6 +7,7 @@ import ai.driftkit.workflow.engine.core.WorkflowAnalyzer.AsyncStepMetadata;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.utils.ReflectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -126,7 +127,7 @@ public class AsyncStepHandler {
                 log.debug("Invoking async handler {} for id {}", info.method.getName(), info == asyncStepCache.get(primaryKey) ? primaryId : fallbackId);
                 
                 // Build method arguments including AsyncProgressReporter
-                Object[] args = buildAsyncMethodArgs(info.method, asyncResult, context, progressReporter);
+                Object[] args = ReflectionUtils.buildAsyncMethodArgs(info.method, asyncResult, context, progressReporter);
                 Object result = info.method.invoke(info.workflowInstance, args);
                 
                 if (!(result instanceof StepResult)) {
@@ -214,49 +215,6 @@ public class AsyncStepHandler {
         log.debug("Unregistered async steps for workflow {}", workflowId);
     }
     
-    /**
-     * Builds method arguments for async step invocation.
-     * Async methods must accept: (Map<String, Object> taskArgs, WorkflowContext context, TaskProgressReporter progress)
-     */
-    private Object[] buildAsyncMethodArgs(Method method, Object asyncResult, 
-                                         WorkflowContext context, TaskProgressReporter progressReporter) {
-        Class<?>[] paramTypes = method.getParameterTypes();
-        Object[] args = new Object[paramTypes.length];
-        
-        boolean hasTaskArgs = false;
-        boolean hasContext = false;
-        boolean hasProgress = false;
-        
-        // Fill arguments based on parameter types
-        for (int i = 0; i < paramTypes.length; i++) {
-            Class<?> paramType = paramTypes[i];
-            
-            if (!hasTaskArgs && (Map.class.isAssignableFrom(paramType) || paramType.isInstance(asyncResult))) {
-                args[i] = asyncResult;
-                hasTaskArgs = true;
-            } else if (!hasContext && WorkflowContext.class.isAssignableFrom(paramType)) {
-                args[i] = context;
-                hasContext = true;
-            } else if (!hasProgress && TaskProgressReporter.class.isAssignableFrom(paramType)) {
-                args[i] = progressReporter;
-                hasProgress = true;
-            } else {
-                throw new IllegalArgumentException(
-                    "Async method " + method.getName() + " has unexpected parameter type at position " + i + 
-                    ": " + paramType.getName()
-                );
-            }
-        }
-        
-        // Validate that all required parameters are present
-        if (!hasProgress) {
-            throw new IllegalArgumentException(
-                "Async method " + method.getName() + " must accept TaskProgressReporter parameter"
-            );
-        }
-        
-        return args;
-    }
     
     /**
      * Internal metadata for registered async steps.

@@ -4,9 +4,8 @@ import ai.driftkit.workflow.engine.builder.RetryPolicyBuilder;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
-import ai.driftkit.workflow.test.assertions.WorkflowTestAssertions;
-import ai.driftkit.workflow.test.core.FluentWorkflowTest;
-import ai.driftkit.workflow.test.utils.RetryTestUtils;
+import ai.driftkit.workflow.test.core.WorkflowTestBase;
+import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
@@ -22,12 +21,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Shows how the test framework simplifies retry testing compared to manual setup.
  */
 @Slf4j
-public class RetryWorkflowTestExample extends FluentWorkflowTest {
+public class RetryWorkflowTestExample extends WorkflowTestBase {
     
-    @Override
-    protected void registerWorkflows() {
-        // Workflows are registered individually in each test method
-    }
     
     @Test
     void testRetryWithTestFramework() throws Exception {
@@ -35,6 +30,7 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
         var retryPolicy = RetryPolicyBuilder.retry()
             .withMaxAttempts(3)
             .withDelay(100)
+            .withRetryOnFailResult(true)
             .build();
             
         WorkflowBuilder<String, String> builder = WorkflowBuilder.define("retry-workflow", String.class, String.class)
@@ -46,14 +42,12 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
                 return StepResult.finish("Processed: " + data);
             });
         
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // Setup retry behavior - fail twice, then succeed using new API
-        testContext.configure(config -> config
-            .mock().workflow("retry-workflow").step("unreliable-step").times(2)
-                .thenFail(new RuntimeException("Service unavailable"))
-                .afterwards().thenReturn(Object.class, input -> StepResult.continueWith(input))
-        );
+        orchestrator.mock().workflow("retry-workflow").step("unreliable-step")
+            .times(2).thenFail(new RuntimeException("Service unavailable"))
+            .afterwards().thenReturn(Object.class, input -> StepResult.continueWith(input));
         
         // Execute
         var result = executeWorkflow("retry-workflow", "test-data");
@@ -62,11 +56,7 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
         assertEquals("Processed: test-data", result);
         
         // Verify retry behavior - should be 3 total attempts
-        assertEquals(3, testInterceptor.getExecutionTracker().getExecutionCount("retry-workflow", "unreliable-step"));
-        
-        // Verify execution history shows retries
-        WorkflowTestAssertions.assertThat(testInterceptor.getExecutionTracker().getHistory())
-            .hasExecutionCount("retry-workflow", "unreliable-step", 3);
+        assertions.assertStep("retry-workflow", "unreliable-step").wasExecutedTimes(3);
     }
     
     @Test
@@ -75,6 +65,7 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
             .withMaxAttempts(4)
             .withDelay(100)
             .withBackoffMultiplier(2.0)
+            .withRetryOnFailResult(true)
             .build();
             
         WorkflowBuilder<Integer, Integer> builder = WorkflowBuilder.define("backoff-workflow", Integer.class, Integer.class)
@@ -87,23 +78,22 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
                 return StepResult.finish(num * 2);
             });
         
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // Use test framework to control retry behavior - fail twice then succeed
-        testContext.configure(config -> config
-            .mock().workflow("backoff-workflow").step("flaky-calculation").times(2)
+        orchestrator.mock().workflow("backoff-workflow").step("flaky-calculation").times(2)
                 .thenFail(new RuntimeException("Temporary failure"))
-                .afterwards().thenReturn(Object.class, input -> StepResult.continueWith((Integer) input * 10))
-        );
+                .afterwards().thenReturn(Object.class, input -> StepResult.continueWith((Integer) input * 10));
         
         // Execute
         var result = executeWorkflow("backoff-workflow", 5);
         
         // Assert
-        assertEquals(50, result); // 5 * 10
+        assertEquals(100, result); // (5 * 10) * 2
         
-        // Verify retry count
+        // Verify execution count - when using mocks, the interceptor sees each call
         assertEquals(3, testInterceptor.getExecutionTracker().getExecutionCount("backoff-workflow", "flaky-calculation"));
+        // The step was actually attempted 3 times (2 failures + 1 success)
     }
     
     @Test
@@ -111,6 +101,7 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
         var retryPolicy = RetryPolicyBuilder.retry()
             .withMaxAttempts(3)
             .withDelay(50)
+            .withRetryOnFailResult(true)
             .build();
             
         WorkflowBuilder<String, String> builder = WorkflowBuilder.define("exhaustion-workflow", String.class, String.class)
@@ -122,7 +113,7 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
                 return StepResult.finish("Should not reach here");
             });
         
-        registerWorkflow(builder);
+        engine.register(builder);
         
         // No mocking - let it fail naturally
         try {
@@ -136,16 +127,16 @@ public class RetryWorkflowTestExample extends FluentWorkflowTest {
             if (e.getCause() != null) {
                 message = e.getCause().getMessage();
             }
-            assertTrue(message.contains("Permanent failure"), 
-                "Expected error message to contain 'Permanent failure' but was: " + message);
+            // The error message should indicate retry exhaustion
+            assertTrue(message.contains("failed after") && message.contains("attempts"), 
+                "Expected error message to indicate retry exhaustion but was: " + message);
         }
         
-        // Verify all retry attempts were made
-        assertEquals(3, testInterceptor.getExecutionTracker().getExecutionCount("exhaustion-workflow", "always-fails"));
+        // Verify all retry attempts were made - without mocks, ExecutionTracker sees actual retries
+        assertions.assertStep("exhaustion-workflow", "always-fails").wasExecutedTimes(3);
+        // The step was attempted 3 times by RetryExecutor before giving up
         
         // Verify the next step was never executed
-        WorkflowTestAssertions.assertThat(testInterceptor.getExecutionTracker().getHistory())
-            .hasExecutionCount("exhaustion-workflow", "always-fails", 3)
-            .hasExecutionCount("exhaustion-workflow", "never-reached", 0);
+        assertions.assertStep("exhaustion-workflow", "never-reached").wasNotExecuted();
     }
 }

@@ -21,6 +21,8 @@ import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.engine.schema.SchemaUtils;
+import ai.driftkit.workflow.engine.utils.UserInputHandler;
+import ai.driftkit.workflow.engine.utils.TypeCompatibilityChecker;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -352,8 +354,7 @@ public class WorkflowEngine {
         }
 
         // Store the user input separately with its type information
-        instance.updateContext(WorkflowContext.Keys.USER_INPUT, input);
-        instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, input.getClass().getName());
+        UserInputHandler.saveUserInput(instance, input);
 
         // Validate input type if specified in suspension data
         if (suspensionData != null && suspensionData.nextInputClass() != null) {
@@ -456,104 +457,23 @@ public class WorkflowEngine {
             return instance.getContext().getTriggerData();
         }
 
-        WorkflowContext ctx = instance.getContext();
-        Class<?> expectedInputType = step.executor().getInputType();
-
         // Priority 1: Check if we're resuming from suspension with user input
-        if (ctx.hasStepResult(WorkflowContext.Keys.USER_INPUT)) {
-            // Get the saved type information if available
-            String userInputTypeName = ctx.getStepResultOrDefault(
-                    WorkflowContext.Keys.USER_INPUT_TYPE, String.class, null);
-
-            Object userInput = null;
-
-            // Try to deserialize with the correct type if we have type information
-            if (userInputTypeName != null && expectedInputType != null) {
-                try {
-                    Class<?> savedType = Class.forName(userInputTypeName);
-                    // Only use the saved type if it's compatible with the expected type
-                    if (expectedInputType.isAssignableFrom(savedType)) {
-                        userInput = ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, savedType);
-                        log.debug("Deserialized user input with saved type {} for step {}",
-                                savedType.getSimpleName(), step.id());
-                    } else {
-                        // Type mismatch - fall back to Object.class
-                        userInput = ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, Object.class);
-                        log.warn("Saved type {} is not compatible with expected type {} for step {}",
-                                savedType.getSimpleName(), expectedInputType.getSimpleName(), step.id());
-                    }
-                } catch (ClassNotFoundException e) {
-                    log.warn("Could not load saved type class: {}, falling back to Object.class",
-                            userInputTypeName);
-                    userInput = ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, Object.class);
-                }
-            } else {
-                // No type information available - use Object.class as before
-                userInput = ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, Object.class);
-            }
-
-            if (userInput != null && step.canAcceptInput(userInput.getClass())) {
-                log.debug("Using user input of type {} for step {}",
-                        userInput.getClass().getSimpleName(), step.id());
-                // Remove userInput and its type from context after use
-                instance.updateContext(WorkflowContext.Keys.USER_INPUT, null);
-                instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, null);
-                return userInput;
-            }
+        Object userInput = UserInputHandler.getUserInputForStep(instance, step);
+        if (userInput != null) {
+            return userInput;
         }
 
         // Priority 2: Find the most recent compatible output from execution history
-        List<WorkflowInstance.StepExecutionRecord> history = instance.getExecutionHistory();
-        if (!history.isEmpty()) {
-            // Traverse history from most recent to oldest
-            for (int i = history.size() - 1; i >= 0; i--) {
-                WorkflowInstance.StepExecutionRecord exec = history.get(i);
-
-                // Skip if it's the current step
-                if (exec.getStepId().equals(step.id())) {
-                    continue;
-                }
-
-                // Skip if step output doesn't exist
-                if (!ctx.hasStepResult(exec.getStepId())) {
-                    continue;
-                }
-
-                // Get the step output with proper type information
-                try {
-                    StepOutput output = ctx.getStepOutputs().get(exec.getStepId());
-                    if (output == null || !output.hasValue()) {
-                        continue;
-                    }
-                    
-                    // Check if this output matches the expected input type exactly
-                    if (expectedInputType != null && expectedInputType != Object.class) {
-                        if (output.getActualClass().equals(expectedInputType)) {
-                            Object result = output.getValue();
-                            log.debug("Using exact type match from step {} (type: {}) as input for step {}",
-                                    exec.getStepId(), output.getActualClass().getSimpleName(), step.id());
-                            return result;
-                        }
-                    }
-                    
-                    // Check type compatibility
-                    if (step.canAcceptInput(output.getActualClass())) {
-                        Object result = output.getValue();
-                        log.debug("Using compatible output from step {} (type: {}) as input for step {}",
-                                exec.getStepId(), output.getActualClass().getSimpleName(), step.id());
-                        return result;
-                    }
-                } catch (Exception e) {
-                    log.error("Error retrieving output from step {}", exec.getStepId(), e);
-                    continue;
-                }
-            }
+        Object historyOutput = TypeCompatibilityChecker.findCompatibleOutputFromHistory(instance, step);
+        if (historyOutput != null) {
+            return historyOutput;
         }
 
         // Priority 3: Only check trigger data for initial steps
         // This prevents non-initial steps (like those in branches) from accidentally
         // getting the workflow's original input instead of the previous step's output
         if (step.isInitial()) {
+            WorkflowContext ctx = instance.getContext();
             Object triggerData = ctx.getTriggerData();
             if (triggerData != null && step.canAcceptInput(triggerData.getClass())) {
                 log.debug("Using trigger data of type {} for initial step {}",
@@ -563,6 +483,7 @@ public class WorkflowEngine {
         }
 
         // No suitable input available
+        Class<?> expectedInputType = step.executor().getInputType();
         log.error("No suitable input found for step {} (expected type: {})",
                 step.id(),
                 expectedInputType != null ? expectedInputType.getSimpleName() : "any");
@@ -583,27 +504,8 @@ public class WorkflowEngine {
         String asyncTaskId = async.taskId();
         Object immediateData = async.immediateData();
 
-        // Create structured async state and save to repository
-        AsyncStepState asyncState = AsyncStepState.started(asyncTaskId, immediateData);
-        asyncStepStateRepository.save(asyncState);
-        
-        // Store the messageId for this async step (not in context, just for tracking)
-        final String messageId = asyncState.getMessageId();
-        
-        // Create suspension data with async state message ID
-        SuspensionData suspensionData = SuspensionData.createWithMessageId(
-            messageId,
-            immediateData,  // The initial async data is the prompt to user
-            Map.of("async", true, "taskId", asyncTaskId),
-            async,  // Original async result
-            currentStep.id(),
-            null  // No next input class for async
-        );
-
-        // Suspend the workflow with suspension data
-        instance.suspend();
-        suspensionDataRepository.save(instance.getInstanceId(), suspensionData);
-        stateRepository.save(instance);
+        // Setup async state and suspend workflow
+        final String messageId = setupAsyncState(instance, currentStep, async, asyncTaskId, immediateData);
 
         // Track the execution with initial event
         WorkflowEvent trackingEvent = WorkflowEvent.asyncStarted(asyncTaskId, "");
@@ -626,192 +528,8 @@ public class WorkflowEngine {
         }
         
         // Create async task supplier for traditional async handlers
-        Supplier<Object> asyncTask = () -> {
-            try {
-                log.debug("Executing async task {} for step {}", asyncTaskId, currentStep.id());
-
-                // Create progress reporter that also updates the repository
-                TaskProgressReporter baseReporter = progressTracker.createReporter(asyncTaskId);
-                TaskProgressReporter progressReporter = new TaskProgressReporter() {
-                    @Override
-                    public void updateProgress(int percentComplete, String message) {
-                        // Update base reporter
-                        baseReporter.updateProgress(percentComplete, message);
-                        
-                        // Also update async state in repository
-                        if (percentComplete >= 0) {
-                            asyncStepStateRepository.updateProgress(messageId, percentComplete, message);
-                        } else {
-                            // Just update message - need to get current progress first
-                            asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
-                                asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
-                            });
-                        }
-                    }
-
-                    @Override
-                    public void updateProgress(int percentComplete) {
-                        baseReporter.updateProgress(percentComplete);
-                        asyncStepStateRepository.updateProgress(messageId, percentComplete, 
-                            "Processing... " + percentComplete + "%");
-                    }
-
-                    @Override
-                    public void updateMessage(String message) {
-                        baseReporter.updateMessage(message);
-                        asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
-                            asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
-                        });
-                    }
-
-                    @Override
-                    public boolean isCancelled() {
-                        // Check if cancelled directly from repository
-                        return asyncStepStateRepository.findByMessageId(messageId)
-                                .map(state -> state.getStatus() == AsyncStepState.AsyncStatus.CANCELLED)
-                                .orElse(baseReporter.isCancelled());
-                    }
-                };
-
-                // Find the async step handler - try both taskId and stepId for compatibility
-                StepResult<?> handlerResult = asyncStepHandler.handleAsyncResult(
-                        graph,
-                        asyncTaskId,  // First try task ID to match @AsyncStep value
-                        currentStep.id(),  // Fall back to step ID if not found
-                        async.taskArgs(),  // Pass taskArgs directly
-                        instance.getContext(),
-                        progressReporter
-                );
-
-                if (handlerResult != null) {
-                    // Process the handler result in a new thread to avoid deadlock
-                    try {
-                        // Reload instance to get latest state
-                        WorkflowInstance latestInstance = stateRepository.load(instance.getInstanceId())
-                                .orElse(instance);
-
-                        // Update async state with completion
-                        asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
-                            state.complete(handlerResult);
-                            asyncStepStateRepository.save(state);
-                            
-                            WorkflowEvent completedEvent = WorkflowEvent.completed(Map.of(
-                                "taskId", asyncTaskId,
-                                "status", "completed"
-                            ));
-                            progressTracker.updateExecutionStatus(asyncTaskId, completedEvent);
-                        });
-
-                        // Process async handler result WITHOUT recursion
-                        switch (handlerResult) {
-                            case StepResult.Continue<?> cont -> {
-                                // Store the async result
-                                latestInstance.updateContext(currentStep.id(), cont.data());
-
-                                // Resume workflow from suspended state
-                                latestInstance.resume();
-
-                                // Find next step
-                                String nextStepId = stepRouter.findNextStep(graph, currentStep.id(), cont.data());
-                                if (nextStepId != null) {
-                                    latestInstance.setCurrentStepId(nextStepId);
-                                    stateRepository.save(latestInstance);
-
-                                    // Continue workflow execution
-                                    if (!latestInstance.isTerminal()) {
-                                        executeWorkflow(latestInstance, graph, execution);
-                                    }
-                                } else {
-                                    log.warn("No next step found after async handler for: {}", currentStep.id());
-                                    latestInstance.fail(new IllegalStateException("No next step after async " + currentStep.id()),
-                                            currentStep.id());
-                                    stateRepository.save(latestInstance);
-                                    execution.future.completeExceptionally(
-                                            new IllegalStateException("No next step after async " + currentStep.id()));
-                                }
-                            }
-
-                            case StepResult.Finish<?> finish -> {
-                                // Update final result and resume
-                                latestInstance.updateContext(currentStep.id(), finish.result());
-                                latestInstance.resume();
-
-                                // Workflow completed
-                                latestInstance.updateContext(WorkflowContext.Keys.FINAL_RESULT, finish.result());
-                                latestInstance.updateStatus(WorkflowStatus.COMPLETED);
-                                stateRepository.save(latestInstance);
-                                // Get the typed result using the workflow's output type
-                                R typedResult = latestInstance.getContext().getStepResult(
-                                        WorkflowContext.Keys.FINAL_RESULT, graph.outputType());
-                                execution.future.complete(typedResult);
-                            }
-
-                            case StepResult.Fail<?> fail -> {
-                                // Resume to failed state
-                                latestInstance.resume();
-
-                                // Workflow failed
-                                latestInstance.fail(fail.error(), currentStep.id());
-                                stateRepository.save(latestInstance);
-                                execution.future.completeExceptionally(fail.error());
-                            }
-
-                            case StepResult.Async<?> asyncResult -> {
-                                // Async handler returned another async - this is not supported
-                                throw new IllegalStateException(
-                                        "Async handler cannot return another Async result: " + currentStep.id()
-                                );
-                            }
-
-                            case StepResult.Suspend<?> susp -> {
-                                // Suspend from async handler
-                                SuspensionData asyncSuspensionData = SuspensionData.create(
-                                        susp.promptToUser(),
-                                        susp.metadata(),
-                                        null,
-                                        currentStep.id(),
-                                        susp.nextInputClass()
-                                );
-                                latestInstance.suspend();
-                                suspensionDataRepository.save(latestInstance.getInstanceId(), asyncSuspensionData);
-                                stateRepository.save(latestInstance);
-                            }
-
-                            case StepResult.Branch<?> branch -> {
-                                // Resume workflow
-                                latestInstance.resume();
-                                // Find branch target
-                                String branchTarget = stepRouter.findBranchTarget(graph, currentStep.id(), branch.event());
-                                if (branchTarget != null) {
-                                    latestInstance.setCurrentStepId(branchTarget);
-                                    latestInstance.updateContext(currentStep.id(), branch.event());
-                                    stateRepository.save(latestInstance);
-
-                                    // Continue execution
-                                    if (!latestInstance.isTerminal()) {
-                                        executeWorkflow(latestInstance, graph, execution);
-                                    }
-                                } else {
-                                    throw new IllegalStateException(
-                                            "No branch target found for event: " + branch.event().getClass()
-                                    );
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("Error processing async handler result for step {}", currentStep.id(), e);
-                        instance.fail(e, currentStep.id());
-                        stateRepository.save(instance);
-                        execution.future.completeExceptionally(e);
-                    }
-                }
-
-                return handlerResult;
-            } catch (Exception e) {
-                log.error("Async task {} failed for step {}", asyncTaskId, currentStep.id(), e);
-                throw new RuntimeException("Async execution failed", e);
-            }
-        };
+        Supplier<Object> asyncTask = createAsyncTaskSupplier(instance, graph, currentStep, 
+                                                            async, execution, asyncTaskId, messageId);
 
         // Execute async task with progress tracking
         CompletableFuture<Object> future = progressTracker.executeAsync(
@@ -827,28 +545,7 @@ public class WorkflowEngine {
                     .orElse(instance);
 
             if (error != null) {
-                log.error("Async task {} completed with error", asyncTaskId, error);
-                progressTracker.onError(asyncTaskId, error);
-
-                // Update async state with error
-                Optional<SuspensionData> errorSuspensionData = suspensionDataRepository.findByInstanceId(latestInstance.getInstanceId());
-                String errorMessageId = errorSuspensionData.map(SuspensionData::messageId).orElse(null);
-                if (errorMessageId != null) {
-                    asyncStepStateRepository.findByMessageId(errorMessageId).ifPresent(state -> {
-                        state.fail(error);
-                        asyncStepStateRepository.save(state);
-                    });
-                }
-
-                // Update instance state
-                latestInstance.fail(error, currentStep.id());
-                stateRepository.save(latestInstance);
-
-                // Complete execution exceptionally
-                execution.future.completeExceptionally(error);
-
-                // Notify listeners
-                notifyListeners(l -> l.onStepFailed(latestInstance, currentStep.id(), error));
+                handleAsyncTaskError(latestInstance, currentStep, asyncTaskId, error, execution);
             } else {
                 log.debug("Async task {} completed successfully", asyncTaskId);
                 progressTracker.onComplete(asyncTaskId, result);
@@ -862,6 +559,62 @@ public class WorkflowEngine {
         // Notify listeners about async start (workflow is now suspended)
         notifyListeners(l -> l.onStepCompleted(instance, currentStep.id(), async));
         notifyListeners(l -> l.onWorkflowSuspended(instance));
+    }
+    
+    /**
+     * Creates the async task supplier that executes the async handler.
+     */
+    private <R> Supplier<Object> createAsyncTaskSupplier(WorkflowInstance instance,
+                                                        WorkflowGraph<?, R> graph,
+                                                        StepNode currentStep,
+                                                        StepResult.Async<?> async,
+                                                        WorkflowExecution<R> execution,
+                                                        String asyncTaskId,
+                                                        String messageId) {
+        return () -> {
+            try {
+                log.debug("Executing async task {} for step {}", asyncTaskId, currentStep.id());
+
+                // Create progress reporter that also updates the repository
+                TaskProgressReporter progressReporter = createRepositoryAwareProgressReporter(asyncTaskId, messageId);
+
+                // Find the async step handler - try both taskId and stepId for compatibility
+                StepResult<?> handlerResult = asyncStepHandler.handleAsyncResult(
+                        graph,
+                        asyncTaskId,  // First try task ID to match @AsyncStep value
+                        currentStep.id(),  // Fall back to step ID if not found
+                        async.taskArgs(),  // Pass taskArgs directly
+                        instance.getContext(),
+                        progressReporter
+                );
+
+                if (handlerResult != null) {
+                    // Process the handler result
+                    try {
+                        // Reload instance to get latest state
+                        WorkflowInstance latestInstance = stateRepository.load(instance.getInstanceId())
+                                .orElse(instance);
+
+                        // Update async state with completion
+                        updateAsyncStateCompletion(messageId, asyncTaskId, handlerResult);
+
+                        // Process async handler result WITHOUT recursion
+                        processAsyncHandlerResult(latestInstance, graph, currentStep, handlerResult, 
+                                                 execution, asyncTaskId, messageId);
+                    } catch (Exception e) {
+                        log.error("Error processing async handler result for step {}", currentStep.id(), e);
+                        instance.fail(e, currentStep.id());
+                        stateRepository.save(instance);
+                        execution.future.completeExceptionally(e);
+                    }
+                }
+
+                return handlerResult;
+            } catch (Exception e) {
+                log.error("Async task {} failed for step {}", asyncTaskId, currentStep.id(), e);
+                throw new RuntimeException("Async execution failed", e);
+            }
+        };
     }
 
     /**
@@ -1334,5 +1087,269 @@ public class WorkflowEngine {
         public void onStepError(WorkflowInstance instance, StepNode step, Exception error) {
             notifyListeners(l -> l.onStepFailed(instance, step.id(), error));
         }
+    }
+    
+    /**
+     * Sets up the initial async state for a workflow step.
+     * Creates AsyncStepState and SuspensionData, then suspends the workflow.
+     * 
+     * @return The messageId of the created async state
+     */
+    private String setupAsyncState(WorkflowInstance instance, StepNode currentStep, 
+                                   StepResult.Async<?> async, String asyncTaskId, Object immediateData) {
+        // Create structured async state and save to repository
+        AsyncStepState asyncState = AsyncStepState.started(asyncTaskId, immediateData);
+        asyncStepStateRepository.save(asyncState);
+        
+        final String messageId = asyncState.getMessageId();
+        
+        // Create suspension data with async state message ID
+        SuspensionData suspensionData = SuspensionData.createWithMessageId(
+            messageId,
+            immediateData,  // The initial async data is the prompt to user
+            Map.of("async", true, "taskId", asyncTaskId),
+            async,  // Original async result
+            currentStep.id(),
+            null  // No next input class for async
+        );
+
+        // Suspend the workflow with suspension data
+        instance.suspend();
+        suspensionDataRepository.save(instance.getInstanceId(), suspensionData);
+        stateRepository.save(instance);
+        
+        return messageId;
+    }
+    
+    /**
+     * Creates a task progress reporter that updates both the progress tracker and repository.
+     */
+    private TaskProgressReporter createRepositoryAwareProgressReporter(String asyncTaskId, String messageId) {
+        TaskProgressReporter baseReporter = progressTracker.createReporter(asyncTaskId);
+        
+        return new TaskProgressReporter() {
+            @Override
+            public void updateProgress(int percentComplete, String message) {
+                // Update base reporter
+                baseReporter.updateProgress(percentComplete, message);
+                
+                // Also update async state in repository
+                if (percentComplete >= 0) {
+                    asyncStepStateRepository.updateProgress(messageId, percentComplete, message);
+                } else {
+                    // Just update message - need to get current progress first
+                    asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
+                        asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
+                    });
+                }
+            }
+
+            @Override
+            public void updateProgress(int percentComplete) {
+                baseReporter.updateProgress(percentComplete);
+                asyncStepStateRepository.updateProgress(messageId, percentComplete, 
+                    "Processing... " + percentComplete + "%");
+            }
+
+            @Override
+            public void updateMessage(String message) {
+                baseReporter.updateMessage(message);
+                asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
+                    asyncStepStateRepository.updateProgress(messageId, state.getPercentComplete(), message);
+                });
+            }
+
+            @Override
+            public boolean isCancelled() {
+                // Check if cancelled directly from repository
+                return asyncStepStateRepository.findByMessageId(messageId)
+                        .map(state -> state.getStatus() == AsyncStepState.AsyncStatus.CANCELLED)
+                        .orElse(baseReporter.isCancelled());
+            }
+        };
+    }
+    
+    /**
+     * Processes the result of an async handler after it completes.
+     * Handles different StepResult types appropriately.
+     */
+    private <R> void processAsyncHandlerResult(WorkflowInstance latestInstance, WorkflowGraph<?, R> graph,
+                                          StepNode currentStep, StepResult<?> handlerResult,
+                                          WorkflowExecution<R> execution, String asyncTaskId, String messageId) {
+        switch (handlerResult) {
+            case StepResult.Continue<?> cont -> 
+                handleAsyncContinue(latestInstance, graph, currentStep, cont, execution);
+            
+            case StepResult.Finish<?> finish -> 
+                handleAsyncFinish(latestInstance, currentStep, finish, execution);
+            
+            case StepResult.Fail<?> fail -> 
+                handleAsyncFail(latestInstance, currentStep, fail, execution);
+            
+            case StepResult.Async<?> asyncResult -> 
+                throw new IllegalStateException(
+                    "Async handler cannot return another Async result: " + currentStep.id());
+            
+            case StepResult.Suspend<?> susp -> 
+                handleAsyncSuspend(latestInstance, currentStep, susp);
+            
+            case StepResult.Branch<?> branch -> 
+                handleAsyncBranch(latestInstance, graph, currentStep, branch, execution);
+        }
+    }
+    
+    /**
+     * Handles Continue result from async handler.
+     */
+    private <R> void handleAsyncContinue(WorkflowInstance instance, WorkflowGraph<?, R> graph,
+                                    StepNode currentStep, StepResult.Continue<?> cont,
+                                    WorkflowExecution<R> execution) {
+        // Store the async result
+        instance.updateContext(currentStep.id(), cont.data());
+
+        // Resume workflow from suspended state
+        instance.resume();
+
+        // Find next step
+        String nextStepId = stepRouter.findNextStep(graph, currentStep.id(), cont.data());
+        if (nextStepId != null) {
+            instance.setCurrentStepId(nextStepId);
+            stateRepository.save(instance);
+
+            // Continue workflow execution
+            if (!instance.isTerminal()) {
+                executeWorkflow(instance, graph, execution);
+            }
+        } else {
+            log.warn("No next step found after async handler for: {}", currentStep.id());
+            instance.fail(new IllegalStateException("No next step after async " + currentStep.id()),
+                    currentStep.id());
+            stateRepository.save(instance);
+            execution.future.completeExceptionally(
+                    new IllegalStateException("No next step after async " + currentStep.id()));
+        }
+    }
+    
+    /**
+     * Handles Finish result from async handler.
+     */
+    @SuppressWarnings("unchecked")
+    private <R> void handleAsyncFinish(WorkflowInstance instance, StepNode currentStep,
+                                      StepResult.Finish<?> finish, WorkflowExecution<R> execution) {
+        // Update final result and resume
+        instance.updateContext(currentStep.id(), finish.result());
+        instance.resume();
+
+        // Workflow completed
+        instance.updateContext(WorkflowContext.Keys.FINAL_RESULT, finish.result());
+        instance.updateStatus(WorkflowStatus.COMPLETED);
+        stateRepository.save(instance);
+        
+        // Get the typed result using the workflow's output type
+        R typedResult = (R) finish.result();
+        execution.future.complete(typedResult);
+    }
+    
+    /**
+     * Handles Fail result from async handler.
+     */
+    private void handleAsyncFail(WorkflowInstance instance, StepNode currentStep,
+                                StepResult.Fail<?> fail, WorkflowExecution<?> execution) {
+        // Resume to failed state
+        instance.resume();
+
+        // Workflow failed
+        instance.fail(fail.error(), currentStep.id());
+        stateRepository.save(instance);
+        execution.future.completeExceptionally(fail.error());
+    }
+    
+    /**
+     * Handles Suspend result from async handler.
+     */
+    private void handleAsyncSuspend(WorkflowInstance instance, StepNode currentStep,
+                                   StepResult.Suspend<?> susp) {
+        // Suspend from async handler
+        SuspensionData asyncSuspensionData = SuspensionData.create(
+                susp.promptToUser(),
+                susp.metadata(),
+                null,
+                currentStep.id(),
+                susp.nextInputClass()
+        );
+        instance.suspend();
+        suspensionDataRepository.save(instance.getInstanceId(), asyncSuspensionData);
+        stateRepository.save(instance);
+    }
+    
+    /**
+     * Handles Branch result from async handler.
+     */
+    private <R> void handleAsyncBranch(WorkflowInstance instance, WorkflowGraph<?, R> graph,
+                                  StepNode currentStep, StepResult.Branch<?> branch,
+                                  WorkflowExecution<R> execution) {
+        // Resume workflow
+        instance.resume();
+        // Find branch target
+        String branchTarget = stepRouter.findBranchTarget(graph, currentStep.id(), branch.event());
+        if (branchTarget != null) {
+            instance.setCurrentStepId(branchTarget);
+            instance.updateContext(currentStep.id(), branch.event());
+            stateRepository.save(instance);
+
+            // Continue execution
+            if (!instance.isTerminal()) {
+                executeWorkflow(instance, graph, execution);
+            }
+        } else {
+            throw new IllegalStateException(
+                    "No branch target found for event: " + branch.event().getClass()
+            );
+        }
+    }
+    
+    /**
+     * Updates async state with completion information.
+     */
+    private void updateAsyncStateCompletion(String messageId, String asyncTaskId, StepResult<?> handlerResult) {
+        asyncStepStateRepository.findByMessageId(messageId).ifPresent(state -> {
+            state.complete(handlerResult);
+            asyncStepStateRepository.save(state);
+            
+            WorkflowEvent completedEvent = WorkflowEvent.completed(Map.of(
+                "taskId", asyncTaskId,
+                "status", "completed"
+            ));
+            progressTracker.updateExecutionStatus(asyncTaskId, completedEvent);
+        });
+    }
+    
+    /**
+     * Handles async task execution errors.
+     */
+    private void handleAsyncTaskError(WorkflowInstance instance, StepNode currentStep,
+                                     String asyncTaskId, Throwable error, WorkflowExecution<?> execution) {
+        log.error("Async task {} completed with error", asyncTaskId, error);
+        progressTracker.onError(asyncTaskId, error);
+
+        // Update async state with error
+        Optional<SuspensionData> errorSuspensionData = suspensionDataRepository.findByInstanceId(instance.getInstanceId());
+        String errorMessageId = errorSuspensionData.map(SuspensionData::messageId).orElse(null);
+        if (errorMessageId != null) {
+            asyncStepStateRepository.findByMessageId(errorMessageId).ifPresent(state -> {
+                state.fail(error);
+                asyncStepStateRepository.save(state);
+            });
+        }
+
+        // Update instance state
+        instance.fail(error, currentStep.id());
+        stateRepository.save(instance);
+
+        // Complete execution exceptionally
+        execution.future.completeExceptionally(error);
+
+        // Notify listeners
+        notifyListeners(l -> l.onStepFailed(instance, currentStep.id(), error));
     }
 }

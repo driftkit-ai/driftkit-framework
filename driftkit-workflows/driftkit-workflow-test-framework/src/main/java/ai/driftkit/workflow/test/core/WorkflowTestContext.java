@@ -18,6 +18,7 @@ public class WorkflowTestContext {
     private final Map<String, Object> attributes = new ConcurrentHashMap<>();
     private final MockRegistry mockRegistry = new MockRegistry();
     private final ExecutionTracker executionTracker = new ExecutionTracker();
+    private WorkflowTestInterceptor testInterceptor;
     
     /**
      * Stores an attribute in the test context.
@@ -142,5 +143,31 @@ public class WorkflowTestContext {
             context.setAttribute(key, value);
             return this;
         }
+    }
+    
+    /**
+     * Gets the mock builder for fluent API.
+     * 
+     * @return mock builder
+     */
+    public MockBuilder getMockBuilder() {
+        return new MockBuilder(mockRegistry);
+    }
+    
+    /**
+     * Sets the test interceptor.
+     * 
+     * @param interceptor the interceptor to set
+     */
+    public void setTestInterceptor(WorkflowTestInterceptor interceptor) {
+        this.testInterceptor = interceptor;
+    }
+    
+    /**
+     * Resets the test context state.
+     * Alias for clear() for better API consistency.
+     */
+    public void reset() {
+        clear();
     }
 }

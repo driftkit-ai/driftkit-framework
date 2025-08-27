@@ -22,9 +22,21 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
     private final MockRegistry mockRegistry;
     
     @Getter
-    private final ExecutionTracker executionTracker = new ExecutionTracker();
+    private final ExecutionTracker executionTracker;
     
     private final ThreadLocal<StepContext> currentStepContext = new ThreadLocal<>();
+    
+    /**
+     * Creates an interceptor with the provided mock registry and execution tracker.
+     * This allows sharing of components between test context and interceptor.
+     * 
+     * @param mockRegistry the mock registry to use
+     * @param executionTracker the execution tracker to use
+     */
+    public WorkflowTestInterceptor(MockRegistry mockRegistry, ExecutionTracker executionTracker) {
+        this.mockRegistry = Objects.requireNonNull(mockRegistry, "mockRegistry cannot be null");
+        this.executionTracker = Objects.requireNonNull(executionTracker, "executionTracker cannot be null");
+    }
     
     /**
      * Creates an interceptor with the provided mock registry.
@@ -33,7 +45,7 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
      * @param mockRegistry the mock registry to use
      */
     public WorkflowTestInterceptor(MockRegistry mockRegistry) {
-        this.mockRegistry = Objects.requireNonNull(mockRegistry, "mockRegistry cannot be null");
+        this(mockRegistry, new ExecutionTracker());
     }
     
     /**
@@ -41,7 +53,7 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
      * For backward compatibility.
      */
     public WorkflowTestInterceptor() {
-        this.mockRegistry = new MockRegistry();
+        this(new MockRegistry(), new ExecutionTracker());
     }
     
     public void beforeWorkflowStart(WorkflowInstance instance, Object input) {
@@ -74,11 +86,15 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
         log.debug("After step execution: {}.{} with result: {}", 
             instance.getWorkflowId(), step.id(), result);
         
-        StepContext context = currentStepContext.get();
-        if (context != null) {
-            executionTracker.recordStepComplete(context, result);
+        try {
+            StepContext context = currentStepContext.get();
+            if (context != null) {
+                executionTracker.recordStepComplete(context, result);
+            }
+        } finally {
+            // Always remove ThreadLocal even if exception occurs
+            currentStepContext.remove();
         }
-        currentStepContext.remove();
     }
     
     @Override
@@ -86,11 +102,15 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
         log.debug("On step error: {}.{} with error: {}", 
             instance.getWorkflowId(), step.id(), error.getMessage());
         
-        StepContext context = currentStepContext.get();
-        if (context != null) {
-            executionTracker.recordStepError(context, error);
+        try {
+            StepContext context = currentStepContext.get();
+            if (context != null) {
+                executionTracker.recordStepError(context, error);
+            }
+        } finally {
+            // Always remove ThreadLocal even if exception occurs
+            currentStepContext.remove();
         }
-        currentStepContext.remove();
     }
     
     @Override
@@ -113,7 +133,26 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
             try {
                 StepResult<?> result = mock.execute(input, context);
                 log.debug("Mock execution successful for {}.{} returned: {}", workflowId, stepId, result);
+                
+                // If the mock returns StepResult.fail(), we should NOT return it as a result.
+                // Instead, we should throw an exception so the RetryExecutor can handle retries properly.
+                // The interceptor should only return successful results.
+                if (result instanceof StepResult.Fail) {
+                    StepResult.Fail<?> failResult = (StepResult.Fail<?>) result;
+                    Throwable error = failResult.error();
+                    log.debug("Mock returned StepResult.fail(), throwing exception: {}", error.getMessage());
+                    if (error instanceof RuntimeException) {
+                        throw (RuntimeException) error;
+                    } else {
+                        throw new RuntimeException("Mock returned fail result", error);
+                    }
+                }
+                
                 return Optional.of(result);
+            } catch (RuntimeException e) {
+                // For retry testing, we need to let the original exception through
+                log.debug("Mock execution threw exception for {}.{}", workflowId, stepId, e);
+                throw e;
             } catch (Exception e) {
                 log.error("Mock execution failed for {}.{}", workflowId, stepId, e);
                 throw new WorkflowTestException(

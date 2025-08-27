@@ -107,6 +107,7 @@ public class ExecutionTracker {
     
     /**
      * Gets the execution count for a specific step.
+     * Supports both exact matches and partial matches for steps with prefixes.
      * 
      * @param workflowId the workflow ID
      * @param stepId the step ID
@@ -116,12 +117,27 @@ public class ExecutionTracker {
         Objects.requireNonNull(workflowId, "workflowId cannot be null");
         Objects.requireNonNull(stepId, "stepId cannot be null");
         
-        String key = workflowId + "." + stepId;
-        return executionCounts.getOrDefault(key, 0);
+        // First try exact match
+        String key = createKey(workflowId, stepId);
+        Integer exactCount = executionCounts.get(key);
+        if (exactCount != null) {
+            return exactCount;
+        }
+        
+        // Then try to find steps that contain the stepId (for branch-prefixed steps)
+        String prefix = workflowId + ".";
+        return executionCounts.entrySet().stream()
+            .filter(entry -> 
+                entry.getKey().startsWith(prefix) && 
+                entry.getKey().contains(stepId)
+            )
+            .mapToInt(Map.Entry::getValue)
+            .sum();
     }
     
     /**
      * Checks if a step was executed.
+     * Supports both exact matches and partial matches for steps with prefixes.
      * 
      * @param workflowId the workflow ID
      * @param stepId the step ID
@@ -147,6 +163,57 @@ public class ExecutionTracker {
     }
     
     /**
+     * Gets all executed step IDs for a workflow.
+     * 
+     * @param workflowId the workflow ID
+     * @return set of executed step IDs
+     */
+    public Set<String> getExecutedStepIds(String workflowId) {
+        Objects.requireNonNull(workflowId, "workflowId cannot be null");
+        
+        return getStepExecutions(workflowId).stream()
+            .filter(exec -> exec.getStatus() == ExecutionStatus.COMPLETED)
+            .map(ExecutionRecord::getStepId)
+            .collect(Collectors.toSet());
+    }
+    
+    /**
+     * Gets the list of executed step IDs for a workflow.
+     * 
+     * @param workflowId the workflow ID
+     * @return list of step IDs that were executed
+     */
+    public List<String> getExecutedSteps(String workflowId) {
+        Objects.requireNonNull(workflowId, "workflowId cannot be null");
+        
+        return executions.stream()
+            .filter(exec -> exec.getWorkflowId().equals(workflowId))
+            .filter(exec -> exec.getType() == RecordType.STEP)
+            .filter(exec -> exec.getStatus() == ExecutionStatus.STARTED)
+            .map(ExecutionRecord::getStepId)
+            .distinct()
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Increments the execution count for a specific step.
+     * This is used to track retry attempts.
+     * 
+     * @param workflowId the workflow ID
+     * @param stepId the step ID
+     */
+    public void incrementStepExecution(String workflowId, String stepId) {
+        Objects.requireNonNull(workflowId, "workflowId cannot be null");
+        Objects.requireNonNull(stepId, "stepId cannot be null");
+        
+        String key = createKey(workflowId, stepId);
+        incrementExecutionCount(key);
+        
+        log.debug("Incremented execution count for {}.{} to {}", 
+            workflowId, stepId, executionCounts.get(key));
+    }
+
+    /**
      * Clears all tracked executions.
      */
     public void clear() {
@@ -160,6 +227,17 @@ public class ExecutionTracker {
     }
     
     /**
+     * Creates a unique key for workflow and step combination.
+     * 
+     * @param workflowId the workflow ID
+     * @param stepId the step ID
+     * @return unique key in format "workflowId.stepId"
+     */
+    private String createKey(String workflowId, String stepId) {
+        return workflowId + "." + stepId;
+    }
+    
+    /**
      * Immutable snapshot of execution history.
      */
     @Getter
@@ -167,6 +245,15 @@ public class ExecutionTracker {
     public static class ExecutionHistory {
         private final List<ExecutionRecord> executions;
         private final Map<String, Integer> executionCounts;
+        
+        /**
+         * Gets all execution records.
+         * 
+         * @return list of all records
+         */
+        public List<ExecutionRecord> getRecords() {
+            return executions;
+        }
         
         /**
          * Gets executions in chronological order.

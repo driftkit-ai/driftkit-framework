@@ -26,8 +26,8 @@ public abstract class FluentWorkflowTest extends WorkflowTestBase {
     protected WorkflowEngine createEngine() {
         log.debug("Creating workflow engine for fluent API workflows");
         
-        // Create and store the state repository
-        stateRepository = new InMemoryWorkflowStateRepository();
+        // Create the state repository
+        var stateRepository = new InMemoryWorkflowStateRepository();
         
         WorkflowEngineConfig config = WorkflowEngineConfig.builder()
             .coreThreads(1)
@@ -63,11 +63,6 @@ public abstract class FluentWorkflowTest extends WorkflowTestBase {
      * }
      * }</pre>
      */
-    @Override
-    protected void registerWorkflows() {
-        // Subclasses should override to register workflows
-        log.debug("No workflows registered by default in FluentWorkflowTest");
-    }
     
     /**
      * Convenience method to register a fluent API workflow builder.

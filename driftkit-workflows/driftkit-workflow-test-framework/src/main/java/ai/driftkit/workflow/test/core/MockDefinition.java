@@ -18,10 +18,10 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class MockDefinition<I> {
     
-    private final String workflowId;
-    private final String stepId;
-    private final Class<I> inputType;
-    private final MockBehavior<I> behavior;
+    protected final String workflowId;
+    protected final String stepId;
+    protected final Class<I> inputType;
+    protected final MockBehavior<I> behavior;
     
     /**
      * Executes the mock behavior.
@@ -58,6 +58,33 @@ public class MockDefinition<I> {
     public static <I, O> MockDefinition<I> of(String workflowId, String stepId, 
                                               Class<I> inputType,
                                               Function<I, StepResult<O>> behavior) {
+        Objects.requireNonNull(workflowId, "workflowId cannot be null");
+        Objects.requireNonNull(stepId, "stepId cannot be null");
+        Objects.requireNonNull(inputType, "inputType cannot be null");
+        Objects.requireNonNull(behavior, "behavior cannot be null");
+        
+        return new MockDefinition<>(
+            workflowId, 
+            stepId, 
+            inputType,
+            (input, context) -> behavior.apply(input)
+        );
+    }
+    
+    /**
+     * Creates a mock definition that returns any type.
+     * Used when the exact return type is not known at compile time.
+     * 
+     * @param workflowId the workflow ID
+     * @param stepId the step ID  
+     * @param inputType the expected input type
+     * @param behavior the mock behavior function
+     * @param <I> input type
+     * @return mock definition
+     */
+    public static <I> MockDefinition<I> ofAny(String workflowId, String stepId,
+                                              Class<I> inputType,
+                                              Function<I, StepResult<?>> behavior) {
         Objects.requireNonNull(workflowId, "workflowId cannot be null");
         Objects.requireNonNull(stepId, "stepId cannot be null");
         Objects.requireNonNull(inputType, "inputType cannot be null");

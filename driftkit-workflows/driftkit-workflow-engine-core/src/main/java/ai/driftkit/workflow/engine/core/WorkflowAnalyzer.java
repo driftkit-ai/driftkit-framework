@@ -405,63 +405,111 @@ public class WorkflowAnalyzer {
         Map<String, List<Edge>> edges = new HashMap<>();
 
         for (StepInfo fromStep : stepInfos.values()) {
-            List<Edge> stepEdges = new ArrayList<>();
-
-            // First priority: type-based routing from nextClasses annotation
-            if (fromStep.getNextClasses() != null && fromStep.getNextClasses().length > 0) {
-                addNextClassEdges(fromStep, stepInfos, stepEdges);
-            }
-
-            // Second priority: explicit nextSteps from annotation
-            if (fromStep.getNextSteps() != null && fromStep.getNextSteps().length > 0) {
-                addExplicitEdges(fromStep, stepInfos, stepEdges);
-            }
-
-            // Third priority: condition-based branching (onTrue/onFalse)
-            if (fromStep.getCondition() != null && !fromStep.getCondition().isEmpty()) {
-                addConditionalEdges(fromStep, stepInfos, stepEdges);
-            }
-
-            // Fourth priority: automatic type-based routing (existing logic)
-            // Add automatic routing if:
-            // 1. No edges were created from explicit routing above
-            // 2. Either step has explicit routing configuration, OR step has no explicit routing (pure type-based)
-            boolean hasExplicitRouting = ArrayUtils.isNotEmpty(fromStep.getNextSteps()) || 
-                                        ArrayUtils.isNotEmpty(fromStep.getNextClasses());
+            List<Edge> stepEdges = buildEdgesForStep(fromStep, stepInfos);
             
-            if (stepEdges.isEmpty()) {
-                if (hasExplicitRouting) {
-                    log.debug("Step {} has explicit routing configuration but no edges found, checking automatic routing", fromStep.getId());
-                } else {
-                    log.debug("Step {} has no explicit routing, adding automatic type-based edges", fromStep.getId());
-                }
-                log.debug("  Continue type: {}", fromStep.getPossibleContinueType());
-                log.debug("  Branch types: {}", fromStep.getPossibleBranchTypes());
-
-                // Handle Continue<T> case - sequential flow
-                if (fromStep.getPossibleContinueType() != null) {
-                    addSequentialEdges(fromStep, stepInfos, stepEdges);
-                }
-
-                // Handle Branch with sealed interface - branching flow
-                if (!fromStep.getPossibleBranchTypes().isEmpty()) {
-                    addBranchEdges(fromStep, stepInfos, stepEdges);
-                }
-            }
-
-            // Handle error edges for steps that might fail
-            addErrorEdges(fromStep, stepInfos, stepEdges);
-
-            // Sort edges by priority (sequential, branch, error)
-            stepEdges.sort(Comparator.comparing(Edge::type));
-
             if (!stepEdges.isEmpty()) {
                 edges.put(fromStep.getId(), stepEdges);
             }
         }
 
-        // Validate graph connectivity
         // Validate graph structure
+        validateGraphStructure(stepInfos, edges);
+
+        return edges;
+    }
+    
+    /**
+     * Builds all edges for a single step.
+     */
+    private static List<Edge> buildEdgesForStep(StepInfo fromStep, Map<String, StepInfo> allSteps) {
+        List<Edge> stepEdges = new ArrayList<>();
+        
+        // Apply edge-building strategies in priority order
+        addAnnotationBasedEdges(fromStep, allSteps, stepEdges);
+        addAutomaticTypeBasedEdges(fromStep, allSteps, stepEdges);
+        addErrorHandlingEdges(fromStep, allSteps, stepEdges);
+        
+        // Sort edges by priority (sequential, branch, error)
+        stepEdges.sort(Comparator.comparing(Edge::type));
+        
+        return stepEdges;
+    }
+    
+    /**
+     * Adds edges based on annotation configurations (nextClasses, nextSteps, conditions).
+     */
+    private static void addAnnotationBasedEdges(StepInfo fromStep, Map<String, StepInfo> allSteps,
+                                                List<Edge> edges) {
+        // First priority: type-based routing from nextClasses annotation
+        if (fromStep.getNextClasses() != null && fromStep.getNextClasses().length > 0) {
+            addNextClassEdges(fromStep, allSteps, edges);
+        }
+
+        // Second priority: explicit nextSteps from annotation
+        if (fromStep.getNextSteps() != null && fromStep.getNextSteps().length > 0) {
+            addExplicitEdges(fromStep, allSteps, edges);
+        }
+
+        // Third priority: condition-based branching (onTrue/onFalse)
+        if (fromStep.getCondition() != null && !fromStep.getCondition().isEmpty()) {
+            addConditionalEdges(fromStep, allSteps, edges);
+        }
+    }
+    
+    /**
+     * Adds automatic type-based edges when no explicit routing is defined.
+     */
+    private static void addAutomaticTypeBasedEdges(StepInfo fromStep, Map<String, StepInfo> allSteps,
+                                                   List<Edge> edges) {
+        // Only add automatic routing if no edges were created from explicit routing
+        if (!edges.isEmpty()) {
+            return;
+        }
+        
+        boolean hasExplicitRouting = ArrayUtils.isNotEmpty(fromStep.getNextSteps()) || 
+                                    ArrayUtils.isNotEmpty(fromStep.getNextClasses());
+        
+        logAutomaticRoutingDecision(fromStep, hasExplicitRouting);
+        
+        // Handle Continue<T> case - sequential flow
+        if (fromStep.getPossibleContinueType() != null) {
+            addSequentialEdges(fromStep, allSteps, edges);
+        }
+
+        // Handle Branch with sealed interface - branching flow
+        if (!fromStep.getPossibleBranchTypes().isEmpty()) {
+            addBranchEdges(fromStep, allSteps, edges);
+        }
+    }
+    
+    /**
+     * Logs the decision about automatic routing.
+     */
+    private static void logAutomaticRoutingDecision(StepInfo fromStep, boolean hasExplicitRouting) {
+        if (hasExplicitRouting) {
+            log.debug("Step {} has explicit routing configuration but no edges found, checking automatic routing", 
+                     fromStep.getId());
+        } else {
+            log.debug("Step {} has no explicit routing, adding automatic type-based edges", 
+                     fromStep.getId());
+        }
+        log.debug("  Continue type: {}", fromStep.getPossibleContinueType());
+        log.debug("  Branch types: {}", fromStep.getPossibleBranchTypes());
+    }
+    
+    /**
+     * Adds error handling edges.
+     */
+    private static void addErrorHandlingEdges(StepInfo fromStep, Map<String, StepInfo> allSteps,
+                                             List<Edge> edges) {
+        addErrorEdges(fromStep, allSteps, edges);
+    }
+    
+    /**
+     * Validates the graph structure after building edges.
+     */
+    private static void validateGraphStructure(Map<String, StepInfo> stepInfos, 
+                                             Map<String, List<Edge>> edges) {
         Map<String, StepNode> nodeMap = new HashMap<>();
         for (StepInfo stepInfo : stepInfos.values()) {
             StepNode node = buildNodes(Map.of(stepInfo.getId(), stepInfo)).get(stepInfo.getId());
@@ -469,8 +517,6 @@ public class WorkflowAnalyzer {
         }
         String initialStep = findInitialStep(stepInfos);
         validateGraph(nodeMap, edges, initialStep);
-
-        return edges;
     }
 
     /**
