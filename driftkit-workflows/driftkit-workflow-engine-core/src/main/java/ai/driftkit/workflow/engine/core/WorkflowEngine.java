@@ -2,6 +2,7 @@ package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.domain.chat.ChatMessage;
+import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.async.TaskProgressReporter;
@@ -164,6 +165,9 @@ public class WorkflowEngine {
 
         // Register async steps if any
         asyncStepHandler.registerWorkflow(graph);
+        
+        // Register all input schemas for the workflow steps
+        registerWorkflowSchemas(graph);
 
         log.info("Registered workflow: {} (version: {}, async steps: {})",
                 workflowId, graph.version(),
@@ -356,10 +360,26 @@ public class WorkflowEngine {
         // Store the user input separately with its type information
         UserInputHandler.saveUserInput(instance, input);
 
-        // Validate input type if specified in suspension data
+        // When resuming with suspension data, find the next step
         if (suspensionData != null && suspensionData.nextInputClass() != null) {
             Class<?> expectedInputType = suspensionData.nextInputClass();
-            if (!expectedInputType.isInstance(input)) {
+            
+            // Special handling for ChatRequest with schema name
+            if (input instanceof ChatRequest) {
+                ChatRequest chatRequest = (ChatRequest) input;
+                String schemaName = chatRequest.getRequestSchemaName();
+                
+                if (schemaName != null) {
+                    // Find the actual input class by schema name
+                    Class<?> actualInputClass = SchemaUtils.getSchemaClass(schemaName);
+                    if (actualInputClass != null) {
+                        expectedInputType = actualInputClass;
+                        log.debug("Resume: ChatRequest with schema {}, resolved to class {}", 
+                                 schemaName, actualInputClass.getName());
+                    }
+                }
+                // Skip type validation for ChatRequest - it will be converted later
+            } else if (!expectedInputType.isInstance(input)) {
                 throw new IllegalArgumentException(
                         "Resume input type mismatch: expected " + expectedInputType.getName() +
                                 " but received " + input.getClass().getName()
@@ -372,18 +392,18 @@ public class WorkflowEngine {
             if (nextStepId != null) {
                 instance.setCurrentStepId(nextStepId);
                 log.debug("Resume: moving from suspended step {} to next step {} for input type {}",
-                        suspendedStepId, nextStepId, input.getClass().getSimpleName());
+                        suspendedStepId, nextStepId, expectedInputType.getSimpleName());
             } else {
-                // If no next step found by normal routing, try type-based routing
-                nextStepId = stepRouter.findStepForInputType(graph, input.getClass(), suspendedStepId);
+                // If no next step found by normal routing, try type-based routing with expected type
+                nextStepId = stepRouter.findStepForInputType(graph, expectedInputType, suspendedStepId);
                 if (nextStepId != null) {
                     instance.setCurrentStepId(nextStepId);
                     log.debug("Resume: found step {} that accepts input type {} using type-based routing",
-                            nextStepId, input.getClass().getSimpleName());
+                            nextStepId, expectedInputType.getSimpleName());
                 } else {
                     throw new IllegalStateException(
                             "No step found that can process resume input of type: " + 
-                            input.getClass().getName()
+                            expectedInputType.getName()
                     );
                 }
             }
@@ -943,6 +963,35 @@ public class WorkflowEngine {
      */
     public Set<String> getRegisteredWorkflows() {
         return new HashSet<>(registeredWorkflows.keySet());
+    }
+    
+    /**
+     * Registers all input schemas for a workflow's steps.
+     * This ensures that schemas are available for deserialization when resuming workflows.
+     */
+    private void registerWorkflowSchemas(WorkflowGraph<?, ?> graph) {
+        // Register all step input and output types
+        for (StepNode step : graph.nodes().values()) {
+            if (step.executor() == null) {
+                continue;
+            }
+            
+            Class<?> inputType = step.executor().getInputType();
+            if (inputType != null && inputType != void.class && inputType != Void.class) {
+                // This will register the schema in the internal registry
+                SchemaUtils.getSchemaFromClass(inputType);
+                log.info("Registered schema for step {} input type: {} (full name: {})", 
+                         step.id(), inputType.getSimpleName(), inputType.getName());
+            }
+            
+            // Also register output type if it's used as suspend data
+            Class<?> outputType = step.executor().getOutputType();
+            if (outputType != null && outputType != void.class && outputType != Void.class) {
+                SchemaUtils.getSchemaFromClass(outputType);
+                log.debug("Registered schema for step {} output type: {}", 
+                         step.id(), outputType.getSimpleName());
+            }
+        }
     }
     
     /**

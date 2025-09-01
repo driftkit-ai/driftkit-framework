@@ -2,6 +2,8 @@ package ai.driftkit.workflow.engine.persistence;
 
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.chat.ChatContextHelper;
+import ai.driftkit.common.domain.chat.ChatRequest;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -122,6 +124,14 @@ public class WorkflowInstance {
      */
     public static WorkflowInstance newInstance(WorkflowGraph<?, ?> graph, Object triggerData, String instanceId, String chatId) {
         WorkflowContext context = WorkflowContext.newRun(triggerData, instanceId);
+        
+        // Auto-initialize context for ChatRequest
+        if (triggerData instanceof ChatRequest) {
+            ChatRequest chatRequest = (ChatRequest) triggerData;
+            ChatContextHelper.setChatId(context, chatRequest.getChatId());
+            ChatContextHelper.setUserId(context, chatRequest.getUserId());
+        }
+        
         long now = System.currentTimeMillis();
         
         return WorkflowInstance.builder()

@@ -54,10 +54,10 @@ public class WorkflowEngineAutoConfiguration {
     }
     
     
-    @Bean
-    @ConditionalOnMissingBean
-    public ChatSessionRepository chatSessionRepository() {
-        log.info("Configuring in-memory ChatSessionRepository");
+    @Bean(name = "workflowChatSessionRepository")
+    @ConditionalOnMissingBean(name = "workflowChatSessionRepository")
+    public ChatSessionRepository workflowChatSessionRepository() {
+        log.info("Configuring in-memory ChatSessionRepository for workflow engine");
         return new InMemoryChatSessionRepository();
     }
     
@@ -96,7 +96,7 @@ public class WorkflowEngineAutoConfiguration {
             WorkflowEngineProperties properties,
             WorkflowStateRepository stateRepository,
             ProgressTracker progressTracker,
-            ChatSessionRepository chatSessionRepository,
+            ChatSessionRepository workflowChatSessionRepository,
             ChatStore chatStore,
             AsyncStepStateRepository asyncStepStateRepository,
             SuspensionDataRepository suspensionDataRepository) {
@@ -111,7 +111,7 @@ public class WorkflowEngineAutoConfiguration {
             .defaultStepTimeoutMs(properties.getDefaultStepTimeoutMs())
             .stateRepository(stateRepository)
             .progressTracker(progressTracker)
-            .chatSessionRepository(chatSessionRepository)
+            .chatSessionRepository(workflowChatSessionRepository)
             .chatStore(chatStore)
             .asyncStepStateRepository(asyncStepStateRepository)
             .suspensionDataRepository(suspensionDataRepository)
@@ -124,13 +124,13 @@ public class WorkflowEngineAutoConfiguration {
     @ConditionalOnMissingBean
     public WorkflowService workflowService(
             WorkflowEngine engine,
-            ChatSessionRepository chatSessionRepository,
+            ChatSessionRepository workflowChatSessionRepository,
             AsyncStepStateRepository asyncStepStateRepository,
             SuspensionDataRepository suspensionDataRepository,
             WorkflowStateRepository workflowStateRepository,
             ChatStore chatStore) {
         log.info("Configuring WorkflowService");
-        return new WorkflowService(engine, chatSessionRepository, 
+        return new WorkflowService(engine, workflowChatSessionRepository, 
             asyncStepStateRepository, suspensionDataRepository, workflowStateRepository, chatStore);
     }
     

@@ -42,7 +42,7 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/public/api1.0/ai/assistant/v2/")
+@RequestMapping("/public/api1.0/ai/assistant/")
 @Validated
 public class AssistantController {
     
@@ -163,6 +163,7 @@ public class AssistantController {
                         .map(SerializationUtils::clone)
                         .peek(e -> {
                             if (e instanceof ChatResponse response) {
+                                // Clear schemas to reduce payload size
                                 response.setNextSchema(null);
                             }
                         })

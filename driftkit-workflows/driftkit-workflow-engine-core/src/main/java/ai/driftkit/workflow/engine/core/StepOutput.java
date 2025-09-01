@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.core;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 @Data
 @NoArgsConstructor
 public class StepOutput {
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
     
     private JsonNode valueJson;
     private String className;
@@ -42,7 +44,12 @@ public class StepOutput {
             output.cachedValue = value;
             output.cachedClass = value.getClass();
         } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to serialize step output", e);
+            // For empty beans (commands without fields), store empty JSON object
+            log.error("Cannot serialize value directly, attempting to store as empty object: {}",
+                     value.getClass().getName());
+            output.valueJson = OBJECT_MAPPER.createObjectNode();
+            output.cachedValue = value;
+            output.cachedClass = value.getClass();
         }
         
         return output;
@@ -63,6 +70,17 @@ public class StepOutput {
         
         try {
             Class<?> clazz = getActualClass();
+            
+            // For empty JSON objects, try to instantiate the class directly
+            if (valueJson.isObject() && valueJson.size() == 0) {
+                try {
+                    cachedValue = clazz.getDeclaredConstructor().newInstance();
+                    return cachedValue;
+                } catch (Exception e) {
+                    log.error("Cannot instantiate empty bean directly, falling back to JSON deserialization: {}",  className);
+                }
+            }
+            
             cachedValue = OBJECT_MAPPER.treeToValue(valueJson, clazz);
             return cachedValue;
         } catch (Exception e) {

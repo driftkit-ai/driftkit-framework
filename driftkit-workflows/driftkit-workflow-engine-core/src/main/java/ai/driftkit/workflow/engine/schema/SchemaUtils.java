@@ -142,6 +142,13 @@ public class SchemaUtils {
             }
         }
         
+        // Check for @SchemaSystem annotation
+        SchemaSystem schemaSystem = schemaClass.getAnnotation(SchemaSystem.class);
+        if (schemaSystem != null) {
+            schema.setSystem(schemaSystem.value());
+            log.debug("Schema {} is marked as system: {}", schemaClass.getName(), schemaSystem.value());
+        }
+        
         schemaCache.put(schemaClass, schema);
         
         // Register in schema registry

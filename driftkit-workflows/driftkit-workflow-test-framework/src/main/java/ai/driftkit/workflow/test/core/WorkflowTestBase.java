@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.test.core;
 
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
+import ai.driftkit.workflow.engine.core.StepOutput;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.persistence.WorkflowStateRepository;
 import ai.driftkit.workflow.test.assertions.AssertionEngine;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -144,8 +146,8 @@ public abstract class WorkflowTestBase {
     @SuppressWarnings("unchecked")
     protected <T, R> R executeWorkflow(String workflowId, T input, Duration timeout) throws WorkflowExecutionException {
         Objects.requireNonNull(workflowId, "workflowId cannot be null");
-        Objects.requireNonNull(input, "input cannot be null");
         Objects.requireNonNull(timeout, "timeout cannot be null");
+        // Allow null input for workflows where initial step only uses WorkflowContext
         
         var execution = engine.execute(workflowId, input);
         
@@ -172,9 +174,59 @@ public abstract class WorkflowTestBase {
      */
     protected <T, R> WorkflowEngine.WorkflowExecution<R> executeWorkflowAsync(String workflowId, T input) {
         Objects.requireNonNull(workflowId, "workflowId cannot be null");
-        Objects.requireNonNull(input, "input cannot be null");
+        // Allow null input for workflows where initial step only uses WorkflowContext
         
         return engine.execute(workflowId, input);
+    }
+    
+    /**
+     * Executes a workflow with a specific chatId and expects it to suspend.
+     * 
+     * @param workflowId the workflow to execute
+     * @param input the input data (can be null)
+     * @param chatId the chat ID to associate with the execution
+     * @param timeout maximum time to wait for suspend
+     * @param <T> input type
+     * @return the suspended workflow execution handle
+     * @throws WorkflowExecutionException if workflow doesn't suspend within timeout
+     */
+    protected <T> WorkflowEngine.WorkflowExecution<?> executeAndExpectSuspendWithChat(
+            String workflowId, T input, String chatId, Duration timeout) throws WorkflowExecutionException {
+        Objects.requireNonNull(workflowId, "workflowId cannot be null");
+        Objects.requireNonNull(chatId, "chatId cannot be null");
+        Objects.requireNonNull(timeout, "timeout cannot be null");
+        // Allow null input for workflows where initial step only uses WorkflowContext
+        
+        String instanceId = UUID.randomUUID().toString();
+        var execution = engine.execute(workflowId, input, instanceId, chatId);
+        String runId = execution.getRunId();
+        
+        try {
+            // Wait for workflow to reach SUSPENDED status
+            waitForStatus(runId, WorkflowInstance.WorkflowStatus.SUSPENDED, timeout);
+            return execution;
+            
+        } catch (WorkflowExecutionException e) {
+            // Check if workflow completed instead of suspending
+            if (execution.isDone()) {
+                try {
+                    Object result = execution.get(1, TimeUnit.MILLISECONDS);
+                    throw new WorkflowExecutionException("Expected workflow to suspend, but it completed with result: " + result, e);
+                } catch (Exception ex) {
+                    throw new WorkflowExecutionException("Expected workflow to suspend, but it failed: " + ex.getMessage(), ex);
+                }
+            }
+            
+            // Check current status for better error message
+            WorkflowInstance instance = getWorkflowInstance(runId);
+            if (instance != null) {
+                throw new WorkflowExecutionException("Expected workflow to suspend within " + timeout + 
+                    ", but status is: " + instance.getStatus(), e);
+            } else {
+                throw new WorkflowExecutionException("Expected workflow to suspend within " + timeout + 
+                    ", but workflow instance not found", e);
+            }
+        }
     }
     
     /**
@@ -204,8 +256,8 @@ public abstract class WorkflowTestBase {
      */
     protected <T> WorkflowEngine.WorkflowExecution<?> executeAndExpectSuspend(String workflowId, T input, Duration timeout) throws WorkflowExecutionException {
         Objects.requireNonNull(workflowId, "workflowId cannot be null");
-        Objects.requireNonNull(input, "input cannot be null");
         Objects.requireNonNull(timeout, "timeout cannot be null");
+        // Allow null input for workflows where initial step only uses WorkflowContext
         
         var execution = engine.execute(workflowId, input);
         String runId = execution.getRunId();
@@ -271,16 +323,58 @@ public abstract class WorkflowTestBase {
         
         var execution = engine.resume(runId, event);
         
-        try {
-            return (R) execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new WorkflowExecutionException("Workflow resumption interrupted", e);
-        } catch (TimeoutException e) {
-            throw new WorkflowExecutionException("Workflow " + runId + " did not complete within " + timeout, e);
-        } catch (Exception e) {
-            throw new WorkflowExecutionException("Workflow resumption failed", e);
+        // Wait for workflow to reach a terminal state (COMPLETED, FAILED, CANCELLED) or SUSPENDED
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        
+        while (System.currentTimeMillis() < deadline) {
+            WorkflowInstance instance = getWorkflowInstance(runId);
+            if (instance == null) {
+                throw new WorkflowExecutionException("Workflow instance not found: " + runId);
+            }
+            
+            WorkflowInstance.WorkflowStatus status = instance.getStatus();
+            
+            // If suspended, return the suspension data
+            if (status == WorkflowInstance.WorkflowStatus.SUSPENDED) {
+                var context = instance.getContext();
+                var lastStepId = context.getLastStepId();
+                if (lastStepId != null) {
+                    var stepOutputs = context.getStepOutputs();
+                    var stepOutput = stepOutputs.get(lastStepId);
+                    if (stepOutput != null && stepOutput.hasValue()) {
+                        return (R) stepOutput.getValue();
+                    }
+                }
+                return null;
+            }
+            
+            // If completed, get result from execution
+            if (status == WorkflowInstance.WorkflowStatus.COMPLETED) {
+                if (execution.isDone()) {
+                    try {
+                        return (R) execution.get();
+                    } catch (Exception e) {
+                        throw new WorkflowExecutionException("Failed to get workflow result", e);
+                    }
+                }
+            }
+            
+            // If failed or cancelled, throw exception
+            if (status == WorkflowInstance.WorkflowStatus.FAILED || 
+                status == WorkflowInstance.WorkflowStatus.CANCELLED) {
+                throw new WorkflowExecutionException("Workflow " + runId + " ended with status: " + status);
+            }
+            
+            // Still running, wait a bit
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new WorkflowExecutionException("Workflow resumption interrupted", e);
+            }
         }
+        
+        throw new WorkflowExecutionException("Workflow " + runId + " did not reach terminal state within " + timeout);
     }
     
     /**

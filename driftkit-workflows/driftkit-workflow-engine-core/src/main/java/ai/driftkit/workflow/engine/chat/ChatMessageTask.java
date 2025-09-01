@@ -31,4 +31,5 @@ public class ChatMessageTask {
     private Boolean completed;
     private Integer percentComplete;
     private Boolean required;
+    private Boolean system;
 }

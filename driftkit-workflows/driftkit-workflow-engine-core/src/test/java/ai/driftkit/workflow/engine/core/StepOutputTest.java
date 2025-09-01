@@ -7,6 +7,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StepOutputTest {
     
+    // Empty command class for testing
+    static class EmptyCommand {
+        // No fields - similar to StartLearningCommand
+    }
+    
     @Nested
     @DisplayName("Type Safety and Casting")
     class TypeSafetyTests {
@@ -58,6 +63,35 @@ class StepOutputTest {
             assertNull(output.getValueAs(String.class));
             assertNull(output.getValueAs(Integer.class));
             assertNull(output.getValueAs(Object.class));
+        }
+    }
+    
+    @Nested
+    @DisplayName("Empty Bean Handling")
+    class EmptyBeanTests {
+        
+        @Test
+        @DisplayName("Should handle empty command objects without fields")
+        void testEmptyCommandSerialization() {
+            // Arrange - Create empty command object (like StartLearningCommand)
+            EmptyCommand command = new EmptyCommand();
+            
+            // Act - Should not throw exception when creating StepOutput
+            StepOutput output = assertDoesNotThrow(() -> StepOutput.of(command));
+            
+            // Assert - Should preserve the empty object
+            assertNotNull(output);
+            assertTrue(output.hasValue());
+            assertEquals(EmptyCommand.class.getName(), output.getClassName());
+            
+            // Should be able to retrieve the object
+            Object retrieved = output.getValue();
+            assertNotNull(retrieved);
+            assertInstanceOf(EmptyCommand.class, retrieved);
+            
+            // Should be able to cast properly
+            EmptyCommand retrievedCommand = output.getValueAs(EmptyCommand.class);
+            assertNotNull(retrievedCommand);
         }
     }
     

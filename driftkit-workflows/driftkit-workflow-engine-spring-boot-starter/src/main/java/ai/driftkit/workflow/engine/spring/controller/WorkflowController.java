@@ -4,7 +4,6 @@ import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker.Progress;
 import ai.driftkit.workflow.engine.core.StepResult.Finish;
 import ai.driftkit.workflow.engine.core.WorkflowContext.Keys;
-import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.domain.WorkflowEvent;
@@ -12,39 +11,20 @@ import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
 import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
-import ai.driftkit.common.domain.chat.ChatMessage;
-import ai.driftkit.common.domain.chat.ChatRequest;
-import ai.driftkit.common.domain.chat.ChatResponse;
-import ai.driftkit.workflow.engine.chat.ChatMessageTask;
-import ai.driftkit.workflow.engine.chat.converter.ChatMessageTaskConverter;
-import ai.driftkit.workflow.engine.domain.StepMetadata;
 import ai.driftkit.workflow.engine.domain.WorkflowDetails;
 import ai.driftkit.workflow.engine.domain.WorkflowMetadata;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Direction;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
-import javax.validation.Valid;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * REST controller for workflow execution and management.
- * Based on AssistantController from driftkit-chat-assistant-framework
+ * REST controller for workflow-specific execution and management.
+ * Chat-related endpoints are in AssistantV3Controller.
  */
 @Slf4j
 @RestController
@@ -75,282 +55,6 @@ public class WorkflowController {
         FINISH,
         FAIL,
         ASYNC
-    }
-    
-    // ========== Chat-specific endpoints (from AssistantController) ==========
-    
-    /**
-     * Process a chat request through a workflow.
-     * Equivalent to AssistantController.chat()
-     * 
-     * @param request The chat request
-     * @param userId Optional user ID
-     * @return Chat response with tasks
-     */
-    @PostMapping("/chat")
-    public ChatResponseWithTasks chat(
-            @Valid @RequestBody ChatRequest request,
-            @RequestParam(required = false) String userId
-    ) {
-        userId = decode(userId);
-        log.info("Processing chat request for session: {}, user: {}", request.getChatId(), userId);
-        
-        try {
-            // Set user ID if not provided
-            if (!StringUtils.hasText(request.getUserId())) {
-                if (StringUtils.hasText(userId)) {
-                    request.setUserId(userId);
-                } else {
-                    Map<String, String> propsMap = request.getPropertiesMap();
-                    userId = propsMap.getOrDefault("userId", "anonymous");
-                    request.setUserId(userId);
-                }
-            }
-            
-            // Ensure chat session exists
-            workflowService.getOrCreateChatSession(request.getChatId(), userId, request.getMessage());
-            
-            // Process the chat request through workflow
-            ChatResponse response = workflowService.processChatRequest(request);
-            
-            // Convert to response with tasks
-            List<ChatMessageTask> requestTasks = workflowService.convertMessageToTasks(request);
-            List<ChatMessageTask> responseTasks = workflowService.convertMessageToTasks(response);
-            
-            return new ChatResponseWithTasks(response, requestTasks, responseTasks);
-            
-        } catch (Exception e) {
-            log.error("Error processing chat request", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error processing chat request: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
-     * Get chat response by ID (for async polling).
-     * Equivalent to AssistantController.getChatResponse()
-     * 
-     * @param responseId The response ID
-     * @param userId Optional user ID for verification
-     * @return Chat response with tasks
-     */
-    @GetMapping("/chat/response/{responseId}")
-    public ChatResponseWithTasks getChatResponse(
-            @PathVariable String responseId,
-            @RequestParam(required = false) String userId
-    ) {
-        userId = decode(userId);
-        log.info("Getting chat response for ID: {}, user: {}", responseId, userId);
-        
-        try {
-            Optional<ChatResponse> response = workflowService.getChatResponse(responseId);
-            
-            // Verify user access if userId provided
-            if (response.isPresent() && StringUtils.hasText(userId)) {
-                ChatResponse chatResponse = response.get();
-                String responseUserId = chatResponse.getUserId();
-                
-                if (StringUtils.hasText(responseUserId) && !responseUserId.equals(userId)) {
-                    log.warn("User {} attempted to access response {} owned by {}",
-                        userId, responseId, responseUserId);
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        String.format("Forbidden for [%s] [%s]", userId, responseId));
-                }
-            }
-            
-            if (response.isEmpty()) {
-                return new ChatResponseWithTasks();
-            }
-            
-            List<ChatMessageTask> responseTasks = workflowService.convertMessageToTasks(response.get());
-            return new ChatResponseWithTasks(response.get(), null, responseTasks);
-            
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error retrieving chat response", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error retrieving chat response: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
-     * Get chat history with pagination.
-     * Equivalent to AssistantController.history()
-     * 
-     * @param chatId The chat ID
-     * @param userId Optional user ID
-     * @param page Page number
-     * @param limit Items per page
-     * @param sort Sort direction
-     * @param showSchema Whether to include schemas
-     * @param context Whether to include context messages
-     * @return List of chat message tasks
-     */
-    @GetMapping("/chat/history")
-    public List<ChatMessageTask> getChatHistory(
-            @RequestParam String chatId,
-            @RequestParam(required = false) String userId,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "1000") int limit,
-            @RequestParam(required = false, defaultValue = "asc") String sort,
-            @RequestParam(required = false, defaultValue = "true") boolean showSchema,
-            @RequestParam(required = false, defaultValue = "false") Boolean context
-    ) {
-        userId = decode(userId);
-        log.info("Retrieving chat history for session: {}, user: {}, page: {}, limit: {}, sort: {}",
-                chatId, userId, page, limit, sort);
-        
-        try {
-            Pageable pageable = createPageable(page, limit, sort, "timestamp");
-            
-            // Verify user access
-            verifyUserChatAccess(chatId, userId);
-            
-            // Get chat history
-            Page<ChatMessage> historyPage = workflowService.getChatHistory(chatId, pageable, context, showSchema);
-            
-            if (historyPage.isEmpty()) {
-                log.info("No history found for chat: {}", chatId);
-                return new ArrayList<>();
-            }
-            
-            return ChatMessageTaskConverter.convertAll(historyPage.getContent());
-            
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error retrieving chat history", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error retrieving chat history: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
-     * List available chats with pagination.
-     * Equivalent to AssistantController.getChats()
-     * 
-     * @param userId User ID
-     * @param page Page number
-     * @param limit Items per page
-     * @param sort Sort direction
-     * @return Paginated chat list
-     */
-    @GetMapping("/chat/list")
-    public Page<ChatInfo> listChats(
-            @RequestParam(required = false) String userId,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "100") int limit,
-            @RequestParam(required = false, defaultValue = "desc") String sort
-    ) {
-        userId = decode(userId);
-        log.info("Listing chats for user: {}, page: {}, limit: {}, sort: {}", userId, page, limit, sort);
-        
-        try {
-            Pageable pageable = createPageable(page, limit, sort, "lastMessageTime");
-            
-            if (!StringUtils.hasText(userId)) {
-                return Page.empty(pageable);
-            }
-            
-            Page<ChatSession> chatsPage = workflowService.listChatsForUser(userId, pageable);
-            
-            return chatsPage.map(session -> new ChatInfo(
-                session.getChatId(),
-                session.getLastMessageTime(),
-                session.getDescription(),
-                session.getUserId(),
-                session.getName()
-            ));
-            
-        } catch (Exception e) {
-            log.error("Error listing chats", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error listing chats: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
-     * Create a new chat session.
-     * Equivalent to AssistantController.createChat()
-     * 
-     * @param userId User ID
-     * @param name Chat name
-     * @return Created chat info
-     */
-    @PostMapping("/chat/create")
-    public ChatInfo createChat(
-            @RequestParam(required = false) String userId,
-            @RequestParam(required = false) String name
-    ) {
-        userId = decode(userId);
-        userId = StringUtils.hasText(userId) ? userId : "anonymous";
-        log.info("Creating new chat for user: {}", userId);
-        
-        try {
-            ChatSession chat = workflowService.createChatSession(userId, name);
-            
-            return new ChatInfo(
-                chat.getChatId(),
-                chat.getLastMessageTime(),
-                chat.getDescription(),
-                chat.getUserId(),
-                chat.getName()
-            );
-            
-        } catch (Exception e) {
-            log.error("Error creating new chat", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error creating new chat: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
-     * Archive a chat session.
-     * Equivalent to AssistantController.archiveChat()
-     * 
-     * @param chatId Chat ID to archive
-     * @param userId User ID for verification
-     * @return Empty response
-     */
-    @PostMapping("/chat/{chatId}/archive")
-    public ResponseEntity<Void> archiveChat(
-            @PathVariable String chatId,
-            @RequestParam(required = false) String userId
-    ) {
-        userId = decode(userId);
-        log.info("Archiving chat: {}, user: {}", chatId, userId);
-        
-        try {
-            verifyUserChatAccess(chatId, userId);
-            workflowService.archiveChatSession(chatId);
-            return ResponseEntity.ok().build();
-            
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).build();
-        } catch (Exception e) {
-            log.error("Error archiving chat", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error archiving chat: " + e.getMessage(),
-                e
-            );
-        }
     }
     
     // ========== Workflow-specific endpoints ==========
@@ -595,39 +299,6 @@ public class WorkflowController {
     }
     
     /**
-     * Get all schemas for all workflows.
-     * Equivalent to AssistantController.schemas()
-     * 
-     * @return Schema response with all available schemas
-     */
-    @GetMapping("/schemas")
-    public SchemaResponse getAllSchemas() {
-        log.info("Retrieving schemas for all workflows");
-        
-        try {
-            Set<AIFunctionSchema> schemas = new HashSet<>();
-            Map<String, String> messageIds = new HashMap<>();
-            
-            // Collect schemas from all registered workflows
-            List<WorkflowMetadata> workflows = workflowService.listWorkflows();
-            for (WorkflowMetadata workflow : workflows) {
-                List<AIFunctionSchema> workflowSchemas = workflowService.getWorkflowSchemas(workflow.id());
-                schemas.addAll(workflowSchemas);
-            }
-            
-            return new SchemaResponse(new ArrayList<>(schemas), messageIds);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving schemas", e);
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Error retrieving schemas: " + e.getMessage(),
-                e
-            );
-        }
-    }
-    
-    /**
      * Get all schemas for a specific workflow.
      * 
      * @param workflowId The workflow ID
@@ -640,36 +311,6 @@ public class WorkflowController {
             return ResponseEntity.ok(schemas);
         } catch (Exception e) {
             log.error("Error getting workflow schemas: workflowId={}", workflowId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    /**
-     * Get the initial schema for a workflow.
-     * Equivalent to AssistantController.getFirstStepSchema()
-     * 
-     * @param workflowId The workflow ID
-     * @return The initial input schema
-     */
-    @GetMapping("/{workflowId}/schema/initial")
-    public ResponseEntity<FirstStepSchemaResponse> getInitialSchema(@PathVariable String workflowId) {
-        log.info("Getting first step schema for workflow: {}", workflowId);
-        
-        try {
-            WorkflowDetails details = workflowService.getWorkflowDetails(workflowId);
-            if (details == null || details.steps().isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            StepMetadata firstStep = details.steps().get(0);
-            List<AIFunctionSchema> schemas = firstStep.inputSchema() != null 
-                ? List.of(firstStep.inputSchema()) 
-                : Collections.emptyList();
-            
-            return ResponseEntity.ok(new FirstStepSchemaResponse(workflowId, firstStep.id(), schemas));
-            
-        } catch (Exception e) {
-            log.error("Error getting initial schema: workflowId={}", workflowId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -710,84 +351,8 @@ public class WorkflowController {
         }
     }
     
-    // ========== Helper methods ==========
-    
-    private static String decode(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return URLDecoder.decode(value, StandardCharsets.UTF_8);
-    }
-    
-    private Pageable createPageable(int page, int limit, String sort, String sortBy) {
-        Direction sortDirection = "asc".equalsIgnoreCase(sort)
-            ? Direction.ASC
-            : Direction.DESC;
-        
-        return PageRequest.of(page, limit, Sort.by(sortDirection, sortBy));
-    }
-    
-    private void verifyUserChatAccess(String chatId, String userId) {
-        if (StringUtils.hasText(userId)) {
-            Optional<ChatSession> chatOpt = workflowService.getChatSession(chatId);
-            if (chatOpt.isPresent() && !userId.equals(chatOpt.get().getUserId())) {
-                log.warn("User {} attempted to access chat {} owned by {}", 
-                    userId, chatId, chatOpt.get().getUserId());
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User not authorized to access this chat");
-            }
-        }
-    }
-    
     
     // ========== Request/Response DTOs ==========
-    
-    // Using ChatDomain classes directly
-    
-    /**
-     * Wrapper class for ChatResponse with MessageTasks
-     */
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ChatResponseWithTasks {
-        private ChatResponse originalResponse;
-        private List<ChatMessageTask> request;
-        private List<ChatMessageTask> response;
-    }
-    
-    /**
-     * Chat info summary
-     */
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ChatInfo {
-        private String chatId;
-        private Long lastMessageTime;
-        private String lastMessage;
-        private String userId;
-        private String name;
-    }
-    
-    
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class SchemaResponse {
-        private List<AIFunctionSchema> schemas;
-        private Map<String, String> messageIds;
-    }
-    
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class FirstStepSchemaResponse {
-        private String workflowId;
-        private String stepId;
-        private List<AIFunctionSchema> schemas;
-    }
-    
-    // Workflow-specific DTOs
     
     record WorkflowExecutionRequest(
         Map<String, String> properties,

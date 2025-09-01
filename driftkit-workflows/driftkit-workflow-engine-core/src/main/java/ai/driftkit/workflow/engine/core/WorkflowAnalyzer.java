@@ -536,7 +536,7 @@ public class WorkflowAnalyzer {
         }
 
         if (compatibleSteps.isEmpty() && continueType != Void.class) {
-            log.warn("Step {} produces type {} but no step accepts this type",
+            log.debug("Step {} produces type {} with no direct edge to accepting step. Runtime routing will be used.",
                     fromStep.getId(), continueType.getSimpleName());
         }
 
@@ -599,6 +599,11 @@ public class WorkflowAnalyzer {
         for (Class<?> nextClass : fromStep.getNextClasses()) {
             for (StepInfo toStep : allSteps.values()) {
                 if (toStep == fromStep) {
+                    continue;
+                }
+                
+                // Skip initial steps - they should only be entry points
+                if (toStep.isInitial()) {
                     continue;
                 }
 
@@ -837,7 +842,7 @@ public class WorkflowAnalyzer {
         unreachableSteps.removeAll(reachableSteps);
         
         if (!unreachableSteps.isEmpty()) {
-            log.warn("Unreachable steps detected: {}. These steps will never be executed.", 
+            log.debug("Steps without direct edges detected: {}. These steps may be reached via runtime type-based routing.", 
                     unreachableSteps);
         }
     }

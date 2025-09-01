@@ -55,8 +55,8 @@ public record StepNode(
     public boolean canAcceptInput(Class<?> inputType) {
         Class<?> expectedType = executor.getInputType();
         if (expectedType == null) {
-            // Step doesn't require input
-            return true;
+            // Step doesn't require input - only initial steps should accept any input
+            return isInitial;
         }
         return expectedType.isAssignableFrom(inputType);
     }

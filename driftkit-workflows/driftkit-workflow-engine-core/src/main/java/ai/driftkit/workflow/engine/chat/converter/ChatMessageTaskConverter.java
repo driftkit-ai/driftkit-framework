@@ -6,7 +6,8 @@ import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import ai.driftkit.common.domain.chat.ChatRequest;
 import ai.driftkit.common.domain.chat.ChatResponse;
 import ai.driftkit.workflow.engine.chat.ChatMessageTask;
-
+import ai.driftkit.workflow.engine.schema.AIFunctionSchema;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -185,6 +186,17 @@ public class ChatMessageTaskConverter {
         task.setNextSchema(response.getNextSchema());
 
         task.setType(response.getType());
+        
+        // Check if the schema has system flag
+        if (response.getNextSchema() != null && response.getNextSchema().getSchemaName() != null) {
+            Class<?> schemaClass = SchemaUtils.getSchemaClass(response.getNextSchema().getSchemaName());
+            if (schemaClass != null) {
+                AIFunctionSchema schema = SchemaUtils.getSchemaFromClass(schemaClass);
+                if (schema != null) {
+                    task.setSystem(schema.isSystem());
+                }
+            }
+        }
 
         return task;
     }

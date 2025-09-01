@@ -257,7 +257,7 @@ public record WorkflowGraph<T, R>(
         unreachable.removeAll(reachable);
         
         if (!unreachable.isEmpty()) {
-            log.warn("Workflow graph contains unreachable nodes: {}", unreachable);
+            log.debug("Workflow graph contains nodes without direct edges: {}. These may be reached via runtime type-based routing.", unreachable);
         }
     }
     

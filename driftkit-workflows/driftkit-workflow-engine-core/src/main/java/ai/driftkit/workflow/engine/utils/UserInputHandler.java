@@ -3,6 +3,8 @@ package ai.driftkit.workflow.engine.utils;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
+import ai.driftkit.common.domain.chat.ChatRequest;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -100,15 +102,46 @@ public final class UserInputHandler {
     /**
      * Saves user input with type information to context.
      * Used when workflow is resumed with user-provided data.
+     * Special handling for ChatRequest to convert to actual type.
      * 
      * @param instance The workflow instance
      * @param userInput The user input to save
      */
     public static void saveUserInput(WorkflowInstance instance, Object userInput) {
         if (userInput != null) {
-            instance.updateContext(WorkflowContext.Keys.USER_INPUT, userInput);
+            Object actualInput = userInput;
+            
+            // Special handling for ChatRequest - convert to actual type
+            if (userInput instanceof ChatRequest) {
+                ChatRequest chatRequest = (ChatRequest) userInput;
+                String schemaName = chatRequest.getRequestSchemaName();
+                
+                if (schemaName != null) {
+                    // Find the actual input class by schema name
+                    Class<?> actualInputClass = SchemaUtils.getSchemaClass(schemaName);
+                    if (actualInputClass != null) {
+                        // Convert properties map to expected type
+                        Object convertedInput = SchemaUtils.createInstance(
+                            actualInputClass,
+                            chatRequest.getPropertiesMap()
+                        );
+                        if (convertedInput != null) {
+                            log.debug("Converted ChatRequest to {} using schema name: {}", 
+                                     actualInputClass.getSimpleName(), schemaName);
+                            actualInput = convertedInput;
+                        } else {
+                            log.warn("Failed to convert ChatRequest to {}, using ChatRequest as-is", 
+                                    actualInputClass.getName());
+                        }
+                    } else {
+                        log.warn("Schema not found in registry: {}, using ChatRequest as-is", schemaName);
+                    }
+                }
+            }
+            
+            instance.updateContext(WorkflowContext.Keys.USER_INPUT, actualInput);
             instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, 
-                                 userInput.getClass().getName());
+                                 actualInput.getClass().getName());
         }
     }
     

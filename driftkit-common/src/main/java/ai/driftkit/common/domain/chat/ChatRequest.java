@@ -46,6 +46,13 @@ public class ChatRequest extends ChatMessage {
         return propsMap.get(ChatMessage.PROPERTY_MESSAGE);
     }
     
+    @JsonIgnore
+    public void setMessage(String message) {
+        Map<String, String> propsMap = getPropertiesMap();
+        propsMap.put(ChatMessage.PROPERTY_MESSAGE, message);
+        setPropertiesMap(propsMap);
+    }
+    
     private static final Map<String, Consumer<PropertyContext>> PROPERTY_HANDLERS = Map.of(
         "name", ctx -> ctx.prop.setName(ctx.node.asText()),
         "value", ctx -> ctx.prop.setValue(ctx.node.asText()),

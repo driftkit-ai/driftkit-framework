@@ -183,8 +183,10 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             Object resumeInput;
             String schemaName = request.getRequestSchemaName();
             if (schemaName != null) {
+                log.debug("Looking for schema in registry: {}", schemaName);
                 Class<?> expectedInputClass = SchemaUtils.getSchemaClass(schemaName);
                 if (expectedInputClass != null) {
+                    log.debug("Found schema class: {}", expectedInputClass.getName());
                     // Convert properties map to expected type
                     resumeInput = SchemaUtils.createInstance(
                         expectedInputClass,

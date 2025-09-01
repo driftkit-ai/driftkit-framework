@@ -36,6 +36,7 @@ public class AIFunctionSchema implements Serializable {
     List<AIFunctionProperty> properties;
     boolean isArray;
     boolean composable;
+    boolean system;
     
     @JsonIgnore
     Class<?> targetClass;

@@ -11,5 +11,5 @@
     
     <!-- Enable debug logging for test framework -->
     <logger name="ai.driftkit.workflow.test" level="DEBUG" />
-    <logger name="ai.driftkit.workflow.engine.core.WorkflowOrchestrator" level="DEBUG" />
+    <logger name="ai.driftkit.workflow.engine" level="INFO" />
 </configuration>
