@@ -15,6 +15,7 @@ import ai.driftkit.workflow.engine.chat.converter.ChatMessageTaskConverter;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.engine.core.WorkflowEngine.WorkflowExecution;
+import ai.driftkit.workflow.engine.utils.WorkflowInputOutputHandler;
 import ai.driftkit.workflow.engine.domain.ChatSession;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.StepMetadata;
@@ -270,10 +271,10 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
         // Update properties based on state
         if (asyncState.isCompleted() && asyncState.getResultData() != null) {
             // Use final result data
-            response.setPropertiesMap(extractPropertiesFromData(asyncState.getResultData()));
+            response.setPropertiesMap(WorkflowInputOutputHandler.extractPropertiesFromData(asyncState.getResultData()));
         } else {
             // Use initial data with updated progress
-            response.setPropertiesMap(extractPropertiesFromData(asyncState.getInitialData()));
+            response.setPropertiesMap(WorkflowInputOutputHandler.extractPropertiesFromData(asyncState.getInitialData()));
         }
 
         return Optional.of(response);
@@ -593,7 +594,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
     private ChatResponse createSuspendResponse(String chatId, String userId, Language language, 
                                               String workflowId, Object promptData, 
                                               AIFunctionSchema nextSchema, String messageId) {
-        Map<String, String> properties = extractPropertiesFromData(promptData);
+        Map<String, String> properties = WorkflowInputOutputHandler.extractPropertiesFromData(promptData);
         
         ChatResponse response = new ChatResponse(
             messageId != null ? messageId : UUID.randomUUID().toString(),
@@ -620,7 +621,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
                                            String workflowId, Object immediateData,
                                            String messageId, int percentComplete,
                                            String statusMessage) {
-        Map<String, String> properties = extractPropertiesFromData(immediateData);
+        Map<String, String> properties = WorkflowInputOutputHandler.extractPropertiesFromData(immediateData);
         if (statusMessage != null) {
             properties.put("status", statusMessage);
         }
@@ -643,7 +644,7 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
      */
     private ChatResponse createCompletedResponse(String chatId, String userId, Language language,
                                                String workflowId, Object result) {
-        Map<String, String> properties = extractPropertiesFromData(result);
+        Map<String, String> properties = WorkflowInputOutputHandler.extractPropertiesFromData(result);
         
         return new ChatResponse(
             UUID.randomUUID().toString(),
@@ -675,52 +676,6 @@ public class DefaultWorkflowExecutionService implements WorkflowExecutionService
             userId,
             properties
         );
-    }
-    
-    private Map<String, String> extractPropertiesFromData(Object data) {
-        if (data == null) {
-            return new HashMap<>();
-        }
-
-        // If data is already a properties map from a workflow response object
-        if (data instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) data;
-            // Check if this is a response object with properties
-            Object propsObj = map.get("properties");
-            if (propsObj instanceof List) {
-                // Handle DataProperty list
-                Map<String, String> properties = new HashMap<>();
-                List<?> propsList = (List<?>) propsObj;
-                for (Object prop : propsList) {
-                    if (prop instanceof DataProperty dp) {
-                        properties.put(dp.getName(), dp.getValue());
-                    }
-                }
-                return properties;
-            } else if (propsObj instanceof Map) {
-                // Direct property map in "properties" field
-                Map<String, String> properties = new HashMap<>();
-                Map<?, ?> propsMap = (Map<?, ?>) propsObj;
-                propsMap.forEach((k, v) -> {
-                    if (k != null && v != null) {
-                        properties.put(k.toString(), v.toString());
-                    }
-                });
-                return properties;
-            } else {
-                // No "properties" field, treat as plain map
-                Map<String, String> properties = new HashMap<>();
-                map.forEach((k, v) -> {
-                    if (k != null && v != null) {
-                        properties.put(k.toString(), v.toString());
-                    }
-                });
-                return properties;
-            }
-        } else {
-            // Not a map, use schema provider to extract properties
-            return SchemaUtils.extractProperties(data);
-        }
     }
     
     private ChatResponse createErrorResponse(ChatRequest request, Exception e) {

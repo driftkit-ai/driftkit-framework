@@ -15,6 +15,7 @@ import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
 import ai.driftkit.workflow.engine.utils.ReflectionUtils;
+import ai.driftkit.workflow.engine.utils.BranchStepExecutor;
 import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -909,102 +910,10 @@ WorkflowBuilder<T, R> {
                     
                     // Select which steps to execute
                     List<StepDefinition> stepsToExecute = conditionResult ? trueSteps : falseSteps;
+                    String branchName = conditionResult ? "true-branch" : "false-branch";
                     
-                    // Execute the selected branch steps sequentially
-                    Object currentInput = input;
-                    Object lastResult = null;
-                    
-                    for (StepDefinition stepDef : stepsToExecute) {
-                        try {
-                            // Notify context about internal step execution for test tracking
-                            ctx.notifyInternalStepExecution(stepDef.getId(), currentInput);
-                            
-                            log.debug("Processing internal step {} in branch, has retry policy: {}", 
-                                stepDef.getId(), stepDef.getRetryPolicy() != null);
-                            
-                            // Check if listener wants to intercept this step
-                            StepResult<?> stepResult;
-                            InternalStepListener listener = ctx.getInternalStepListener();
-                            if (listener != null) {
-                                var intercepted = listener.interceptInternalStep(stepDef.getId(), currentInput, ctx);
-                                if (intercepted.isPresent()) {
-                                    stepResult = intercepted.get();
-                                    // If the intercepted result is a failure and the step has a retry policy,
-                                    // we need to handle it properly by letting executeStepWithRetry handle the retry
-                                    if (stepResult instanceof StepResult.Fail && stepDef.getRetryPolicy() != null) {
-                                        log.debug("Intercepted mock returned failure for step {} with retry policy, delegating to retry executor", stepDef.getId());
-                                        // Wrap the mock's behavior in the step executor
-                                        @SuppressWarnings("unchecked")
-                                        BiFunction<Object, WorkflowContext, StepResult<Object>> wrappedExecutor = 
-                                            (Object input2, WorkflowContext ctx2) -> {
-                                                // Try to intercept again
-                                                var intercepted2 = listener.interceptInternalStep(stepDef.getId(), input2, ctx2);
-                                                if (intercepted2.isPresent()) {
-                                                    return (StepResult<Object>) intercepted2.get();
-                                                } else {
-                                                    // Fall back to original executor
-                                                    try {
-                                                        return (StepResult<Object>) stepDef.getExecutor().execute(input2, ctx2);
-                                                    } catch (Exception e) {
-                                                        if (e instanceof RuntimeException) {
-                                                            throw (RuntimeException) e;
-                                                        }
-                                                        throw new RuntimeException("Step execution failed", e);
-                                                    }
-                                                }
-                                            };
-                                        
-                                        StepDefinition wrappedStep = StepDefinition.of(stepDef.getId(), wrappedExecutor)
-                                            .withRetryPolicy(stepDef.getRetryPolicy())
-                                            .withInvocationLimit(stepDef.getInvocationLimit())
-                                            .withOnInvocationsLimit(stepDef.getOnInvocationsLimit());
-                                        stepResult = executeStepWithRetry(wrappedStep, currentInput, ctx);
-                                    }
-                                } else {
-                                    stepResult = executeStepWithRetry(stepDef, currentInput, ctx);
-                                }
-                            } else {
-                                stepResult = executeStepWithRetry(stepDef, currentInput, ctx);
-                            }
-                            
-                            // Notify listener about completion
-                            if (listener != null) {
-                                listener.afterInternalStep(stepDef.getId(), stepResult, ctx);
-                            }
-                            
-                            if (stepResult instanceof StepResult.Continue<?> cont) {
-                                lastResult = cont.data();
-                                currentInput = lastResult; // Pass output to next step
-                            } else if (stepResult instanceof StepResult.Fail<?> fail) {
-                                return StepResult.fail(fail.error());
-                            } else if (stepResult instanceof StepResult.Finish<?> finish) {
-                                return StepResult.finish(finish.result());
-                            } else if (stepResult instanceof StepResult.Suspend<?> suspend) {
-                                return stepResult; // Return suspension as-is
-                            } else if (stepResult instanceof StepResult.Async<?> async) {
-                                return stepResult; // Return async as-is for the engine to handle
-                            } else if (stepResult instanceof StepResult.Branch<?> branch) {
-                                // Handle branch events
-                                return stepResult;
-                            }
-                        } catch (Exception e) {
-                            log.error("Branch step {} failed", stepDef.getId(), e);
-                            // Notify listener about error
-                            InternalStepListener listener = ctx.getInternalStepListener();
-                            if (listener != null) {
-                                listener.onInternalStepError(stepDef.getId(), e, ctx);
-                            }
-                            // Re-throw the exception so RetryExecutor can handle it
-                            if (e instanceof RuntimeException) {
-                                throw (RuntimeException) e;
-                            } else {
-                                throw new RuntimeException("Step execution failed", e);
-                            }
-                        }
-                    }
-                    
-                    // Return the result from the last step in the branch
-                    return StepResult.continueWith(lastResult != null ? lastResult : input);
+                    // Use utility to execute branch steps
+                    return BranchStepExecutor.executeBranchSteps(stepsToExecute, input, ctx, branchName);
                 },
                 inputType,  // Input type
                 Object.class  // Output type
@@ -1169,104 +1078,10 @@ WorkflowBuilder<T, R> {
                         throw new IllegalStateException("No branch matched for value: " + value);
                     }
                     
-                    // Execute the selected branch steps sequentially
-                    Object currentInput = input;
-                    Object lastResult = null;
-                    
-                    for (StepDefinition stepDef : stepsToExecute) {
-                        try {
-                            log.debug("Executing branch step: {} with input type: {}", 
-                                stepDef.getId(), currentInput != null ? currentInput.getClass().getSimpleName() : "null");
-                            
-                            // Notify context about internal step execution for test tracking
-                            ctx.notifyInternalStepExecution(stepDef.getId(), currentInput);
-                            
-                            log.debug("Processing internal step {} in multi-branch, has retry policy: {}", 
-                                stepDef.getId(), stepDef.getRetryPolicy() != null);
-                            
-                            // Check if listener wants to intercept this step
-                            StepResult<?> stepResult;
-                            InternalStepListener listener = ctx.getInternalStepListener();
-                            if (listener != null) {
-                                var intercepted = listener.interceptInternalStep(stepDef.getId(), currentInput, ctx);
-                                if (intercepted.isPresent()) {
-                                    stepResult = intercepted.get();
-                                    // If the intercepted result is a failure and the step has a retry policy,
-                                    // we need to handle it properly by letting executeStepWithRetry handle the retry
-                                    if (stepResult instanceof StepResult.Fail && stepDef.getRetryPolicy() != null) {
-                                        log.debug("Intercepted mock returned failure for step {} with retry policy, delegating to retry executor", stepDef.getId());
-                                        // Wrap the mock's behavior in the step executor
-                                        @SuppressWarnings("unchecked")
-                                        BiFunction<Object, WorkflowContext, StepResult<Object>> wrappedExecutor = 
-                                            (Object input2, WorkflowContext ctx2) -> {
-                                                // Try to intercept again
-                                                var intercepted2 = listener.interceptInternalStep(stepDef.getId(), input2, ctx2);
-                                                if (intercepted2.isPresent()) {
-                                                    return (StepResult<Object>) intercepted2.get();
-                                                } else {
-                                                    // Fall back to original executor
-                                                    try {
-                                                        return (StepResult<Object>) stepDef.getExecutor().execute(input2, ctx2);
-                                                    } catch (Exception e) {
-                                                        if (e instanceof RuntimeException) {
-                                                            throw (RuntimeException) e;
-                                                        }
-                                                        throw new RuntimeException("Step execution failed", e);
-                                                    }
-                                                }
-                                            };
-                                        
-                                        StepDefinition wrappedStep = StepDefinition.of(stepDef.getId(), wrappedExecutor)
-                                            .withRetryPolicy(stepDef.getRetryPolicy())
-                                            .withInvocationLimit(stepDef.getInvocationLimit())
-                                            .withOnInvocationsLimit(stepDef.getOnInvocationsLimit());
-                                        stepResult = executeStepWithRetry(wrappedStep, currentInput, ctx);
-                                    }
-                                } else {
-                                    stepResult = executeStepWithRetry(stepDef, currentInput, ctx);
-                                }
-                            } else {
-                                stepResult = executeStepWithRetry(stepDef, currentInput, ctx);
-                            }
-                            
-                            // Notify listener about completion
-                            if (listener != null) {
-                                listener.afterInternalStep(stepDef.getId(), stepResult, ctx);
-                            }
-                            
-                            if (stepResult instanceof StepResult.Continue<?> cont) {
-                                lastResult = cont.data();
-                                currentInput = lastResult; // Pass output to next step
-                            } else if (stepResult instanceof StepResult.Fail<?> fail) {
-                                return StepResult.fail(fail.error());
-                            } else if (stepResult instanceof StepResult.Finish<?> finish) {
-                                return StepResult.finish(finish.result());
-                            } else if (stepResult instanceof StepResult.Suspend<?> suspend) {
-                                return stepResult; // Return suspension as-is
-                            } else if (stepResult instanceof StepResult.Async<?> async) {
-                                return stepResult; // Return async as-is for the engine to handle
-                            } else if (stepResult instanceof StepResult.Branch<?> branch) {
-                                // Handle branch events
-                                return stepResult;
-                            }
-                        } catch (Exception e) {
-                            log.error("Multi-branch step {} failed", stepDef.getId(), e);
-                            // Notify listener about error
-                            InternalStepListener listener = ctx.getInternalStepListener();
-                            if (listener != null) {
-                                listener.onInternalStepError(stepDef.getId(), e, ctx);
-                            }
-                            // Re-throw the exception so RetryExecutor can handle it
-                            if (e instanceof RuntimeException) {
-                                throw (RuntimeException) e;
-                            } else {
-                                throw new RuntimeException("Step execution failed", e);
-                            }
-                        }
-                    }
-                    
-                    // Return the result from the last step in the branch
-                    return StepResult.continueWith(lastResult != null ? lastResult : input);
+                    // Use utility to execute branch steps
+                    String branchName = String.format("multi-branch-%s-case-%s", 
+                        multiBranchNodeId, value != null ? value.toString() : "otherwise");
+                    return BranchStepExecutor.executeBranchSteps(stepsToExecute, input, ctx, branchName);
                 },
                 Object.class,  // Input type
                 Object.class   // Output type
@@ -1476,77 +1291,4 @@ WorkflowBuilder<T, R> {
         R apply(T t, U u, V v);
     }
     
-    /**
-     * Executes a step with retry support if it has a retry policy.
-     * This is used internally when executing steps within branches.
-     */
-    private static StepResult<?> executeStepWithRetry(StepDefinition stepDef, Object input, WorkflowContext ctx) throws Exception {
-        if (stepDef.getRetryPolicy() != null) {
-            log.debug("Executing step {} with retry policy: maxAttempts={}, delay={}ms", 
-                stepDef.getId(), 
-                stepDef.getRetryPolicy().maxAttempts(), 
-                stepDef.getRetryPolicy().delay());
-            
-            // Create a minimal RetryExecutor for this specific step
-            RetryExecutor retryExecutor = new RetryExecutor();
-            
-            // Create a fake WorkflowInstance and StepNode just for retry execution
-            WorkflowInstance fakeInstance = WorkflowInstance.builder()
-                .instanceId(ctx.getRunId())
-                .context(ctx)
-                .build();
-                
-            StepNode fakeStepNode = new StepNode(
-                stepDef.getId(),
-                stepDef.getDescription(),
-                new StepNode.StepExecutor() {
-                    @Override
-                    public Object execute(Object input, WorkflowContext context) throws Exception {
-                        return stepDef.getExecutor().execute(input, context);
-                    }
-                    
-                    @Override
-                    public Class<?> getInputType() {
-                        return stepDef.getInputType();
-                    }
-                    
-                    @Override
-                    public Class<?> getOutputType() {
-                        return stepDef.getOutputType();
-                    }
-                    
-                    @Override
-                    public boolean requiresContext() {
-                        return true;
-                    }
-                },
-                false,
-                false,
-                stepDef.getRetryPolicy(),
-                stepDef.getInvocationLimit(),
-                stepDef.getOnInvocationsLimit()
-            );
-            
-            // Execute with retry
-            return retryExecutor.executeWithRetry(fakeInstance, fakeStepNode, 
-                (inst, stp) -> {
-                    Object result = stepDef.getExecutor().execute(input, inst.getContext());
-                    if (result instanceof StepResult<?>) {
-                        return (StepResult<?>) result;
-                    } else {
-                        // The executor returns the raw result, wrap it in StepResult
-                        return StepResult.continueWith(result);
-                    }
-                });
-        } else {
-            // No retry policy, execute directly
-            Object result = stepDef.getExecutor().execute(input, ctx);
-            if (result instanceof StepResult<?>) {
-                return (StepResult<?>) result;
-            } else {
-                // The executor returns the raw result, wrap it in StepResult
-                return StepResult.continueWith(result);
-            }
-        }
-    }
 }

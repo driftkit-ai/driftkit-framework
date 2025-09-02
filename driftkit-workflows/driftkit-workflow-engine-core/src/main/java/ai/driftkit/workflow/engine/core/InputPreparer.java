@@ -2,8 +2,7 @@ package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
-import ai.driftkit.workflow.engine.utils.UserInputHandler;
-import ai.driftkit.workflow.engine.utils.TypeCompatibilityChecker;
+import ai.driftkit.workflow.engine.utils.WorkflowInputOutputHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -38,7 +37,7 @@ public class InputPreparer {
         Class<?> expectedInputType = step.executor().getInputType();
         
         // Priority 1: Check if we're resuming from suspension with user input
-        Object userInput = UserInputHandler.getUserInputForStep(instance, step);
+        Object userInput = WorkflowInputOutputHandler.getUserInputForStep(instance, step);
         if (userInput != null) {
             return userInput;
         }
@@ -46,7 +45,7 @@ public class InputPreparer {
         // Priority 2: Find the most recent compatible output from execution history
         log.debug("Looking for recent compatible output. Available outputs: {}", 
             ctx.getStepOutputs().keySet());
-        Object recentOutput = TypeCompatibilityChecker.findCompatibleOutputFromHistory(instance, step);
+        Object recentOutput = WorkflowInputOutputHandler.findCompatibleOutputFromHistory(instance, step);
         if (recentOutput != null) {
             log.debug("Found recent compatible output for step {}: type={}", 
                 step.id(), recentOutput.getClass().getSimpleName());
