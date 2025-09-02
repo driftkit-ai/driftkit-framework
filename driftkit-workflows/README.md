@@ -25,11 +25,50 @@ driftkit-workflows/
 │   ├── LoopAgent                          # Iterative refinement
 │   ├── SequentialAgent                    # Pipeline processing
 │   └── HierarchicalAgent                  # Agent-as-tool pattern
+├── driftkit-workflow-test-framework/       # Comprehensive testing support
+│   ├── Mock builders                      # Type-safe mock creation
+│   ├── Execution tracking                 # Step-by-step verification
+│   ├── Fluent assertions                  # Expressive test assertions
+│   └── JUnit 5 integration                # @WorkflowTest annotation
 └── driftkit-workflow-engine-spring-boot-starter/  # Spring Boot integration
     ├── Auto-configuration                  # Zero-config setup
     ├── REST endpoints                      # Workflow execution APIs
     └── Service layer                       # Business logic integration
 ```
+
+## 📖 Module Documentation
+
+### driftkit-workflow-engine-core
+The core workflow engine providing the foundation for all workflow types:
+- **Workflow Definition**: Define workflows using annotations (`@Workflow`, `@Step`) or fluent API
+- **Execution Engine**: Robust execution with retry policies, circuit breakers, and error handling
+- **State Management**: Automatic state persistence and recovery
+- **Context Management**: Thread-safe workflow context for data sharing between steps
+- **Suspension/Resumption**: Built-in support for human-in-the-loop workflows
+- **Async Processing**: Handle long-running operations with progress tracking
+
+### driftkit-workflow-engine-agents  
+Pre-built multi-agent orchestration patterns for complex AI workflows:
+- **LoopAgent**: Iterative refinement until quality criteria are met
+- **SequentialAgent**: Pipeline processing with data transformation
+- **HierarchicalAgent**: Agent-as-tool pattern for nested workflows
+- **Custom Patterns**: Extensible framework for building your own patterns
+
+### driftkit-workflow-test-framework
+Comprehensive testing toolkit for workflow validation:
+- **Mock Builders**: Type-safe mock creation for workflow steps
+- **Execution Tracking**: Detailed step-by-step execution verification
+- **Fluent Assertions**: Expressive API for result validation
+- **JUnit 5 Integration**: Seamless integration with modern test frameworks
+- **Async Testing**: Support for testing async and suspended workflows
+
+### driftkit-workflow-engine-spring-boot-starter
+Zero-configuration Spring Boot integration:
+- **Auto-Configuration**: Automatic setup of workflow engine and dependencies
+- **REST Endpoints**: Built-in APIs for workflow execution and management
+- **Service Layer**: Ready-to-use services for chat and workflow operations
+- **Monitoring**: Health checks and metrics integration
+- **Configuration**: Externalized configuration via `application.yml`
 
 ## 🚀 Quick Start
 
@@ -663,6 +702,130 @@ GET /workflows/instances/{instanceId}/status
 GET /chat/{chatId}/messages
 ```
 
+## 🧪 Testing Workflows
+
+The `driftkit-workflow-test-framework` provides comprehensive testing capabilities for your workflows.
+
+### Add Test Dependency
+
+```xml
+<dependency>
+    <groupId>ai.driftkit</groupId>
+    <artifactId>driftkit-workflow-test-framework</artifactId>
+    <version>0.6.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+### Writing Tests
+
+#### Using JUnit 5 Extension
+
+```java
+@WorkflowTest
+class CustomerServiceBotTest {
+    
+    @RegisterWorkflow
+    CustomerServiceBot bot = new CustomerServiceBot();
+    
+    @Test
+    void testGreetingFlow(WorkflowTestContext context) {
+        // Mock AI responses
+        context.mockStep("greetCustomer")
+            .willReturn(new Greeting("Hello! How can I help?"));
+        
+        // Execute workflow
+        var result = context.execute("customer-service-bot", new StartEvent());
+        
+        // Verify execution
+        context.assertThat()
+            .hasExecutedSteps("greetCustomer")
+            .hasStatus(WorkflowStatus.SUSPENDED)
+            .hasSuspendedWith(Greeting.class);
+        
+        // Resume with user input
+        var finalResult = context.resume(new CustomerChoice("Check order status"));
+        
+        context.assertThat()
+            .hasExecutedSteps("greetCustomer", "handleChoice", "handleOrderInquiry")
+            .hasCompletedSuccessfully();
+    }
+}
+```
+
+#### Testing with Fluent API Workflows
+
+```java
+class OrderProcessingWorkflowTest extends FluentWorkflowTest {
+    
+    @Override
+    protected void registerWorkflows() {
+        registerWorkflow(
+            WorkflowBuilder.define("order-workflow", Order.class, OrderResult.class)
+                .then("validate", this::validateOrder)
+                .then("process", this::processOrder)
+                .then("notify", this::notifyCustomer)
+                .build()
+        );
+    }
+    
+    @Test
+    void testOrderProcessing() {
+        // Mock specific steps
+        mockStep("process")
+            .willReturn(new ProcessedOrder("ORD-123", OrderStatus.COMPLETED));
+        
+        // Execute workflow
+        var result = executeWorkflow("order-workflow", new Order("item-1", 2));
+        
+        // Verify results
+        assertThat(result)
+            .isSuccess()
+            .hasResult(OrderResult.class)
+            .extracting(OrderResult::getOrderId)
+            .isEqualTo("ORD-123");
+        
+        // Verify execution order
+        assertExecutionOrder("validate", "process", "notify");
+    }
+}
+```
+
+#### Advanced Testing Features
+
+```java
+@Test
+void testRetryBehavior() {
+    // Mock failure then success
+    mockStep("unreliableService")
+        .willFailTimes(2, new ServiceException("Temporary error"))
+        .thenReturn(new ServiceResult("Success"));
+    
+    var result = executeWorkflow("retry-workflow", input);
+    
+    // Verify retries happened
+    assertStepExecutionCount("unreliableService", 3);
+    assertThat(result).isSuccess();
+}
+
+@Test
+void testAsyncWorkflow() {
+    // Mock async step
+    mockAsyncStep("longRunningTask")
+        .willCompleteAfter(Duration.ofSeconds(2))
+        .withProgressUpdates(25, 50, 75, 100)
+        .returning(new TaskResult("Completed"));
+    
+    var execution = executeWorkflowAsync("async-workflow", input);
+    
+    // Wait for completion with timeout
+    var result = execution.await(5, TimeUnit.SECONDS);
+    
+    // Verify progress updates
+    assertProgressUpdates("longRunningTask", 25, 50, 75, 100);
+}
+```
+
 ## 🎯 Best Practices
 
 ### 1. Workflow Design
@@ -688,6 +851,82 @@ GET /chat/{chatId}/messages
 - **Caching**: Cache frequently accessed data in context
 - **Batch Processing**: Process multiple items efficiently
 - **Resource Cleanup**: Clean up resources in finally blocks
+
+## 🤖 Multi-Agent Patterns
+
+The `driftkit-workflow-engine-agents` module provides ready-to-use multi-agent patterns:
+
+### Loop Agent Example
+Iteratively refine content until it meets quality criteria:
+
+```java
+@Component
+public class ContentOptimizer {
+    private final ModelClient aiClient;
+    
+    public String optimizeContent(String content) {
+        LoopAgent agent = LoopAgent.builder()
+            .maxIterations(5)
+            .taskDescription("Improve the following content for clarity and engagement")
+            .completionCriteria("The content should be clear, engaging, and error-free")
+            .modelClient(aiClient)
+            .build();
+            
+        return agent.execute(content);
+    }
+}
+```
+
+### Sequential Agent Example
+Process data through a pipeline of specialized agents:
+
+```java
+@Component
+public class DataPipeline {
+    private final ModelClient aiClient;
+    
+    public AnalysisResult analyzeDocument(Document doc) {
+        SequentialAgent pipeline = SequentialAgent.builder()
+            .addStep("extract", "Extract key information from document")
+            .addStep("validate", "Validate extracted data for completeness")
+            .addStep("enrich", "Enrich data with external sources")
+            .addStep("summarize", "Create executive summary")
+            .modelClient(aiClient)
+            .build();
+            
+        return pipeline.execute(doc, AnalysisResult.class);
+    }
+}
+```
+
+### Hierarchical Agent Example
+Use specialized agents as tools within a master agent:
+
+```java
+@Component
+public class ResearchAssistant {
+    private final ModelClient aiClient;
+    
+    public ResearchReport conductResearch(String topic) {
+        // Create specialized agents
+        Agent webSearcher = new WebSearchAgent(aiClient);
+        Agent factChecker = new FactCheckAgent(aiClient);
+        Agent writer = new WriterAgent(aiClient);
+        
+        // Create master coordinator
+        HierarchicalAgent coordinator = HierarchicalAgent.builder()
+            .name("Research Coordinator")
+            .description("Coordinate research activities")
+            .addAgent("search", webSearcher)
+            .addAgent("verify", factChecker)
+            .addAgent("write", writer)
+            .modelClient(aiClient)
+            .build();
+            
+        return coordinator.execute(topic, ResearchReport.class);
+    }
+}
+```
 
 ## 📚 Examples and Tutorials
 

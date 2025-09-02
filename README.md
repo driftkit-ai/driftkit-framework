@@ -58,7 +58,7 @@
 
 **Technical Implementation:**
 - **driftkit-context-engineering**: Create and A/B test response templates for different customer scenarios
-- **driftkit-workflows**: Intelligent routing - simple questions to AI, complex issues to specialists
+- **driftkit-workflow-engine-core**: Intelligent routing - simple questions to AI, complex issues to specialists
 - **driftkit-vector**: Knowledge base search for accurate, up-to-date information
 - **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro/Claude Opus 4 for complex, GPT-4o-mini/Gemini 2.5 Flash/Claude Haiku for simple queries)
 - **driftkit-common**: Conversation memory to maintain context across multiple interactions
@@ -73,7 +73,7 @@
 - **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5/Claude with vision) for processing PDFs, images, scanned documents
 - **driftkit-embedding**: Document similarity for duplicate detection and categorization  
 - **driftkit-vector**: Store processed documents for quick retrieval and compliance auditing
-- **driftkit-workflows**: Multi-step validation workflows with human-in-the-loop for critical decisions
+- **driftkit-workflow-engine-core**: Multi-step validation workflows with human-in-the-loop for critical decisions
 - **driftkit-common**: Structured output extraction directly into your ERP/accounting systems
 
 **Business Impact:** 90% faster processing, 95% error reduction, full compliance automation
@@ -86,7 +86,7 @@
 - **driftkit-vector**: Product catalog embeddings for intelligent similarity matching
 - **driftkit-embedding**: Customer behavior analysis and preference modeling
 - **driftkit-context-engineering**: Dynamic product description templates for different customer segments
-- **driftkit-workflows**: Real-time recommendation pipelines with A/B testing
+- **driftkit-workflow-engine-core**: Real-time recommendation pipelines with A/B testing
 - **driftkit-clients**: Multi-model optimization (fast models like GPT-4o-mini/Gemini Flash/Claude Haiku for real-time, advanced models like GPT-4/Gemini Pro/Claude Opus for deep analysis)
 
 **Business Impact:** 35% increase in conversion rates, 50% higher average order value, 60% improved customer lifetime value
@@ -97,7 +97,7 @@
 
 **Technical Implementation:**
 - **driftkit-context-engineering**: Brand voice templates with automated testing against brand guidelines
-- **driftkit-workflows**: Multi-stage content pipelines (research → draft → review → publish)
+- **driftkit-workflow-engine-agents**: Multi-stage content pipelines using SequentialAgent pattern
 - **driftkit-vector**: Content similarity checking to avoid duplication across channels
 - **driftkit-embedding**: SEO keyword optimization and content clustering
 - **driftkit-clients**: Model selection by content type (creative writing with GPT-4/Claude vs technical documentation with Gemini)
@@ -112,7 +112,7 @@
 - **driftkit-common**: Resume parsing and structured data extraction (skills, experience, education)
 - **driftkit-embedding**: Candidate-job matching based on semantic understanding, not just keywords
 - **driftkit-vector**: Talent pool management and similar candidate discovery
-- **driftkit-workflows**: Interview scheduling, personalized communications, feedback collection
+- **driftkit-workflow-engine-core**: Interview scheduling, personalized communications, feedback collection
 - **driftkit-context-engineering**: Personalized outreach templates optimized for response rates
 
 **Business Impact:** 70% faster hiring process, 40% improvement in hire quality, 90% candidate satisfaction
@@ -146,7 +146,7 @@
 | [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, Spring AI supported models, type-safe responses |
 | [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, Spring AI providers, local BERT models |
 | [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone, Spring AI |
-| [**driftkit-workflows**](driftkit-workflows/README.md) | AI Orchestration | Chat workflows, human-in-the-loop, multi-agent patterns |
+| [**driftkit-workflows**](driftkit-workflows/README.md) | AI Orchestration | Workflow engine, testing framework, multi-agent patterns, Spring Boot integration |
 | [**driftkit-context-engineering**](driftkit-context-engineering/README.md) | Prompt management | Web UI, versioning, A/B testing, Spring AI integration |
 | [**driftkit-audio**](driftkit-audio/README.md) | Audio processing | VAD, transcription, streaming |
 
@@ -173,16 +173,16 @@ driftkit-framework/
 │   └── driftkit-vector-spring-ai-starter/
 ├── driftkit-workflows/                  # ⚙️ AI orchestration and chat workflows
 │   ├── driftkit-workflow-engine-core/   # Core engine with chat support
-│   ├── driftkit-workflow-engine-agents/ # Multi-agent patterns
-│   └── driftkit-workflow-engine-spring-boot-starter/
+│   ├── driftkit-workflow-engine-agents/ # Multi-agent patterns (Loop, Sequential, Hierarchical)
+│   ├── driftkit-workflow-test-framework/ # Comprehensive testing support
+│   └── driftkit-workflow-engine-spring-boot-starter/ # Spring Boot integration
 ├── driftkit-context-engineering/        # 📝 Prompt management and engineering
 │   ├── driftkit-context-engineering-core/
 │   ├── driftkit-context-engineering-spring-boot-starter/
 │   ├── driftkit-context-engineering-spring-ai/  # Spring AI integration
 │   └── driftkit-context-engineering-spring-ai-starter/
-├── driftkit-workflows-examples/         # 🎯 Reference workflow implementations
-│   ├── driftkit-workflows-examples-core/
-│   └── driftkit-workflows-examples-spring-boot-starter/
+├── driftkit-workflow-examples/          # 🎯 Reference workflow implementations
+│   └── example-workflows/               # Sample workflows using new engine
 └── driftkit-audio/                      # 🎵 Audio processing and transcription
     ├── driftkit-audio-core/             # Core audio processing
     └── driftkit-audio-spring-boot-starter/
