@@ -1,11 +1,13 @@
 package ai.driftkit.workflow.engine.graph;
 
+import lombok.extern.slf4j.Slf4j;
 import java.util.function.Predicate;
 
 /**
  * Represents an edge in the workflow graph, defining the transition between steps.
  * Edges can be conditional or unconditional, and typed or untyped.
  */
+@Slf4j
 public record Edge(
     String fromStepId,
     String toStepId,
@@ -115,20 +117,36 @@ public record Edge(
         return switch (type) {
             case SEQUENTIAL -> true; // Always follow sequential edges
             case BRANCH -> {
+                log.debug("Checking BRANCH edge: eventType={}, stepResult type={}, branchValue={}", 
+                    eventType != null ? eventType.getSimpleName() : "null",
+                    stepResult != null ? stepResult.getClass().getSimpleName() : "null",
+                    branchValue);
+                
                 if (eventType != null && eventType.isInstance(stepResult)) {
                     // If we have a branchValue, compare it
                     if (branchValue != null && stepResult instanceof ai.driftkit.workflow.engine.builder.WorkflowBuilder.BranchValue<?> bv) {
                         Object actualValue = bv.value();
+                        log.debug("BranchValue comparison: actualValue={} ({}), expectedValue={} ({})",
+                            actualValue, actualValue != null ? actualValue.getClass() : "null",
+                            branchValue, branchValue.getClass());
+                        
                         if (actualValue instanceof Enum<?> && branchValue instanceof Enum<?>) {
                             // Compare enum by name
-                            yield ((Enum<?>) actualValue).name().equals(((Enum<?>) branchValue).name());
+                            boolean match = ((Enum<?>) actualValue).name().equals(((Enum<?>) branchValue).name());
+                            log.debug("Enum comparison: {} vs {} = {}", 
+                                ((Enum<?>) actualValue).name(), ((Enum<?>) branchValue).name(), match);
+                            yield match;
                         } else {
                             // Compare by equals
-                            yield branchValue.equals(actualValue);
+                            boolean match = branchValue.equals(actualValue);
+                            log.debug("Equals comparison: {} vs {} = {}", actualValue, branchValue, match);
+                            yield match;
                         }
                     }
+                    log.debug("No branchValue comparison, returning true for eventType match");
                     yield true;
                 }
+                log.debug("Event type doesn't match, returning false");
                 yield false;
             }
             case CONDITIONAL -> condition != null && condition.test(stepResult);

@@ -13,6 +13,11 @@ import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.lang.reflect.Field;
+import java.lang.reflect.InaccessibleObjectException;
+import java.util.ArrayList;
+import java.util.List;
+import java.lang.reflect.Modifier;
 
 /**
  * Utility class for common reflection operations used throughout the workflow engine.
@@ -245,6 +250,126 @@ public final class ReflectionUtils {
                    (inputType != null ? inputType.getSimpleName() : "?") + 
                    ") -> " + 
                    (outputType != null ? outputType.getSimpleName() : "?");
+        }
+    }
+    
+    /**
+     * Makes a field accessible, handling InaccessibleObjectException for Java module system.
+     * Skips fields from java.* packages that cannot be accessed due to module restrictions.
+     * 
+     * @param field The field to make accessible
+     * @return true if the field was made accessible, false if it should be skipped
+     */
+    public static boolean trySetAccessible(Field field) {
+        // Skip fields from java.* packages to avoid InaccessibleObjectException
+        if (field.getDeclaringClass().getName().startsWith("java.")) {
+            log.trace("Skipping field from java.* package: {}.{}", 
+                field.getDeclaringClass().getName(), field.getName());
+            return false;
+        }
+        
+        try {
+            field.setAccessible(true);
+            return true;
+        } catch (InaccessibleObjectException e) {
+            log.debug("Cannot make field accessible: {}.{} - {}", 
+                field.getDeclaringClass().getName(), field.getName(), e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Checks if a field should be included in schema generation.
+     * Excludes static, transient, synthetic fields and fields from java.* packages.
+     * 
+     * @param field The field to check
+     * @return true if the field should be included, false otherwise
+     */
+    public static boolean shouldIncludeField(Field field) {
+        // Skip static, transient, or synthetic fields
+        if (Modifier.isStatic(field.getModifiers()) || 
+            Modifier.isTransient(field.getModifiers()) || 
+            field.isSynthetic()) {
+            return false;
+        }
+        
+        // Skip fields from java.* packages
+        if (field.getDeclaringClass().getName().startsWith("java.")) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Gets all fields from a class and its superclasses, filtering out inaccessible ones.
+     * 
+     * @param clazz The class to get fields from
+     * @param includeInherited Whether to include fields from superclasses
+     * @return List of accessible fields
+     */
+    public static List<Field> getAccessibleFields(Class<?> clazz, boolean includeInherited) {
+        List<Field> accessibleFields = new ArrayList<>();
+        
+        Class<?> currentClass = clazz;
+        while (currentClass != null && currentClass != Object.class) {
+            for (Field field : currentClass.getDeclaredFields()) {
+                if (shouldIncludeField(field) && trySetAccessible(field)) {
+                    accessibleFields.add(field);
+                }
+            }
+            
+            if (!includeInherited) {
+                break;
+            }
+            
+            currentClass = currentClass.getSuperclass();
+        }
+        
+        return accessibleFields;
+    }
+    
+    /**
+     * Safely gets the value of a field from an object.
+     * 
+     * @param field The field to get value from
+     * @param instance The object instance
+     * @return The field value, or null if it cannot be accessed
+     */
+    public static Object getFieldValue(Field field, Object instance) {
+        if (!trySetAccessible(field)) {
+            return null;
+        }
+        
+        try {
+            return field.get(instance);
+        } catch (IllegalAccessException e) {
+            log.debug("Cannot access field {}.{}: {}", 
+                field.getDeclaringClass().getName(), field.getName(), e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Safely sets the value of a field on an object.
+     * 
+     * @param field The field to set
+     * @param instance The object instance
+     * @param value The value to set
+     * @return true if the field was set successfully, false otherwise
+     */
+    public static boolean setFieldValue(Field field, Object instance, Object value) {
+        if (!trySetAccessible(field)) {
+            return false;
+        }
+        
+        try {
+            field.set(instance, value);
+            return true;
+        } catch (IllegalAccessException e) {
+            log.debug("Cannot set field {}.{}: {}", 
+                field.getDeclaringClass().getName(), field.getName(), e.getMessage());
+            return false;
         }
     }
 }

@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.utils;
 
+import ai.driftkit.workflow.engine.builder.InternalRoutingMarker;
 import ai.driftkit.workflow.engine.core.StepOutput;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
 import ai.driftkit.workflow.engine.graph.StepNode;
@@ -31,6 +32,9 @@ public final class TypeCompatibilityChecker {
         WorkflowContext ctx = instance.getContext();
         Class<?> expectedInputType = targetStep.executor().getInputType();
         List<WorkflowInstance.StepExecutionRecord> history = instance.getExecutionHistory();
+        
+        log.debug("Finding compatible output for step {} expecting type: {}", 
+            targetStep.id(), expectedInputType != null ? expectedInputType.getSimpleName() : "any");
         
         if (history.isEmpty()) {
             return null;
@@ -67,7 +71,7 @@ public final class TypeCompatibilityChecker {
             }
             
             StepOutput output = getStepOutput(ctx, exec.getStepId());
-            if (output != null && output.getActualClass().equals(expectedInputType)) {
+            if (output != null && !isRoutingMarker(output) && output.getActualClass().equals(expectedInputType)) {
                 Object result = output.getValue();
                 log.debug("Found exact type match from step {} (type: {}) for step {}",
                         exec.getStepId(), output.getActualClass().getSimpleName(), targetStep.id());
@@ -94,7 +98,7 @@ public final class TypeCompatibilityChecker {
             }
             
             StepOutput output = getStepOutput(ctx, exec.getStepId());
-            if (output != null && targetStep.canAcceptInput(output.getActualClass())) {
+            if (output != null && !isRoutingMarker(output) && targetStep.canAcceptInput(output.getActualClass())) {
                 Object result = output.getValue();
                 log.debug("Found compatible output from step {} (type: {}) for step {}",
                         exec.getStepId(), output.getActualClass().getSimpleName(), targetStep.id());
@@ -156,5 +160,26 @@ public final class TypeCompatibilityChecker {
             return "any";
         }
         return type.getSimpleName();
+    }
+    
+    /**
+     * Checks if the output is a routing marker (used for branch decisions).
+     * These should not be used as input for subsequent steps.
+     * 
+     * @param output The step output to check
+     * @return true if this is a routing marker
+     */
+    private static boolean isRoutingMarker(StepOutput output) {
+        if (output == null || !output.hasValue()) {
+            return false;
+        }
+        
+        Object value = output.getValue();
+        if (value == null) {
+            return false;
+        }
+        
+        // Check if it implements InternalRoutingMarker interface
+        return value instanceof InternalRoutingMarker;
     }
 }

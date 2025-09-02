@@ -46,6 +46,30 @@ import java.util.function.Supplier;
  */
 @Slf4j
 public class WorkflowEngine {
+    
+    /**
+     * Factory for creating WorkflowContext instances.
+     * Can be overridden by test frameworks to provide custom context implementations.
+     */
+    @FunctionalInterface
+    public interface WorkflowContextFactory {
+        WorkflowContext create(String runId, Object triggerData, String instanceId);
+    }
+    
+    // Default factory that creates standard WorkflowContext
+    static WorkflowContextFactory contextFactory = (runId, triggerData, instanceId) -> 
+        WorkflowContext.fromExisting(runId, triggerData, null, null, instanceId);
+    
+    /**
+     * Sets the context factory to be used for creating WorkflowContext instances.
+     * This method is primarily intended for test frameworks to inject custom context implementations.
+     * 
+     * @param factory the context factory to use, or null to reset to default
+     */
+    public static void setContextFactory(WorkflowContextFactory factory) {
+        contextFactory = factory != null ? factory : (runId, triggerData, instanceId) -> 
+            WorkflowContext.fromExisting(runId, triggerData, null, null, instanceId);
+    }
 
     private final Map<String, WorkflowGraph<?, ?>> registeredWorkflows = new ConcurrentHashMap<>();
     private final WorkflowStateRepository stateRepository;
@@ -253,7 +277,11 @@ public class WorkflowEngine {
         
         // No existing instance, create new one with chatId
         WorkflowGraph<T, R> graph = getWorkflowGraph(workflowId);
-        WorkflowInstance instance = WorkflowInstance.newInstance(graph, input, instanceId, chatId);
+        
+        // Convert ChatRequest to workflow input type if needed
+        T actualInput = convertInputIfNeeded(input, graph, workflowId);
+        
+        WorkflowInstance instance = WorkflowInstance.newInstance(graph, actualInput, instanceId, chatId);
 
         stateRepository.save(instance);
 
@@ -303,7 +331,11 @@ public class WorkflowEngine {
         
         // No existing instance, create new one
         WorkflowGraph<T, R> graph = getWorkflowGraph(workflowId);
-        WorkflowInstance instance = WorkflowInstance.newInstance(graph, input, instanceId);
+        
+        // Convert ChatRequest to workflow input type if needed
+        T actualInput = convertInputIfNeeded(input, graph, workflowId);
+        
+        WorkflowInstance instance = WorkflowInstance.newInstance(graph, actualInput, instanceId);
 
         stateRepository.save(instance);
 
@@ -366,19 +398,7 @@ public class WorkflowEngine {
             
             // Special handling for ChatRequest with schema name
             if (input instanceof ChatRequest) {
-                ChatRequest chatRequest = (ChatRequest) input;
-                String schemaName = chatRequest.getRequestSchemaName();
-                
-                if (schemaName != null) {
-                    // Find the actual input class by schema name
-                    Class<?> actualInputClass = SchemaUtils.getSchemaClass(schemaName);
-                    if (actualInputClass != null) {
-                        expectedInputType = actualInputClass;
-                        log.debug("Resume: ChatRequest with schema {}, resolved to class {}", 
-                                 schemaName, actualInputClass.getName());
-                    }
-                }
-                // Skip type validation for ChatRequest - it will be converted later
+                expectedInputType = getInputType((ChatRequest) input, expectedInputType);
             } else if (!expectedInputType.isInstance(input)) {
                 throw new IllegalArgumentException(
                         "Resume input type mismatch: expected " + expectedInputType.getName() +
@@ -436,6 +456,22 @@ public class WorkflowEngine {
         return execution;
     }
 
+    private static <T> Class<?> getInputType(ChatRequest input, Class<?> expectedInputType) {
+        ChatRequest chatRequest = input;
+        String schemaName = chatRequest.getRequestSchemaName();
+
+        if (schemaName != null) {
+            // Find the actual input class by schema name
+            Class<?> actualInputClass = SchemaUtils.getSchemaClass(schemaName);
+            if (actualInputClass != null) {
+                expectedInputType = actualInputClass;
+                log.debug("Resume: ChatRequest with schema {}, resolved to class {}",
+                         schemaName, actualInputClass.getName());
+            }
+        }
+        return expectedInputType;
+    }
+
     /**
      * Main workflow execution loop.
      */
@@ -461,55 +497,6 @@ public class WorkflowEngine {
             notifyListeners(l -> l.onWorkflowSuspended(instance));
         }
     }
-
-    /**
-     * Prepares input for a step execution.
-     * Enhanced to prioritize most recent compatible input.
-     * Note: This method is now only used internally and may be moved to InputPreparer in future.
-     */
-    private Object prepareStepInput(WorkflowInstance instance, StepNode step) {
-        log.debug("Preparing input for step: {} (expected type: {})",
-                step.id(),
-                step.executor().getInputType() != null ? step.executor().getInputType().getSimpleName() : "any");
-
-        // For initial step, use trigger data
-        if (step.isInitial()) {
-            return instance.getContext().getTriggerData();
-        }
-
-        // Priority 1: Check if we're resuming from suspension with user input
-        Object userInput = UserInputHandler.getUserInputForStep(instance, step);
-        if (userInput != null) {
-            return userInput;
-        }
-
-        // Priority 2: Find the most recent compatible output from execution history
-        Object historyOutput = TypeCompatibilityChecker.findCompatibleOutputFromHistory(instance, step);
-        if (historyOutput != null) {
-            return historyOutput;
-        }
-
-        // Priority 3: Only check trigger data for initial steps
-        // This prevents non-initial steps (like those in branches) from accidentally
-        // getting the workflow's original input instead of the previous step's output
-        if (step.isInitial()) {
-            WorkflowContext ctx = instance.getContext();
-            Object triggerData = ctx.getTriggerData();
-            if (triggerData != null && step.canAcceptInput(triggerData.getClass())) {
-                log.debug("Using trigger data of type {} for initial step {}",
-                        triggerData.getClass().getSimpleName(), step.id());
-                return triggerData;
-            }
-        }
-
-        // No suitable input available
-        Class<?> expectedInputType = step.executor().getInputType();
-        log.error("No suitable input found for step {} (expected type: {})",
-                step.id(),
-                expectedInputType != null ? expectedInputType.getSimpleName() : "any");
-        return null;
-    }
-
 
     /**
      * Handles asynchronous step execution.
@@ -1400,5 +1387,89 @@ public class WorkflowEngine {
 
         // Notify listeners
         notifyListeners(l -> l.onStepFailed(instance, currentStep.id(), error));
+    }
+    
+    /**
+     * Converts input to the appropriate type for workflow execution.
+     * Handles ChatRequest conversion based on schema name or workflow's expected input type.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> T convertInputIfNeeded(T input, WorkflowGraph<?, ?> graph, String workflowId) {
+        if (!(input instanceof ChatRequest)) {
+            return input;
+        }
+        
+        ChatRequest chatRequest = (ChatRequest) input;
+        
+        // Try schema-based conversion first
+        String schemaName = chatRequest.getRequestSchemaName();
+        if (schemaName != null) {
+            Class<?> schemaClass = SchemaUtils.getSchemaClass(schemaName);
+            if (schemaClass != null) {
+                Object converted = convertChatRequestToClass(chatRequest, schemaClass);
+                if (converted != null) {
+                    log.debug("Converted ChatRequest to {} using schema name: {}", 
+                             schemaClass.getSimpleName(), schemaName);
+                    return (T) converted;
+                }
+            }
+            log.warn("Schema not found in registry: {}, using ChatRequest as-is", schemaName);
+            return input;
+        }
+        
+        // No schema name, try workflow's expected input type
+        StepNode initialStep = graph.nodes().get(graph.initialStepId());
+        if (initialStep == null || initialStep.executor() == null) {
+            return input;
+        }
+        
+        Class<?> expectedInputType = initialStep.executor().getInputType();
+        if (expectedInputType == null || expectedInputType == void.class || 
+            ChatRequest.class.isAssignableFrom(expectedInputType)) {
+            return input;
+        }
+        
+        Object converted = convertChatRequestToClass(chatRequest, expectedInputType);
+        if (converted != null) {
+            log.debug("Converted ChatRequest to {} for workflow {}", 
+                    expectedInputType.getSimpleName(), workflowId);
+            return (T) converted;
+        }
+        
+        return input;
+    }
+    
+    /**
+     * Converts ChatRequest to a specific class type.
+     */
+    private Object convertChatRequestToClass(ChatRequest chatRequest, Class<?> targetClass) {
+        try {
+            return SchemaUtils.createInstance(targetClass, chatRequest.getPropertiesMap());
+        } catch (Exception e) {
+            log.warn("Failed to convert ChatRequest to {}: {}", 
+                    targetClass.getSimpleName(), e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Converts ChatRequest to the expected input type for a workflow step.
+     * This allows workflows to work with domain-specific types while being triggered by ChatRequest.
+     */
+    private Object convertChatRequestToInput(ChatRequest chatRequest, Class<?> expectedInputType) {
+        try {
+            // Get properties from ChatRequest
+            Map<String, String> properties = new HashMap<>();
+            if (chatRequest.getPropertiesMap() != null) {
+                chatRequest.getPropertiesMap().forEach((k, v) -> properties.put(k, String.valueOf(v)));
+            }
+            
+            // Try to create instance of expected type from properties
+            return SchemaUtils.createInstance(expectedInputType, properties);
+        } catch (Exception e) {
+            log.warn("Failed to convert ChatRequest to {}: {}", 
+                    expectedInputType.getSimpleName(), e.getMessage());
+            return null;
+        }
     }
 }

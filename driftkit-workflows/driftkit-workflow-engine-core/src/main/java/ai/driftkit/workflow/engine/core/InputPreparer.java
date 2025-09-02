@@ -2,6 +2,8 @@ package ai.driftkit.workflow.engine.core;
 
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
+import ai.driftkit.workflow.engine.utils.UserInputHandler;
+import ai.driftkit.workflow.engine.utils.TypeCompatibilityChecker;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -36,22 +38,18 @@ public class InputPreparer {
         Class<?> expectedInputType = step.executor().getInputType();
         
         // Priority 1: Check if we're resuming from suspension with user input
-        if (ctx.hasStepResult(WorkflowContext.Keys.USER_INPUT)) {
-            Object userInput = retrieveUserInput(ctx, expectedInputType);
-            if (userInput != null && isInputCompatible(step, userInput)) {
-                log.debug("Using user input of type {} for step {}", 
-                    userInput.getClass().getSimpleName(), step.id());
-                clearUserInput(instance);
-                return userInput;
-            }
+        Object userInput = UserInputHandler.getUserInputForStep(instance, step);
+        if (userInput != null) {
+            return userInput;
         }
         
-        // Priority 2: Find the most recent compatible output
+        // Priority 2: Find the most recent compatible output from execution history
         log.debug("Looking for recent compatible output. Available outputs: {}", 
             ctx.getStepOutputs().keySet());
-        Object recentOutput = findRecentCompatibleOutput(instance, step);
+        Object recentOutput = TypeCompatibilityChecker.findCompatibleOutputFromHistory(instance, step);
         if (recentOutput != null) {
-            log.debug("Found recent compatible output for step {}", step.id());
+            log.debug("Found recent compatible output for step {}: type={}", 
+                step.id(), recentOutput.getClass().getSimpleName());
             return recentOutput;
         }
         
@@ -99,61 +97,5 @@ public class InputPreparer {
             step.id(), 
             expectedInputType != null ? expectedInputType.getSimpleName() : "any");
         return null;
-    }
-    
-    private Object retrieveUserInput(WorkflowContext ctx, Class<?> expectedInputType) {
-        String userInputTypeName = ctx.getStepResultOrDefault(
-            WorkflowContext.Keys.USER_INPUT_TYPE, String.class, null);
-        
-        if (userInputTypeName != null && expectedInputType != null) {
-            try {
-                Class<?> savedType = Class.forName(userInputTypeName);
-                if (expectedInputType.isAssignableFrom(savedType)) {
-                    return ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, savedType);
-                }
-            } catch (ClassNotFoundException e) {
-                log.warn("Could not load saved type class: {}", userInputTypeName);
-            }
-        }
-        
-        return ctx.getStepResult(WorkflowContext.Keys.USER_INPUT, Object.class);
-    }
-    
-    private void clearUserInput(WorkflowInstance instance) {
-        instance.updateContext(WorkflowContext.Keys.USER_INPUT, null);
-        instance.updateContext(WorkflowContext.Keys.USER_INPUT_TYPE, null);
-    }
-    
-    private Object findRecentCompatibleOutput(WorkflowInstance instance, StepNode step) {
-        var history = instance.getExecutionHistory();
-        var ctx = instance.getContext();
-        
-        for (int i = history.size() - 1; i >= 0; i--) {
-            var exec = history.get(i);
-            
-            if (exec.getStepId().equals(step.id())) {
-                continue;
-            }
-            
-            if (!ctx.hasStepResult(exec.getStepId())) {
-                continue;
-            }
-            
-            StepOutput output = ctx.getStepOutputs().get(exec.getStepId());
-            if (output != null && output.hasValue()) {
-                Object result = output.getValue();
-                if (result != null && isInputCompatible(step, result)) {
-                    log.debug("Using output from step {} (type: {}) as input for step {}", 
-                        exec.getStepId(), result.getClass().getSimpleName(), step.id());
-                    return result;
-                }
-            }
-        }
-        
-        return null;
-    }
-    
-    private boolean isInputCompatible(StepNode step, Object input) {
-        return step.canAcceptInput(input.getClass());
     }
 }

@@ -38,6 +38,9 @@ public class WorkflowContext {
     private final ConcurrentHashMap<String, AtomicInteger> stepExecutionCounts;
     private final ConcurrentHashMap<String, RetryContext> stepRetryContexts;
     
+    // Internal step listener for tracking/mocking support
+    private transient volatile InternalStepListener internalStepListener;
+    
     /**
      * Well-known keys for special context values.
      */
@@ -56,6 +59,13 @@ public class WorkflowContext {
         public static final String ASYNC_FUTURE = "_future";
 
         private Keys() {} // prevent instantiation
+    }
+    
+    /**
+     * Creates a new WorkflowContext with the provided parameters.
+     */
+    public WorkflowContext(String runId, Object triggerData, String instanceId) {
+        this(runId, triggerData, null, null, instanceId);
     }
     
     /**
@@ -87,13 +97,9 @@ public class WorkflowContext {
      * @return A new WorkflowContext with a generated runId
      */
     public static WorkflowContext newRun(Object triggerData) {
-        return new WorkflowContext(
-            UUID.randomUUID().toString(),
-            triggerData,
-            null,
-            null,
-            null
-        );
+        String runId = UUID.randomUUID().toString();
+        // Use the factory from WorkflowEngine if available
+        return WorkflowEngine.contextFactory.create(runId, triggerData, null);
     }
     
     /**
@@ -104,13 +110,9 @@ public class WorkflowContext {
      * @return A new WorkflowContext with a generated runId
      */
     public static WorkflowContext newRun(Object triggerData, String instanceId) {
-        return new WorkflowContext(
-            UUID.randomUUID().toString(),
-            triggerData,
-            null,
-            null,
-            instanceId
-        );
+        String runId = UUID.randomUUID().toString();
+        // Use the factory from WorkflowEngine if available
+        return WorkflowEngine.contextFactory.create(runId, triggerData, instanceId);
     }
     
     /**
@@ -662,5 +664,40 @@ public class WorkflowContext {
                 "Cannot convert " + description + " to " + type.getName() + ": " + e.getMessage()
             );
         }
+    }
+    
+    /**
+     * Notifies about internal step execution within a branch or other composite step.
+     * This is used for test framework tracking when steps are executed internally
+     * without going through the normal workflow engine execution path.
+     * 
+     * @param stepId the ID of the internal step being executed
+     * @param input the input to the step
+     */
+    public void notifyInternalStepExecution(String stepId, Object input) {
+        log.debug("Internal step execution: {} with input type: {}", 
+            stepId, input != null ? input.getClass().getSimpleName() : "null");
+        
+        if (internalStepListener != null) {
+            log.debug("Notifying internal step listener for step: {}", stepId);
+            internalStepListener.beforeInternalStep(stepId, input, this);
+        } else {
+            log.debug("No internal step listener set for step: {}", stepId);
+        }
+    }
+    
+    /**
+     * Sets the internal step listener for this context.
+     * Used by test frameworks to track internal step executions.
+     */
+    public void setInternalStepListener(InternalStepListener listener) {
+        this.internalStepListener = listener;
+    }
+    
+    /**
+     * Gets the internal step listener if set.
+     */
+    public InternalStepListener getInternalStepListener() {
+        return internalStepListener;
     }
 }

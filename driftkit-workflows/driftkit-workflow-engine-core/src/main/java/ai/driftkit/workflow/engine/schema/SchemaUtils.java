@@ -2,6 +2,7 @@ package ai.driftkit.workflow.engine.schema;
 
 import ai.driftkit.workflow.engine.schema.AIFunctionSchema.AIFunctionProperty;
 import ai.driftkit.workflow.engine.schema.annotations.SchemaClass;
+import ai.driftkit.workflow.engine.utils.ReflectionUtils;
 import ai.driftkit.common.utils.JsonUtils;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class SchemaUtils {
-    private static final Map<Class<?>, AIFunctionSchema> schemaCache = new ConcurrentHashMap<>();
     private static final Map<Class<?>, List<AIFunctionSchema>> composableSchemaCache = new ConcurrentHashMap<>();
     private static final List<AIFunctionSchema> schemasList = new CopyOnWriteArrayList<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -33,7 +33,6 @@ public class SchemaUtils {
     public static List<AIFunctionSchema> getSchemas() {
         List<AIFunctionSchema> allSchemas = new ArrayList<>();
         allSchemas.addAll(schemasList);
-        allSchemas.addAll(schemaCache.values());
         
         composableSchemaCache.values().forEach(allSchemas::addAll);
         
@@ -119,37 +118,16 @@ public class SchemaUtils {
             return null;
         }
         
-        if (schemaCache.containsKey(schemaClass)) {
-            return schemaCache.get(schemaClass);
-        }
-        
         AIFunctionSchema schema = AIFunctionSchema.fromClass(schemaClass);
         
+        // Additional processing for SchemaClass annotation (composable, etc.)
         SchemaClass annotation = schemaClass.getAnnotation(SchemaClass.class);
         if (annotation != null) {
-            if (!annotation.id().isEmpty()) {
-                schema.setSchemaName(annotation.id());
-            }
-            
-            if (!annotation.description().isEmpty()) {
-                schema.setDescription(annotation.description());
-                log.debug("Schema description for {}: {}", schemaClass.getName(), annotation.description());
-            }
-            
             if (annotation.composable()) {
                 schema.setComposable(true);
                 log.debug("Schema {} is marked as composable", schemaClass.getName());
             }
         }
-        
-        // Check for @SchemaSystem annotation
-        SchemaSystem schemaSystem = schemaClass.getAnnotation(SchemaSystem.class);
-        if (schemaSystem != null) {
-            schema.setSystem(schemaSystem.value());
-            log.debug("Schema {} is marked as system: {}", schemaClass.getName(), schemaSystem.value());
-        }
-        
-        schemaCache.put(schemaClass, schema);
         
         // Register in schema registry
         String schemaName = getSchemaId(schemaClass);
@@ -186,7 +164,6 @@ public class SchemaUtils {
      * Clears the schema cache.
      */
     public static void clearCache() {
-        schemaCache.clear();
         composableSchemaCache.clear();
         AIFunctionSchema.clearCache();
         SCHEMA_REGISTRY.clear();
@@ -225,8 +202,10 @@ public class SchemaUtils {
             T instance = schemaClass.getDeclaredConstructor().newInstance();
             
             if (properties != null && !properties.isEmpty()) {
-                for (Field field : schemaClass.getDeclaredFields()) {
-                    field.setAccessible(true);
+                // Get all accessible fields from the class
+                List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(schemaClass, false);
+                
+                for (Field field : accessibleFields) {
                     String propertyName = field.getName();
                     
                     // Handle JsonAlias annotations
@@ -286,10 +265,12 @@ public class SchemaUtils {
         Map<String, String> properties = new HashMap<>();
         
         try {
-            for (Field field : object.getClass().getDeclaredFields()) {
-                field.setAccessible(true);
+            // Get all accessible fields from the class
+            List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(object.getClass(), false);
+            
+            for (Field field : accessibleFields) {
                 String propertyName = field.getName();
-                Object value = field.get(object);
+                Object value = ReflectionUtils.getFieldValue(field, object);
                 
                 if (value != null) {
                     if (value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof Enum) {
@@ -363,31 +344,33 @@ public class SchemaUtils {
      * Sets a field value with type conversion.
      */
     private static void setFieldValue(Field field, Object instance, String value) {
+        Class<?> fieldType = field.getType();
+        Object convertedValue = null;
+        
         try {
-            Class<?> fieldType = field.getType();
             
             if (fieldType == String.class) {
-                field.set(instance, value);
+                convertedValue = value;
             } else if (fieldType == int.class || fieldType == Integer.class) {
-                field.set(instance, Integer.parseInt(value));
+                convertedValue = Integer.parseInt(value);
             } else if (fieldType == long.class || fieldType == Long.class) {
-                field.set(instance, Long.parseLong(value));
+                convertedValue = Long.parseLong(value);
             } else if (fieldType == double.class || fieldType == Double.class) {
-                field.set(instance, Double.parseDouble(value));
+                convertedValue = Double.parseDouble(value);
             } else if (fieldType == float.class || fieldType == Float.class) {
-                field.set(instance, Float.parseFloat(value));
+                convertedValue = Float.parseFloat(value);
             } else if (fieldType == boolean.class || fieldType == Boolean.class) {
-                field.set(instance, Boolean.parseBoolean(value));
+                convertedValue = Boolean.parseBoolean(value);
             } else if (fieldType.isEnum()) {
                 @SuppressWarnings("unchecked")
                 Enum<?> enumValue = Enum.valueOf(fieldType.asSubclass(Enum.class), value);
-                field.set(instance, enumValue);
+                convertedValue = enumValue;
             } else if (List.class.isAssignableFrom(fieldType)) {
                 // Simple JSON array parsing
                 if (value.startsWith("[") && value.endsWith("]")) {
                     try {
                         List<?> list = OBJECT_MAPPER.readValue(value, List.class);
-                        field.set(instance, list);
+                        convertedValue = list;
                     } catch (Exception e) {
                         // Fallback to simple string split
                         String trimmedValue = value.substring(1, value.length() - 1);
@@ -396,7 +379,7 @@ public class SchemaUtils {
                         for (String item : items) {
                             list.add(item.trim().replaceAll("\"", ""));
                         }
-                        field.set(instance, list);
+                        convertedValue = list;
                     }
                 }
             } else if (Map.class.isAssignableFrom(fieldType)) {
@@ -404,7 +387,7 @@ public class SchemaUtils {
                 if (value.startsWith("{") && value.endsWith("}")) {
                     try {
                         Map<?, ?> map = OBJECT_MAPPER.readValue(value, Map.class);
-                        field.set(instance, map);
+                        convertedValue = map;
                     } catch (Exception e) {
                         log.warn("Failed to parse map value for field {}: {}", field.getName(), e.getMessage());
                     }
@@ -413,16 +396,25 @@ public class SchemaUtils {
                 // If value is JSON and field type is an Object (custom class), try to parse it
                 try {
                     Object parsedValue = JsonUtils.fromJson(value, fieldType);
-                    field.set(instance, parsedValue);
+                    convertedValue = parsedValue;
                 } catch (Exception e) {
                     log.warn("Failed to parse JSON value for field {} of type {}: {}", 
                             field.getName(), fieldType.getName(), e.getMessage());
                 }
             } else {
                 log.warn("Unsupported field type: {} for field: {}", fieldType.getName(), field.getName());
+                return;
+            }
+            
+            // Use ReflectionUtils to safely set the field value
+            if (convertedValue != null || !fieldType.isPrimitive()) {
+                if (!ReflectionUtils.setFieldValue(field, instance, convertedValue)) {
+                    log.error("Failed to set field {} with converted value", field.getName());
+                }
             }
         } catch (Exception e) {
-            log.error("Error setting field {} with value '{}': {}", field.getName(), value, e.getMessage(), e);
+            log.error("Error converting value '{}' for field {} of type {}: {}", 
+                value, field.getName(), fieldType.getName(), e.getMessage(), e);
         }
     }
 }

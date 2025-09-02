@@ -9,6 +9,7 @@ import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
 import ai.driftkit.workflow.engine.graph.Edge;
 import ai.driftkit.workflow.engine.graph.StepNode;
 import ai.driftkit.workflow.engine.graph.WorkflowGraph;
+import ai.driftkit.workflow.engine.schema.SchemaUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.UtilityClass;
@@ -356,6 +357,15 @@ public class WorkflowAnalyzer {
                         info.getInvocationLimit(),
                         info.getOnInvocationsLimit()
                 );
+                
+                // Register input type schema if present
+                if (node.executor() != null) {
+                    Class<?> inputType = node.executor().getInputType();
+                    if (inputType != null && inputType != void.class && inputType != Void.class) {
+                        SchemaUtils.getSchemaFromClass(inputType);
+                        log.debug("Registered input type schema for step {}: {}", info.getId(), inputType.getName());
+                    }
+                }
 
                 if (info.isInitial()) {
                     node = node.asInitial();

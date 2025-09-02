@@ -4,6 +4,7 @@ import ai.driftkit.workflow.engine.annotations.OnInvocationsLimit;
 import ai.driftkit.workflow.engine.annotations.RetryPolicy;
 import ai.driftkit.workflow.engine.core.StepResult;
 import ai.driftkit.workflow.engine.core.WorkflowContext;
+import ai.driftkit.workflow.engine.utils.ReflectionUtils;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -274,7 +275,7 @@ public record StepNode(
         @Override
         public Class<?> getOutputType() {
             Type genericReturnType = method.getGenericReturnType();
-            return extractStepResultType(genericReturnType);
+            return ReflectionUtils.extractStepResultType(genericReturnType);
         }
         
         @Override
@@ -288,32 +289,6 @@ public record StepNode(
             return false;
         }
         
-        /**
-         * Extracts the inner type from StepResult<T> or CompletableFuture<StepResult<T>>
-         */
-        private Class<?> extractStepResultType(Type type) {
-            if (type instanceof ParameterizedType paramType) {
-                Type rawType = paramType.getRawType();
-                
-                // Handle CompletableFuture<StepResult<T>>
-                if (rawType instanceof Class<?> clazz && CompletableFuture.class.isAssignableFrom(clazz)) {
-                    Type[] typeArgs = paramType.getActualTypeArguments();
-                    if (typeArgs.length > 0 && typeArgs[0] instanceof ParameterizedType innerType) {
-                        return extractStepResultType(innerType);
-                    }
-                }
-                
-                // Handle StepResult<T>
-                if (rawType instanceof Class<?> clazz && StepResult.class.isAssignableFrom(clazz)) {
-                    Type[] typeArgs = paramType.getActualTypeArguments();
-                    if (typeArgs.length > 0 && typeArgs[0] instanceof Class<?> resultClass) {
-                        return resultClass;
-                    }
-                }
-            }
-            
-            return Object.class;
-        }
     }
     
     /**

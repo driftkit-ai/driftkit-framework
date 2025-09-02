@@ -76,6 +76,12 @@ public class WorkflowExecutor {
             // Prepare input for the step
             input = inputPreparer.prepareStepInput(instance, step);
             
+            log.debug("Step {} expects input type: {}, prepared input: {} (type: {})", 
+                stepId, 
+                step.executor().getInputType() != null ? step.executor().getInputType().getName() : "any",
+                input,
+                input != null ? input.getClass().getName() : "null");
+            
             // Call interceptors before execution
             notifyBeforeStep(instance, step, input);
             

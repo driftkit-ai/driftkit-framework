@@ -64,6 +64,10 @@ public class StepDefinition {
                 try {
                     return stepFunction.apply((I) input);
                 } catch (ClassCastException e) {
+                    log.error("Type mismatch in step '{}': expected {}, received {}", 
+                        methodInfo.getMethodName(), 
+                        methodInfo.getInputType(),
+                        input != null ? input.getClass() : "null");
                     throw new IllegalArgumentException(
                         "Input type mismatch for step '" + methodInfo.getMethodName() + 
                         "'. Expected: " + methodInfo.getInputType() + 
@@ -91,6 +95,10 @@ public class StepDefinition {
                 try {
                     return stepFunction.apply((I) input, context);
                 } catch (ClassCastException e) {
+                    log.error("Type mismatch in step '{}': expected {}, received {}", 
+                        methodInfo.getMethodName(), 
+                        methodInfo.getInputType(),
+                        input != null ? input.getClass() : "null");
                     throw new IllegalArgumentException(
                         "Input type mismatch for step '" + methodInfo.getMethodName() + 
                         "'. Expected: " + methodInfo.getInputType() + 

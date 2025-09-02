@@ -78,7 +78,7 @@ public class SpringChatWorkflowIntegrationTest {
         assertEquals("test-chat-123", response.getChatId());
         assertTrue(response.isCompleted()); // Suspend returns completed response with nextSchema
         assertNotNull(response.getNextSchema()); // Should have schema for next input
-        assertEquals("userChatMessage", response.getNextSchema().getSchemaName());
+        assertEquals("UserChatMessage", response.getNextSchema().getSchemaName());
         
         Map<String, String> responseProps = response.getPropertiesMap();
         String message = responseProps.get("message");

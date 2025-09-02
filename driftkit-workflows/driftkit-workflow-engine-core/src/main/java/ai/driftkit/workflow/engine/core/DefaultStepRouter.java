@@ -100,11 +100,21 @@ public class DefaultStepRouter implements StepRouter {
     
     @Override
     public String findBranchTarget(WorkflowGraph<?, ?> graph, String currentStepId, Object event) {
+        log.debug("Finding branch target from step: {} for event: {} (type: {})", 
+                 currentStepId, event, event != null ? event.getClass().getName() : "null");
+        
         List<Edge> edges = graph.getOutgoingEdges(currentStepId);
+        log.debug("Available edges from {}: {}", currentStepId, edges.size());
 
         // Priority 1: Find matching branch edge by event type
         for (Edge edge : edges) {
+            log.debug("Checking edge: {} -> {}, type: {}, eventType: {}, branchValue: {}", 
+                edge.fromStepId(), edge.toStepId(), edge.type(), 
+                edge.eventType() != null ? edge.eventType().getSimpleName() : "null",
+                edge.branchValue());
+            
             if (edge.type() == Edge.EdgeType.BRANCH && edge.shouldFollow(event)) {
+                log.debug("Found matching branch edge: {} -> {}", currentStepId, edge.toStepId());
                 return edge.toStepId();
             }
         }
@@ -112,6 +122,7 @@ public class DefaultStepRouter implements StepRouter {
         // Priority 2: Type-based resolution - find any step that accepts the event type
         if (event != null) {
             Class<?> eventType = event.getClass();
+            log.debug("No exact branch match, trying type-based resolution for {}", eventType.getName());
 
             // First check branch edge targets
             for (Edge edge : edges) {
@@ -134,6 +145,7 @@ public class DefaultStepRouter implements StepRouter {
             }
         }
 
+        log.warn("No branch target found for event: {} from step: {}", event, currentStepId);
         return null;
     }
     
@@ -152,15 +164,47 @@ public class DefaultStepRouter implements StepRouter {
         }
 
         // If no direct edge found, search all nodes for one that accepts this input type
+        // First pass: look for steps other than the excluded one
         for (StepNode node : graph.nodes().values()) {
-            // Allow steps to process the same input type again (self-loop for type-based routing)
+            // Skip the excluded step to prevent infinite loops
             if (!node.isInitial() && 
-                node.canAcceptInput(inputType)) {
-                log.debug("Found step {} that can accept input type {}",
-                        node.id(), inputType.getSimpleName());
-                return node.id();
+                !node.id().equals(excludeStepId)) {
+                
+                Class<?> expectedType = node.executor() != null ? node.executor().getInputType() : null;
+                log.debug("Checking step {} with expected type {} against input type {}", 
+                         node.id(), 
+                         expectedType != null ? expectedType.getName() : "null",
+                         inputType.getName());
+                
+                if (node.canAcceptInput(inputType)) {
+                    log.debug("Found step {} that can accept input type {}",
+                            node.id(), inputType.getSimpleName());
+                    return node.id();
+                }
             }
         }
+        
+        // Second pass: if no other step found, check if the excluded step can handle it
+        // This allows steps to handle multiple inputs of the same type (e.g., multiple questions)
+        if (excludeStepId != null) {
+            StepNode excludedNode = graph.getNode(excludeStepId).orElse(null);
+            if (excludedNode != null && !excludedNode.isInitial() && excludedNode.canAcceptInput(inputType)) {
+                log.debug("No other step found, allowing return to the same step {} for input type {}",
+                         excludeStepId, inputType.getSimpleName());
+                return excludeStepId;
+            }
+        }
+        
+        log.warn("No step found that can accept input type {} (excluding {}). Available steps:", 
+                inputType.getName(), excludeStepId);
+        for (StepNode node : graph.nodes().values()) {
+            if (!node.isInitial()) {
+                Class<?> expectedType = node.executor() != null ? node.executor().getInputType() : null;
+                log.warn("  Step {}: expects {}", node.id(), 
+                        expectedType != null ? expectedType.getName() : "null");
+            }
+        }
+        
         return null;
     }
 }

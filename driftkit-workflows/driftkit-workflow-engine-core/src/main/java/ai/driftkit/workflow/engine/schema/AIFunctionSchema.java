@@ -1,6 +1,7 @@
 package ai.driftkit.workflow.engine.schema;
 
 import ai.driftkit.common.domain.chat.ChatMessage.PropertyType;
+import ai.driftkit.workflow.engine.utils.ReflectionUtils;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,27 +104,20 @@ public class AIFunctionSchema implements Serializable {
                 description = descriptionAnnotation.value();
             }
             
-            Class<?> currentClass = clazz;
-            while (currentClass != null && currentClass != Object.class) {
-                for (Field field : currentClass.getDeclaredFields()) {
-                    if (Modifier.isStatic(field.getModifiers()) || 
-                        Modifier.isTransient(field.getModifiers()) || 
-                        field.isSynthetic()) {
-                        continue;
-                    }
-                    
-                    if (field.isAnnotationPresent(JsonIgnore.class) || 
-                        field.isAnnotationPresent(SchemaIgnore.class)) {
-                        continue;
-                    }
-                    
-                    field.setAccessible(true);
-                    AIFunctionProperty property = createPropertyFromField(field);
-                    if (property != null) {
-                        properties.add(property);
-                    }
+            // Get all accessible fields from the class and its superclasses
+            List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(clazz, true);
+            
+            for (Field field : accessibleFields) {
+                // Skip ignored fields
+                if (field.isAnnotationPresent(JsonIgnore.class) || 
+                    field.isAnnotationPresent(SchemaIgnore.class)) {
+                    continue;
                 }
-                currentClass = currentClass.getSuperclass();
+                
+                AIFunctionProperty property = createPropertyFromField(field);
+                if (property != null) {
+                    properties.add(property);
+                }
             }
             
             AIFunctionSchema schema = new AIFunctionSchema(schemaName, properties);
@@ -136,6 +130,12 @@ public class AIFunctionSchema implements Serializable {
             SchemaArray schemaArrayAnnotation = clazz.getAnnotation(SchemaArray.class);
             if (schemaArrayAnnotation != null) {
                 schema.setArray(true);
+            }
+            
+            // Check for @SchemaSystem annotation
+            SchemaSystem schemaSystemAnnotation = clazz.getAnnotation(SchemaSystem.class);
+            if (schemaSystemAnnotation != null) {
+                schema.setSystem(schemaSystemAnnotation.value());
             }
             
             schemaCache.put(clazz, schema);
@@ -546,17 +546,7 @@ public class AIFunctionSchema implements Serializable {
         }
     }
 
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    public @interface SchemaName {
-        String value();
-    }
     
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    public @interface SchemaDescription {
-        String value();
-    }
     
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)

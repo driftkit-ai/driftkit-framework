@@ -187,13 +187,13 @@ public class ChatMessageTaskConverter {
 
         task.setType(response.getType());
         
-        // Check if the schema has system flag
+        // Check if the schema has system flag - only set if true
         if (response.getNextSchema() != null && response.getNextSchema().getSchemaName() != null) {
             Class<?> schemaClass = SchemaUtils.getSchemaClass(response.getNextSchema().getSchemaName());
             if (schemaClass != null) {
                 AIFunctionSchema schema = SchemaUtils.getSchemaFromClass(schemaClass);
-                if (schema != null) {
-                    task.setSystem(schema.isSystem());
+                if (schema != null && schema.isSystem()) {
+                    task.setSystem(true);
                 }
             }
         }

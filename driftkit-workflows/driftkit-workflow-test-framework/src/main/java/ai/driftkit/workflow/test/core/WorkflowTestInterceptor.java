@@ -58,6 +58,19 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
     
     public void beforeWorkflowStart(WorkflowInstance instance, Object input) {
         log.debug("Before workflow start: {} with input: {}", instance.getWorkflowId(), input);
+        
+        // Set up InternalStepListener for branch/parallel testing
+        WorkflowContext context = instance.getContext();
+        if (context != null) {
+            log.debug("Setting up TestInternalStepListener for workflow: {}", instance.getWorkflowId());
+            TestInternalStepListener listener = new TestInternalStepListener(
+                instance, executionTracker, mockRegistry);
+            context.setInternalStepListener(listener);
+            log.debug("TestInternalStepListener installed successfully");
+        } else {
+            log.warn("WorkflowContext is null for instance: {}", instance.getInstanceId());
+        }
+        
         executionTracker.recordWorkflowStart(instance, input);
     }
     
@@ -75,6 +88,16 @@ public class WorkflowTestInterceptor implements ExecutionInterceptor {
     public void beforeStep(WorkflowInstance instance, StepNode step, Object input) {
         log.debug("Before step execution: {}.{} with input: {}", 
             instance.getWorkflowId(), step.id(), input);
+        
+        // Set up InternalStepListener on first step if not already set
+        WorkflowContext workflowContext = instance.getContext();
+        if (workflowContext != null && workflowContext.getInternalStepListener() == null) {
+            log.debug("Setting up TestInternalStepListener on first step for workflow: {}", instance.getWorkflowId());
+            TestInternalStepListener listener = new TestInternalStepListener(
+                instance, executionTracker, mockRegistry);
+            workflowContext.setInternalStepListener(listener);
+            log.debug("TestInternalStepListener installed successfully");
+        }
         
         StepContext context = new StepContext(instance, step, input);
         currentStepContext.set(context);

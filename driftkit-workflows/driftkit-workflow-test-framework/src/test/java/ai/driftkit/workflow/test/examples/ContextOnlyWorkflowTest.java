@@ -8,6 +8,8 @@ import ai.driftkit.workflow.engine.schema.SchemaName;
 import ai.driftkit.workflow.engine.schema.SchemaDescription;
 import ai.driftkit.workflow.engine.schema.SchemaProperty;
 import ai.driftkit.workflow.test.core.AnnotationWorkflowTest;
+import ai.driftkit.common.domain.chat.ChatRequest;
+import ai.driftkit.common.domain.Language;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -71,13 +74,16 @@ public class ContextOnlyWorkflowTest extends AnnotationWorkflowTest {
     }
     
     @Test
-    @DisplayName("Should execute workflow with ChatContextHelper initialization")
+    @DisplayName("Should execute workflow with ChatRequest initialization")
     void testWorkflowWithChatContextHelper() throws Exception {
-        // Initialize context with ChatContextHelper
-        WorkflowContext initialContext = ChatContextHelper.initChatContext("chat-123", "user-456", null);
+        // Create ChatRequest with chat and user information
+        ChatRequest chatRequest = new ChatRequest();
+        chatRequest.setChatId("chat-123");
+        chatRequest.setUserId("user-456");
+        chatRequest.setLanguage(Language.ENGLISH);
         
-        // Execute workflow with initialized context
-        var execution = executeAndExpectSuspend("context-based-workflow", initialContext, Duration.ofSeconds(5));
+        // Execute workflow with ChatRequest
+        var execution = executeAndExpectSuspend("context-based-workflow", chatRequest, Duration.ofSeconds(5));
         String runId = execution.getRunId();
         
         // Verify the workflow suspended with the welcome message including userId
@@ -90,7 +96,7 @@ public class ContextOnlyWorkflowTest extends AnnotationWorkflowTest {
         
         assertNotNull(suspensionData);
         assertEquals("Welcome! Please tell me your name.", suspensionData.getMessage());
-        assertEquals("user-456", suspensionData.getUserId()); // userId from context
+        assertEquals("user-456", suspensionData.getUserId()); // userId from ChatRequest
         
         // Resume with user data
         UserData userData = new UserData();
@@ -108,9 +114,12 @@ public class ContextOnlyWorkflowTest extends AnnotationWorkflowTest {
     @Test
     @DisplayName("Should verify step execution for context-only workflow")
     void testStepExecution() throws Exception {
-        WorkflowContext initialContext = ChatContextHelper.initChatContext("chat-789", "user-789", null);
+        ChatRequest chatRequest = new ChatRequest();
+        chatRequest.setChatId("chat-789");
+        chatRequest.setUserId("user-789");
+        chatRequest.setLanguage(Language.ENGLISH);
         
-        var execution = executeAndExpectSuspend("context-based-workflow", initialContext);
+        var execution = executeAndExpectSuspend("context-based-workflow", chatRequest);
         String runId = execution.getRunId();
         
         // Verify initial step was executed

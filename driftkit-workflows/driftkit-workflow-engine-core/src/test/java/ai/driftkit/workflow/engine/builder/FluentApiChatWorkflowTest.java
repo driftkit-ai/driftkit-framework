@@ -202,26 +202,30 @@ public class FluentApiChatWorkflowTest {
     @Test
     @DisplayName("Complex workflow with when/is/otherwise pattern")
     public void testWhenBranching() throws Exception {
+        // Clear any cached schemas from previous tests
+        SchemaUtils.clearCache();
+        
         // Build workflow with when/is/otherwise pattern
         WorkflowGraph<OrderRequest, OrderResult> workflow = WorkflowBuilder
             .define("order-processing", OrderRequest.class, OrderResult.class)
             .then(validationSteps::validateOrder)
             .then(processingSteps::calculateOrderTotal)
             .on(ctx -> {
-                log.debug("Context has steps: {}", ctx.getStepCount());
-                log.debug("Step names: {}", ctx.getStepOutputs().keySet());
-                
                 Optional<OrderTotal> orderTotal = ctx.step("calculateOrderTotal").output(OrderTotal.class);
-                log.debug("Found OrderTotal in context: {}", orderTotal.isPresent());
                 
                 // Try to get last output
                 Optional<OrderTotal> lastOrderTotal = ctx.lastOutput(OrderTotal.class);
-                log.debug("Found OrderTotal in lastOutput: {}", lastOrderTotal.isPresent());
                 
                 CustomerTier tier = orderTotal.map(OrderTotal::getCustomerTier)
                     .or(() -> lastOrderTotal.map(OrderTotal::getCustomerTier))
                     .orElse(CustomerTier.STANDARD);
-                log.debug("Selected customer tier: {}", tier);
+                
+                System.out.println("=== BRANCH SELECTOR DEBUG ===");
+                System.out.println("OrderTotal from step: " + orderTotal.orElse(null));
+                System.out.println("OrderTotal from lastOutput: " + lastOrderTotal.orElse(null));
+                System.out.println("Selected tier: " + tier);
+                System.out.println("=============================");
+                
                 return tier;
             })
                 .is(CustomerTier.GOLD, flow -> flow
@@ -745,14 +749,17 @@ public class FluentApiChatWorkflowTest {
             return StepResult.continueWith(result);
         }
         
-        public StepResult<ProcessResult> aggregateResults(Object input, WorkflowContext context) {
-            ProcessResult result = new ProcessResult();
-            result.setSuccess(true);
-            result.addCompletedStep("enrichData");
-            result.addCompletedStep("validateCompliance");
-            result.addCompletedStep("calculateMetrics");
-            result.addCompletedStep("checkQuality");
-            return StepResult.continueWith(result);
+        public StepResult<ProcessResult> aggregateResults(List<ProcessResult> results, WorkflowContext context) {
+            ProcessResult aggregated = new ProcessResult();
+            aggregated.setSuccess(true);
+            
+            // Aggregate all results from parallel execution
+            for (ProcessResult result : results) {
+                aggregated.getCompletedSteps().addAll(result.getCompletedSteps());
+                aggregated.setSuccess(aggregated.isSuccess() && result.isSuccess());
+            }
+            
+            return StepResult.continueWith(aggregated);
         }
         
         public StepResult<ProcessResult> generateProcessReport(ProcessResult result) {
@@ -765,7 +772,6 @@ public class FluentApiChatWorkflowTest {
             total.setOrderId(order.getOrderId());
             total.setSubtotal(100.0); // Simplified
             CustomerTier tier = determineCustomerTier(order.getCustomerId());
-            log.debug("calculateOrderTotal: customerId={}, tier={}", order.getCustomerId(), tier);
             total.setCustomerTier(tier);
             return StepResult.continueWith(total);
         }
@@ -777,6 +783,7 @@ public class FluentApiChatWorkflowTest {
         }
         
         public StepResult<OrderResult> applyGoldDiscount(OrderTotal total) {
+            System.out.println("applyGoldDiscount called with: " + total + " (type: " + total.getClass().getName() + ")");
             OrderResult result = new OrderResult();
             result.setOrderId(total.getOrderId());
             result.setDiscountApplied(0.20);
@@ -786,12 +793,13 @@ public class FluentApiChatWorkflowTest {
             return StepResult.continueWith(result);
         }
         
-        public StepResult<Object> addGoldPerks(OrderResult result) {
+        public StepResult<OrderResult> addGoldPerks(OrderResult result) {
             result.addPerk("Extended warranty");
             return StepResult.continueWith(result);
         }
         
         public StepResult<OrderResult> applySilverDiscount(OrderTotal total) {
+            System.out.println("applySilverDiscount called with: " + total + " (type: " + total.getClass().getName() + ")");
             OrderResult result = new OrderResult();
             result.setOrderId(total.getOrderId());
             result.setDiscountApplied(0.10);
@@ -800,6 +808,7 @@ public class FluentApiChatWorkflowTest {
         }
         
         public StepResult<OrderResult> applyStandardPricing(OrderTotal total) {
+            System.out.println("applyStandardPricing called with: " + total + " (type: " + total.getClass().getName() + ")");
             OrderResult result = new OrderResult();
             result.setOrderId(total.getOrderId());
             result.setDiscountApplied(0.0);
@@ -808,6 +817,8 @@ public class FluentApiChatWorkflowTest {
         }
         
         public StepResult<OrderResult> finalizeOrder(OrderResult result) {
+            System.out.println("finalizeOrder called with: " + result + " (type: " + result.getClass().getName() + ")");
+            System.out.println("  Discount applied: " + result.getDiscountApplied());
             result.setStatus("FINALIZED");
             return StepResult.finish(result);
         }
