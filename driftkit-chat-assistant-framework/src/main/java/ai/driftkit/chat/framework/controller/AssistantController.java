@@ -43,7 +43,7 @@ import java.nio.charset.Charset;
 import java.util.*;
 
 @Slf4j
-@RestController
+@RestController("legacyAssistantController")
 @RequiredArgsConstructor
 @RequestMapping("/public/api1.0/ai/assistant/v2/")
 @Validated

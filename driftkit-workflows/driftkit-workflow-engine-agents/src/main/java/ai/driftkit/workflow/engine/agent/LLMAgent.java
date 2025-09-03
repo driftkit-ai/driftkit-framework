@@ -8,8 +8,11 @@ import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.tools.ToolInfo;
@@ -604,6 +607,99 @@ public class LLMAgent implements Agent {
     @Override
     public String execute(String input, Map<String, Object> variables) {
         return executeText(input, variables).getText();
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input) {
+        return executeStreaming(input, null);
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
+        try {
+            // Process message with variables
+            String processedMessage = processMessageWithVariables(input, variables);
+            
+            // Add user message to memory
+            addUserMessage(processedMessage);
+            
+            // Build chat request
+            ModelTextRequest request = buildChatRequest();
+            
+            // Get streaming response from model client
+            StreamingResponse<String> streamingResponse = modelClient.streamTextToText(request);
+            
+            // Wrap the response to handle memory and tracing
+            return new StreamingResponse<String>() {
+                private boolean cancelled = false;
+                private final StringBuilder fullResponse = new StringBuilder();
+                
+                @Override
+                public void subscribe(StreamingCallback<String> callback) {
+                    streamingResponse.subscribe(new StreamingCallback<String>() {
+                        @Override
+                        public void onNext(String item) {
+                            fullResponse.append(item);
+                            callback.onNext(item);
+                        }
+                        
+                        @Override
+                        public void onError(Throwable error) {
+                            log.error("Streaming error in LLMAgent", error);
+                            callback.onError(error);
+                        }
+                        
+                        @Override
+                        public void onComplete() {
+                            // Add complete response to memory
+                            if (fullResponse.length() > 0) {
+                                addAssistantMessage(fullResponse.toString());
+                            }
+                            
+                            // Trace if provider is available
+                            RequestTracingProvider provider = getTracingProvider();
+                            if (provider != null) {
+                                String contextType = buildContextType("STREAM");
+                                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
+                                    .contextId(agentId)
+                                    .contextType(contextType)
+                                    .variables(variables)
+                                    .build();
+                                // Create a synthetic response for tracing
+                                ModelTextResponse syntheticResponse = ModelTextResponse.builder()
+                                    .choices(Collections.singletonList(
+                                        ResponseMessage.builder()
+                                            .message(ModelMessage.builder()
+                                                .role(Role.assistant)
+                                                .content(fullResponse.toString())
+                                                .build())
+                                            .build()
+                                    ))
+                                    .build();
+                                provider.traceTextRequest(request, syntheticResponse, traceContext);
+                            }
+                            
+                            callback.onComplete();
+                        }
+                    });
+                }
+                
+                @Override
+                public void cancel() {
+                    cancelled = true;
+                    streamingResponse.cancel();
+                }
+                
+                @Override
+                public boolean isActive() {
+                    return !cancelled && streamingResponse.isActive();
+                }
+            };
+            
+        } catch (Exception e) {
+            log.error("Error in executeStreaming", e);
+            throw new RuntimeException("Failed to execute streaming", e);
+        }
     }
     
     // Private helper methods

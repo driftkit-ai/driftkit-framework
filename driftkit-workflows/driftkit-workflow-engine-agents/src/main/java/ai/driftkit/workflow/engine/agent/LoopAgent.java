@@ -1,6 +1,8 @@
 package ai.driftkit.workflow.engine.agent;
 
 import ai.driftkit.common.domain.client.ResponseFormat;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
 import ai.driftkit.common.utils.JsonUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,6 +10,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -218,5 +221,18 @@ public class LoopAgent implements Agent {
             .status(LoopStatus.CONTINUE)
             .feedback(response)
             .build();
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input) {
+        return executeStreaming(input, null);
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
+        // Loop agents don't support true streaming since they need to evaluate complete results at each iteration
+        // Return a basic streaming response with the final result
+        String result = runLoop(input, variables);
+        return new BasicStreamingResponse<>(Collections.singletonList(result));
     }
 }

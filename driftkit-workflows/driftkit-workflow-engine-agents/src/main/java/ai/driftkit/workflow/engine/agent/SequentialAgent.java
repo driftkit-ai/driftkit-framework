@@ -1,11 +1,14 @@
 package ai.driftkit.workflow.engine.agent;
 
+import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -113,5 +116,18 @@ public class SequentialAgent implements Agent {
         
         log.debug("SequentialAgent '{}' completed all {} steps", getName(), agents.size());
         return result;
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input) {
+        return executeStreaming(input, null);
+    }
+    
+    @Override
+    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
+        // Sequential agents don't support true streaming since each agent needs the complete output of the previous one
+        // Return a basic streaming response with the final result
+        String result = runSequence(input, variables);
+        return new BasicStreamingResponse<>(Collections.singletonList(result));
     }
 }

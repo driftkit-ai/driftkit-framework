@@ -21,6 +21,11 @@
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-workflow-engine-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflow-engine-agents</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Spring Boot -->
         <dependency>
@@ -43,6 +48,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        
+        <!-- Spring WebFlux for reactive streaming support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <optional>true</optional>
         </dependency>
         
         <!-- Spring Data for Pageable support -->

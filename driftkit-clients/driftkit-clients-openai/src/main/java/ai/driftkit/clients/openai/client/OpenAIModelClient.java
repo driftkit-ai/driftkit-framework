@@ -3,6 +3,8 @@ package ai.driftkit.clients.openai.client;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
 import ai.driftkit.common.domain.client.ModelTextRequest.ReasoningEffort;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
@@ -17,7 +19,9 @@ import ai.driftkit.clients.openai.domain.ChatCompletionRequest.Message;
 import ai.driftkit.clients.openai.domain.ChatCompletionRequest.Message.ContentElement;
 import ai.driftkit.clients.openai.domain.ChatCompletionRequest.Message.ImageContentElement;
 import ai.driftkit.clients.openai.domain.ChatCompletionRequest.Message.TextContentElement;
+import ai.driftkit.clients.openai.domain.ChatCompletionRequest.StringMessage;
 import ai.driftkit.clients.openai.domain.ChatCompletionResponse;
+import ai.driftkit.clients.openai.domain.ChatCompletionChunk;
 import ai.driftkit.clients.openai.domain.CreateImageRequest;
 import ai.driftkit.clients.openai.domain.CreateImageRequest.CreateImageRequestBuilder;
 import ai.driftkit.clients.openai.domain.CreateImageRequest.Quality;
@@ -33,7 +37,9 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -42,6 +48,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -219,6 +227,221 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         super.textToText(prompt);
 
         return processPrompt(prompt);
+    }
+    
+    @Override
+    public StreamingResponse<String> streamTextToText(ModelTextRequest prompt) throws UnsupportedCapabilityException {
+        return new StreamingResponse<String>() {
+            private final AtomicBoolean active = new AtomicBoolean(false);
+            private final AtomicBoolean cancelled = new AtomicBoolean(false);
+            private CompletableFuture<Void> streamFuture;
+            
+            @Override
+            public void subscribe(StreamingCallback<String> callback) {
+                if (!active.compareAndSet(false, true)) {
+                    callback.onError(new IllegalStateException("Stream already subscribed"));
+                    return;
+                }
+                
+                streamFuture = CompletableFuture.runAsync(() -> {
+                    try {
+                        processStreamingPrompt(prompt, callback, cancelled);
+                    } catch (Exception e) {
+                        if (!cancelled.get()) {
+                            callback.onError(e);
+                        }
+                    } finally {
+                        active.set(false);
+                    }
+                });
+            }
+            
+            @Override
+            public void cancel() {
+                cancelled.set(true);
+                if (streamFuture != null) {
+                    streamFuture.cancel(true);
+                }
+                active.set(false);
+            }
+            
+            @Override
+            public boolean isActive() {
+                return active.get();
+            }
+        };
+    }
+    
+    private void processStreamingPrompt(ModelTextRequest prompt, StreamingCallback<String> callback, AtomicBoolean cancelled) throws Exception {
+        List<Tool> tools = prompt.getToolMode() == ToolMode.none ? null : getTools();
+        
+        if (CollectionUtils.isEmpty(tools)) {
+            tools = prompt.getTools();
+        }
+        
+        String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
+        Double temperature = Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature());
+        Boolean logprobs = Optional.ofNullable(prompt.getLogprobs()).orElse(getLogprobs());
+        Integer topLogprobs = Optional.ofNullable(prompt.getTopLogprobs()).orElse(getTopLogprobs());
+        
+        ChatCompletionRequest.ResponseFormat responseFormat = !jsonObjectSupport || prompt.getResponseFormat() == null ? null : new ChatCompletionRequest.ResponseFormat(
+            prompt.getResponseFormat().getType().getValue(),
+            convertModelJsonSchema(prompt.getResponseFormat().getJsonSchema())
+        );
+        
+        ChatCompletionRequest.ChatCompletionRequestBuilder reqBuilder = ChatCompletionRequest.builder()
+                .model(model)
+                .n(1)
+                .stream(true)  // Enable streaming
+                .maxTokens(getMaxTokens())
+                .maxCompletionTokens(getMaxCompletionTokens())
+                .temperature(temperature)
+                .tools(tools)
+                .responseFormat(responseFormat)
+                .logprobs(logprobs)
+                .messages(
+                        prompt.getMessages().stream()
+                            .map(this::toStreamingMessage)  // Use special converter for streaming
+                            .toList()
+                );
+        
+        // Only add topLogprobs if logprobs is enabled
+        if (Boolean.TRUE.equals(logprobs)) {
+            reqBuilder.topLogprobs(topLogprobs);
+        }
+        
+        ChatCompletionRequest req = reqBuilder.build();
+        
+        // Prepare the HTTP request for SSE streaming
+        String apiKey = config.getApiKey();
+        String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse("https://api.openai.com");
+        
+        String requestBody = JsonUtils.toJson(req);
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/v1/chat/completions"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofMinutes(5))
+                .build();
+        
+        // Create SSE subscriber
+        SSESubscriber sseSubscriber = new SSESubscriber(callback, cancelled);
+        
+        // Send request with streaming response
+        HttpResponse<Void> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.fromLineSubscriber(sseSubscriber));
+        
+        // Check for errors
+        if (response.statusCode() >= 400) {
+            // Try to get error body
+            HttpRequest errorRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/v1/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> errorResponse = httpClient.send(errorRequest, HttpResponse.BodyHandlers.ofString());
+            log.error("Error response: {}", errorResponse.body());
+            throw new RuntimeException("OpenAI API error: HTTP " + response.statusCode() + " - " + errorResponse.body());
+        }
+    }
+    
+    /**
+     * SSE Subscriber for handling streaming responses
+     */
+    private static class SSESubscriber implements Flow.Subscriber<String> {
+        private final StreamingCallback<String> callback;
+        private final AtomicBoolean cancelled;
+        private Flow.Subscription subscription;
+        private boolean completed = false;
+        
+        public SSESubscriber(StreamingCallback<String> callback, AtomicBoolean cancelled) {
+            this.callback = callback;
+            this.cancelled = cancelled;
+        }
+        
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            subscription.request(Long.MAX_VALUE);
+        }
+        
+        @Override
+        public void onNext(String line) {
+            
+            if (cancelled.get() || completed) {
+                // Don't cancel if already completed - just ignore further messages
+                if (cancelled.get() && !completed) {
+                    subscription.cancel();
+                }
+                return;
+            }
+            
+            try {
+                // Check if this is an error response (JSON object starting with {)
+                if (line.trim().startsWith("{") && line.contains("\"error\"")) {
+                    // This is an error response, not SSE
+                    log.error("Received error response: {}", line);
+                    completed = true;
+                    callback.onError(new RuntimeException("OpenAI API error: " + line));
+                    // Cancel subscription for error case
+                    if (subscription != null) {
+                        subscription.cancel();
+                    }
+                    return;
+                }
+                
+                // SSE format: lines starting with "data: "
+                if (line.startsWith("data: ")) {
+                    String data = line.substring(6).trim();
+                    
+                    // Check for end of stream
+                    if ("[DONE]".equals(data)) {
+                        completed = true;
+                        callback.onComplete();
+                        return;  // Don't cancel subscription yet - let it complete naturally
+                    }
+                    
+                    // Parse the JSON chunk
+                    ChatCompletionChunk chunk = JsonUtils.fromJson(data, ChatCompletionChunk.class);
+                    
+                    // Extract content from the chunk
+                    if (chunk != null && chunk.getChoices() != null && !chunk.getChoices().isEmpty()) {
+                        ChatCompletionChunk.ChunkChoice choice = chunk.getChoices().get(0);
+                        if (choice != null && choice.getDelta() != null && choice.getDelta().getContent() != null) {
+                            String content = choice.getDelta().getContent();
+                            callback.onNext(content);
+                        }
+                        
+                        // Check if stream is finished
+                        if (choice != null && choice.getFinishReason() != null) {
+                            // Don't call onComplete here - wait for [DONE] message
+                        }
+                    }
+                }
+                // Empty lines are part of SSE format, ignore them
+            } catch (Exception e) {
+                log.error("Error processing SSE line: {}", line, e);
+                // Continue processing other lines
+            }
+        }
+        
+        @Override
+        public void onError(Throwable throwable) {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onError(throwable);
+            }
+        }
+        
+        @Override
+        public void onComplete() {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onComplete();
+            }
+        }
     }
 
     @Nullable
@@ -515,6 +738,31 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         }
     }
 
+    /**
+     * Convert message for streaming requests - always uses StringMessage for simple text
+     */
+    private Message toStreamingMessage(ModelImageResponse.ModelContentMessage message) {
+        // For streaming, we prefer StringMessage when possible for better compatibility
+        if (message.getContent() != null && !message.getContent().isEmpty()) {
+            // Check if all elements are text
+            boolean allText = message.getContent().stream()
+                .allMatch(e -> e.getType() == ModelTextRequest.MessageType.text);
+            
+            if (allText) {
+                // Concatenate all text elements into a single string
+                String combinedText = message.getContent().stream()
+                    .map(ModelContentElement::getText)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(" "));
+                
+                return new StringMessage(message.getRole().name(), message.getName(), combinedText);
+            }
+        }
+        
+        // Fall back to regular conversion for complex messages
+        return toMessage(message);
+    }
+    
     private Message toMessage(ModelImageResponse.ModelContentMessage message) {
 //        if (message.getContent().size() == 1) {
 //            ModelContentElement mce = message.getContent().get(0);
