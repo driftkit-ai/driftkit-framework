@@ -624,7 +624,19 @@ public class LLMAgent implements Agent {
             addUserMessage(processedMessage);
             
             // Build chat request
-            ModelTextRequest request = buildChatRequest();
+            ModelTextRequest request;
+            if (chatStore == null) {
+                // If no chat store, manually add the user message to the request
+                List<ModelContentMessage> messages = buildBaseMessages();
+                messages.add(ModelContentMessage.create(Role.user, processedMessage));
+                request = ModelTextRequest.builder()
+                    .model(getEffectiveModel())
+                    .temperature(getEffectiveTemperature())
+                    .messages(messages)
+                    .build();
+            } else {
+                request = buildChatRequest();
+            }
             
             // Get streaming response from model client
             StreamingResponse<String> streamingResponse = modelClient.streamTextToText(request);
