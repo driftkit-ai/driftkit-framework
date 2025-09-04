@@ -13,6 +13,8 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
+import ai.driftkit.common.domain.streaming.StreamingCallback;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.common.utils.ModelUtils;
@@ -22,7 +24,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.jetbrains.annotations.Nullable;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +47,10 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
     
     private GeminiApiClient client;
     private VaultConfig config;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_2)
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
     
     @Override
     public ModelClient init(VaultConfig config) {
@@ -463,6 +477,256 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 .model(response.getModelVersion())
                 .choices(choices)
                 .usage(usage)
+                .build();
+    }
+    
+    @Override
+    public StreamingResponse<String> streamTextToText(ModelTextRequest prompt) {
+        // Check if streaming is supported
+        if (!getCapabilities().contains(Capability.TEXT_TO_TEXT)) {
+            throw new UnsupportedCapabilityException("Text to text is not supported");
+        }
+        
+        return new StreamingResponse<String>() {
+            private final AtomicBoolean active = new AtomicBoolean(false);
+            private final AtomicBoolean cancelled = new AtomicBoolean(false);
+            private CompletableFuture<Void> streamFuture;
+            private SSESubscriber sseSubscriber;
+            
+            @Override
+            public void subscribe(StreamingCallback<String> callback) {
+                if (!active.compareAndSet(false, true)) {
+                    callback.onError(new IllegalStateException("Stream already subscribed"));
+                    return;
+                }
+                
+                streamFuture = CompletableFuture.runAsync(() -> {
+                    try {
+                        sseSubscriber = processStreamingPrompt(prompt, callback, cancelled);
+                    } catch (Exception e) {
+                        if (!cancelled.get()) {
+                            callback.onError(e);
+                        }
+                    } finally {
+                        active.set(false);
+                    }
+                });
+            }
+            
+            @Override
+            public void cancel() {
+                cancelled.set(true);
+                if (sseSubscriber != null) {
+                    sseSubscriber.cancel();
+                }
+                if (streamFuture != null) {
+                    streamFuture.cancel(true);
+                }
+                active.set(false);
+            }
+            
+            @Override
+            public boolean isActive() {
+                return active.get();
+            }
+        };
+    }
+    
+    private SSESubscriber processStreamingPrompt(ModelTextRequest prompt, StreamingCallback<String> callback, AtomicBoolean cancelled) throws Exception {
+        // Build Gemini request
+        GeminiChatRequest request = buildGeminiRequest(prompt);
+        
+        // Add streaming specific configuration
+        if (request.getGenerationConfig() == null) {
+            request.setGenerationConfig(new GeminiGenerationConfig());
+        }
+        
+        String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
+        String apiKey = config.getApiKey();
+        String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse("https://generativelanguage.googleapis.com");
+        
+        String requestBody = JsonUtils.toJson(request);
+        
+        // Build HTTP request for streaming with alt=sse parameter for SSE format
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/v1beta/models/" + model + ":streamGenerateContent?alt=sse"))
+                .header("Content-Type", "application/json")
+                .header("x-goog-api-key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofMinutes(5))
+                .build();
+        
+        // Create SSE subscriber
+        SSESubscriber sseSubscriber = new SSESubscriber(callback, cancelled);
+        
+        // Send request with streaming response asynchronously
+        httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.fromLineSubscriber(sseSubscriber))
+                .thenAccept(response -> {
+                    // Check for errors
+                    if (response.statusCode() >= 400) {
+                        callback.onError(new RuntimeException("Gemini API error: HTTP " + response.statusCode()));
+                    }
+                })
+                .exceptionally(throwable -> {
+                    callback.onError(throwable);
+                    return null;
+                });
+        
+        return sseSubscriber;
+    }
+    
+    /**
+     * SSE Subscriber for handling streaming responses from Gemini
+     */
+    private static class SSESubscriber implements Flow.Subscriber<String> {
+        private final StreamingCallback<String> callback;
+        private final AtomicBoolean cancelled;
+        private Flow.Subscription subscription;
+        private boolean completed = false;
+        
+        public SSESubscriber(StreamingCallback<String> callback, AtomicBoolean cancelled) {
+            this.callback = callback;
+            this.cancelled = cancelled;
+        }
+        
+        public void cancel() {
+            if (subscription != null) {
+                subscription.cancel();
+            }
+            completed = true;
+        }
+        
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            subscription.request(Long.MAX_VALUE);
+        }
+        
+        @Override
+        public void onNext(String line) {
+            if (cancelled.get() || completed) {
+                // Don't cancel if already completed - just ignore further messages
+                if (cancelled.get() && !completed) {
+                    subscription.cancel();
+                }
+                return;
+            }
+            
+            
+            try {
+                // Skip empty lines
+                if (line.trim().isEmpty()) {
+                    return;
+                }
+                
+                // Handle SSE format
+                String data = line;
+                if (line.startsWith("data: ")) {
+                    data = line.substring(6);
+                    // Skip "[DONE]" marker
+                    if (data.equals("[DONE]")) {
+                        completed = true;
+                        callback.onComplete();
+                        return;
+                    }
+                }
+                
+                // Try to parse as JSON directly (each line should be a complete JSON object)
+                if (data.trim().startsWith("{")) {
+                    try {
+                        GeminiChatResponse chunk = JsonUtils.fromJson(data, GeminiChatResponse.class);
+                        
+                        // Extract text from the chunk
+                        if (chunk != null && chunk.getCandidates() != null && !chunk.getCandidates().isEmpty()) {
+                            GeminiChatResponse.Candidate candidate = chunk.getCandidates().get(0);
+                            if (candidate.getContent() != null && candidate.getContent().getParts() != null) {
+                                for (Part part : candidate.getContent().getParts()) {
+                                    if (part.getText() != null && !part.getText().isEmpty()) {
+                                        callback.onNext(part.getText());
+                                    }
+                                }
+                            }
+                            
+                            // Check if stream is finished
+                            if (candidate.getFinishReason() != null) {
+                                completed = true;
+                                callback.onComplete();
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("Failed to parse chunk as JSON: {}", e.getMessage());
+                        // Could accumulate in buffer for multi-line JSON, but Gemini typically sends complete JSON per line
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error processing streaming line: {}", line, e);
+                // Continue processing other lines
+            }
+        }
+        
+        @Override
+        public void onError(Throwable throwable) {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onError(throwable);
+            }
+        }
+        
+        @Override
+        public void onComplete() {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onComplete();
+            }
+        }
+    }
+    
+    private GeminiChatRequest buildGeminiRequest(ModelTextRequest prompt) {
+        // Extract configuration
+        Double temperature = Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature());
+        String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
+        
+        // Build Gemini contents
+        List<GeminiContent> contents = new ArrayList<>();
+        
+        // Process messages
+        for (ModelContentMessage message : prompt.getMessages()) {
+            List<Part> parts = new ArrayList<>();
+            
+            if (message.getContent() != null) {
+                for (ModelContentElement element : message.getContent()) {
+                    if (element.getText() != null) {
+                        parts.add(Part.builder().text(element.getText()).build());
+                    }
+                }
+            }
+            
+            String role = message.getRole() == Role.assistant ? "model" : message.getRole().name();
+            contents.add(GeminiContent.builder()
+                    .role(role)
+                    .parts(parts)
+                    .build());
+        }
+        
+        // Build generation config
+        GeminiGenerationConfig config = GeminiGenerationConfig.builder()
+                .temperature(temperature)
+                .candidateCount(1)
+                .build();
+        
+        // Add tools if present
+        List<GeminiTool> tools = null;
+        if (prompt.getTools() != null && !prompt.getTools().isEmpty()) {
+            GeminiTool tool = GeminiUtils.convertToGeminiTool(prompt.getTools());
+            if (tool != null) {
+                tools = List.of(tool);
+            }
+        }
+        
+        return GeminiChatRequest.builder()
+                .contents(contents)
+                .generationConfig(config)
+                .tools(tools)
                 .build();
     }
 }

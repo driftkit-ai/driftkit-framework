@@ -11,18 +11,25 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
+import ai.driftkit.common.domain.streaming.StreamingCallback;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.common.utils.ModelUtils;
 import ai.driftkit.config.EtlConfig.VaultConfig;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class ClaudeModelClient extends ModelClient implements ModelClientInit {
@@ -36,6 +43,10 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
 
     private ClaudeApiClient client;
     private VaultConfig config;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_2)
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
     
     @Override
     public ModelClient init(VaultConfig config) {
@@ -256,5 +267,258 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .choices(List.of(choice))
                 .usage(usage)
                 .build();
+    }
+    
+    @Override
+    public StreamingResponse<String> streamTextToText(ModelTextRequest prompt) {
+        // Check if streaming is supported
+        if (!getCapabilities().contains(Capability.TEXT_TO_TEXT)) {
+            throw new UnsupportedCapabilityException("Text to text is not supported");
+        }
+        
+        return new StreamingResponse<String>() {
+            private final AtomicBoolean active = new AtomicBoolean(false);
+            private final AtomicBoolean cancelled = new AtomicBoolean(false);
+            private CompletableFuture<Void> streamFuture;
+            
+            @Override
+            public void subscribe(StreamingCallback<String> callback) {
+                if (!active.compareAndSet(false, true)) {
+                    callback.onError(new IllegalStateException("Stream already subscribed"));
+                    return;
+                }
+                
+                streamFuture = CompletableFuture.runAsync(() -> {
+                    try {
+                        processStreamingPrompt(prompt, callback, cancelled);
+                    } catch (Exception e) {
+                        if (!cancelled.get()) {
+                            callback.onError(e);
+                        }
+                    } finally {
+                        active.set(false);
+                    }
+                });
+            }
+            
+            @Override
+            public void cancel() {
+                cancelled.set(true);
+                if (streamFuture != null) {
+                    streamFuture.cancel(true);
+                }
+                active.set(false);
+            }
+            
+            @Override
+            public boolean isActive() {
+                return active.get();
+            }
+        };
+    }
+    
+    private void processStreamingPrompt(ModelTextRequest prompt, StreamingCallback<String> callback, AtomicBoolean cancelled) throws Exception {
+        // Build Claude request with streaming enabled
+        ClaudeMessageRequest request = buildClaudeRequest(prompt);
+        request.setStream(true);
+        
+        String apiKey = config.getApiKey();
+        String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse("https://api.anthropic.com");
+        String requestBody = JsonUtils.toJson(request);
+        
+        // Build HTTP request for streaming
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/v1/messages"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofMinutes(5))
+                .build();
+        
+        // Create SSE subscriber
+        SSESubscriber sseSubscriber = new SSESubscriber(callback, cancelled);
+        
+        // Send request with streaming response
+        HttpResponse<Void> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.fromLineSubscriber(sseSubscriber));
+        
+        // Check for errors
+        if (response.statusCode() >= 400) {
+            // Try to get error body
+            HttpRequest errorRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/v1/messages"))
+                    .header("Content-Type", "application/json")
+                    .header("x-api-key", apiKey)
+                    .header("anthropic-version", "2023-06-01")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> errorResponse = httpClient.send(errorRequest, HttpResponse.BodyHandlers.ofString());
+            log.error("Error response: {}", errorResponse.body());
+            throw new RuntimeException("Claude API error: HTTP " + response.statusCode() + " - " + errorResponse.body());
+        }
+    }
+    
+    /**
+     * SSE Subscriber for handling streaming responses from Claude
+     */
+    private static class SSESubscriber implements Flow.Subscriber<String> {
+        private final StreamingCallback<String> callback;
+        private final AtomicBoolean cancelled;
+        private Flow.Subscription subscription;
+        private boolean completed = false;
+        
+        public SSESubscriber(StreamingCallback<String> callback, AtomicBoolean cancelled) {
+            this.callback = callback;
+            this.cancelled = cancelled;
+        }
+        
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            subscription.request(Long.MAX_VALUE);
+        }
+        
+        @Override
+        public void onNext(String line) {
+            if (cancelled.get() || completed) {
+                // Don't cancel if already completed - just ignore further messages
+                if (cancelled.get() && !completed) {
+                    subscription.cancel();
+                }
+                return;
+            }
+            
+            try {
+                // Claude uses SSE format
+                if (line.startsWith("data: ")) {
+                    String data = line.substring(6).trim();
+                    
+                    // Parse the JSON event
+                    JsonNode eventNode = JsonUtils.fromJson(data, JsonNode.class);
+                    if (eventNode != null) {
+                        String eventType = eventNode.path("type").asText();
+                        
+                        switch (eventType) {
+                            case "content_block_delta":
+                                // Extract text delta
+                                JsonNode delta = eventNode.path("delta");
+                                String text = delta.path("text").asText(null);
+                                if (text != null) {
+                                    callback.onNext(text);
+                                }
+                                break;
+                                
+                            case "message_stop":
+                                // Stream completed
+                                completed = true;
+                                callback.onComplete();
+                                break;
+                                
+                            case "error":
+                                // Error occurred
+                                String errorMessage = eventNode.path("error").path("message").asText("Unknown error");
+                                completed = true;
+                                callback.onError(new RuntimeException("Claude API error: " + errorMessage));
+                                break;
+                                
+                            // Ignore other event types like message_start, content_block_start, etc.
+                            default:
+                                break;
+                        }
+                    }
+                } else if (line.startsWith("event: ")) {
+                    // Claude also sends event type in separate line, we can ignore it
+                    // as we parse the type from the JSON data
+                }
+            } catch (Exception e) {
+                log.error("Error processing SSE line: {}", line, e);
+                // Continue processing other lines
+            }
+        }
+        
+        @Override
+        public void onError(Throwable throwable) {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onError(throwable);
+            }
+        }
+        
+        @Override
+        public void onComplete() {
+            if (!cancelled.get() && !completed) {
+                completed = true;
+                callback.onComplete();
+            }
+        }
+    }
+    
+    private ClaudeMessageRequest buildClaudeRequest(ModelTextRequest prompt) {
+        // Extract messages and separate system message
+        String systemMessage = null;
+        List<ClaudeMessage> messages = new ArrayList<>();
+        
+        for (ModelContentMessage msg : prompt.getMessages()) {
+            if (msg.getRole() == Role.system) {
+                // Claude expects system message separately
+                if (msg.getContent() != null && !msg.getContent().isEmpty()) {
+                    ModelContentElement element = msg.getContent().get(0);
+                    if (element.getText() != null) {
+                        systemMessage = element.getText();
+                    }
+                }
+            } else {
+                // Convert to Claude message format
+                List<ClaudeContent> contents = new ArrayList<>();
+                if (msg.getContent() != null) {
+                    for (ModelContentElement element : msg.getContent()) {
+                        if (element.getText() != null) {
+                            contents.add(ClaudeContent.builder()
+                                    .type("text")
+                                    .text(element.getText())
+                                    .build());
+                        } else if (element.getImage() != null) {
+                            contents.add(ClaudeContent.builder()
+                                    .type("image")
+                                    .source(ClaudeContent.ImageSource.builder()
+                                            .type("base64")
+                                            .mediaType(element.getImage().getMimeType())
+                                            .data(Base64.getEncoder().encodeToString(element.getImage().getImage()))
+                                            .build())
+                                    .build());
+                        }
+                    }
+                }
+                
+                messages.add(ClaudeMessage.builder()
+                        .role(msg.getRole().name())
+                        .content(contents)
+                        .build());
+            }
+        }
+        
+        // Build request
+        ClaudeMessageRequest.ClaudeMessageRequestBuilder builder = ClaudeMessageRequest.builder()
+                .model(Optional.ofNullable(prompt.getModel()).orElse(getModel()))
+                .messages(messages)
+                .maxTokens(MAX_TOKENS)
+                .temperature(Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()));
+        
+        if (systemMessage != null) {
+            builder.system(systemMessage);
+        }
+        
+        // Add tools if present
+        if (prompt.getTools() != null && !prompt.getTools().isEmpty()) {
+            List<ClaudeTool> tools = ClaudeUtils.convertToClaudeTools(prompt.getTools());
+            builder.tools(tools);
+            
+            if (prompt.getToolMode() == ToolMode.auto) {
+                builder.toolChoice(ToolChoice.builder().type("auto").build());
+            }
+        }
+        
+        return builder.build();
     }
 }
