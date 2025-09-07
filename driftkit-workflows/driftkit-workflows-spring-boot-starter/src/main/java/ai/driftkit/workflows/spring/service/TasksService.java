@@ -53,7 +53,7 @@ public class TasksService {
 
         Language language = messageTask.getLanguage() != null || chat == null ? messageTask.getLanguage() : chat.getLanguage();
         if (language == null) {
-            language = Language.SPANISH; // default
+            language = Language.ENGLISH; // default
         }
 
         messageTask.setSystemMessage(systemMessage);

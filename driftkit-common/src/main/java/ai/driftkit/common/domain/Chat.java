@@ -27,7 +27,7 @@ public class Chat {
     private String systemMessage;
 
     @NotNull
-    private Language language = Language.SPANISH;
+    private Language language = Language.ENGLISH;
 
     @NotNull
     private int memoryLength;
