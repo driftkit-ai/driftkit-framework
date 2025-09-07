@@ -40,7 +40,7 @@ public class OpenAIStreamingIntegrationTest {
         client.init(config);
     }
     
-    @Test
+//    @Test
     public void testRealStreamingAPI() throws InterruptedException {
         System.out.println("Testing OpenAI Streaming API with real API key...");
         
@@ -123,7 +123,7 @@ public class OpenAIStreamingIntegrationTest {
         System.out.println("Chunks received: " + chunks.size());
     }
     
-    @Test
+//    @Test
     public void testStreamingWithShortResponse() throws InterruptedException {
         System.out.println("\nTesting streaming with short response...");
         
@@ -181,7 +181,7 @@ public class OpenAIStreamingIntegrationTest {
         assertTrue(response.toString().contains("4"));
     }
     
-    @Test
+//    @Test
     public void testStreamingCancellation() throws InterruptedException {
         System.out.println("\nTesting streaming cancellation...");
         
