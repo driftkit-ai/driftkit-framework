@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-clients</artifactId>
-        <version>0.6.0</version>
+        <version>0.7.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -43,6 +43,13 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
             <version>4.1.3</version>
+        </dependency>
+        
+        <!-- Spring WebFlux for reactive support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- Lombok -->

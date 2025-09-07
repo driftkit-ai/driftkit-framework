@@ -2,7 +2,8 @@ package ai.driftkit.workflows.examples.workflows;
 
 import ai.driftkit.common.domain.*;
 import ai.driftkit.common.domain.client.ModelTextResponse;
-import ai.driftkit.common.service.ChatMemory;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.clients.core.ModelClientFactory;

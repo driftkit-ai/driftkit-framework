@@ -1,0 +1,67 @@
+# Example configuration for DriftKit RAG
+
+driftkit:
+  rag:
+    enabled: true
+    default-index: knowledge-base
+    
+    # Text splitter configuration
+    splitter:
+      type: recursive  # or 'semantic'
+      chunk-size: 512
+      chunk-overlap: 128
+      preserve-metadata: true
+      add-chunk-metadata: true
+      
+      # For semantic splitter
+      target-chunk-size: 512
+      similarity-threshold: 0.7
+      max-chunk-size: 1024
+      min-chunk-size: 100
+    
+    # Reranker configuration
+    reranker:
+      enabled: true
+      model: gpt-4o
+      temperature: 0.0
+      prompt-id: rag.rerank
+    
+    # Retriever configuration
+    retriever:
+      default-top-k: 10
+      default-min-score: 0.0
+      query-prefix: ""  # Optional prefix for all queries
+    
+    # Ingestion configuration
+    ingestion:
+      max-retries: 3
+      retry-delay-ms: 1000
+      use-virtual-threads: true
+      default-extensions:
+        - txt
+        - md
+        - pdf
+        - html
+        - json
+        - jpg
+        - png
+      max-file-size-bytes: 52428800  # 50MB
+
+# Example vector store configuration
+  vector-store:
+    name: in-memory  # or 'pinecone', 'file-based'
+    config:
+      # Vector store specific configuration
+
+# Example embedding configuration
+  embedding:
+    name: openai
+    config:
+      model: text-embedding-3-small
+      
+# Example model configuration
+  vault:
+    - name: openai
+      api-key: ${OPENAI_API_KEY}
+      model: gpt-4o
+      temperature: 0.0

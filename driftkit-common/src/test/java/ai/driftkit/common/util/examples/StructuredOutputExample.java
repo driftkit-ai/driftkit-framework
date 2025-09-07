@@ -33,6 +33,7 @@ public class StructuredOutputExample {
         try {
             String schemaJson = objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(personSchema);
+
             log.info("Generated schema for Person class:\n{}", schemaJson);
         } catch (JsonProcessingException e) {
             log.error("Error serializing schema: {}", e.getMessage());

@@ -1,11 +1,7 @@
 package ai.driftkit.workflows.core.agent;
 
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
-import ai.driftkit.common.domain.Message;
 import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.common.service.ChatMemory;
-import ai.driftkit.common.service.TokenWindowChatMemory;
-import ai.driftkit.common.utils.SimpleTokenizer;
 import ai.driftkit.common.tools.Tool;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.config.EtlConfig.VaultConfig;
@@ -13,6 +9,10 @@ import ai.driftkit.workflows.core.TestHelper;
 import ai.driftkit.workflows.core.agent.LLMAgent;
 import ai.driftkit.workflows.core.agent.AgentResponse;
 import ai.driftkit.workflows.core.agent.ToolExecutionResult;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.Message;
+import ai.driftkit.workflows.core.chat.SimpleTokenizer;
+import ai.driftkit.workflows.core.chat.TokenWindowChatMemory;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import lombok.AllArgsConstructor;

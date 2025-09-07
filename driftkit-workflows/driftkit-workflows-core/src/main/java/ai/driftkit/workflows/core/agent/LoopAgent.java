@@ -1,5 +1,6 @@
 package ai.driftkit.workflows.core.agent;
 
+import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.common.utils.JsonUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -74,16 +75,28 @@ public class LoopAgent implements Agent {
                 }
                 
                 // Evaluate the result
-                String evaluationInput = buildEvaluationInput(currentResult, workerResult);
-                String evaluationResponse;
-                if (variables != null) {
-                    evaluationResponse = evaluator.execute(evaluationInput, variables);
-                } else {
-                    evaluationResponse = evaluator.execute(evaluationInput);
-                }
+                EvaluationResult evaluationResult;
                 
-                // Parse evaluation result as JSON
-                EvaluationResult evaluationResult = parseEvaluationResult(evaluationResponse);
+                // If evaluator is an LLMAgent, use structured output
+                if (evaluator instanceof LLMAgent) {
+                    LLMAgent llmEvaluator = (LLMAgent) evaluator;
+                    String evaluationInput = buildStructuredEvaluationInput(currentResult, workerResult);
+                    AgentResponse<EvaluationResult> response = llmEvaluator.executeStructured(
+                        evaluationInput, 
+                        EvaluationResult.class
+                    );
+                    evaluationResult = response.getStructuredData();
+                } else {
+                    // Fallback to traditional JSON parsing approach
+                    String evaluationInput = buildEvaluationInput(currentResult, workerResult);
+                    String evaluationResponse;
+                    if (variables != null) {
+                        evaluationResponse = evaluator.execute(evaluationInput, variables);
+                    } else {
+                        evaluationResponse = evaluator.execute(evaluationInput);
+                    }
+                    evaluationResult = parseEvaluationResult(evaluationResponse);
+                }
                 
                 log.debug("LoopAgent '{}' - evaluation status: {}", getName(), evaluationResult.getStatus());
                 
@@ -120,7 +133,21 @@ public class LoopAgent implements Agent {
     }
     
     /**
-     * Build input for the evaluator agent.
+     * Build input for the evaluator agent with structured output.
+     */
+    private String buildStructuredEvaluationInput(String originalInput, String workerResult) {
+        return String.format(
+            "Evaluate the following result against the original request.\n\n" +
+            "Original request: %s\n\n" +
+            "Generated result: %s\n\n" +
+            "Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) " +
+            "and provide feedback or reason if applicable.",
+            originalInput, workerResult
+        );
+    }
+    
+    /**
+     * Build input for the evaluator agent (legacy JSON format).
      */
     private String buildEvaluationInput(String originalInput, String workerResult) {
         String statusOptions = String.join("|", 

@@ -1,5 +1,6 @@
 package ai.driftkit.clients.gemini.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -14,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GeminiChatResponse {
     
     @JsonProperty("candidates")
@@ -30,6 +32,7 @@ public class GeminiChatResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Candidate {
         @JsonProperty("content")
         private GeminiContent content;
@@ -63,6 +66,7 @@ public class GeminiChatResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class UsageMetadata {
         @JsonProperty("promptTokenCount")
         private Integer promptTokenCount;

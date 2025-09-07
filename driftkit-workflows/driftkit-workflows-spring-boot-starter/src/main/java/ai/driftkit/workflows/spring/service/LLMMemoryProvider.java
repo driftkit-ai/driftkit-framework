@@ -1,9 +1,10 @@
 package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.*;
-import ai.driftkit.common.service.ChatMemory;
-import ai.driftkit.common.service.TokenWindowChatMemory;
-import ai.driftkit.common.utils.SimpleTokenizer;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.TokenWindowChatMemory;
+import ai.driftkit.workflows.core.chat.SimpleTokenizer;
+import ai.driftkit.workflows.core.chat.Message;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Sort.Direction;
 

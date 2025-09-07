@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.driftkit</groupId>
+        <artifactId>driftkit-workflows</artifactId>
+        <version>0.7.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>driftkit-workflow-engine-agents</artifactId>
+    <name>DriftKit Workflow Engine Agents</name>
+    <description>LLM Agent framework for workflow engine with simplified API for AI interactions</description>
+
+    <dependencies>
+        <!-- DriftKit Workflow Engine Core -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflow-engine-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- DriftKit Common -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-common</artifactId>
+        </dependency>
+        
+        <!-- DriftKit Clients Core -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-core</artifactId>
+        </dependency>
+        
+        <!-- DriftKit Context Engineering Core -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-context-engineering-core</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- SLF4J -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- Jackson -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Apache Commons -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- OpenAI Client for testing -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-openai</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

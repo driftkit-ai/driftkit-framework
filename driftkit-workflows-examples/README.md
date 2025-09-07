@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `driftkit-workflows-examples` module provides comprehensive reference implementations demonstrating the capabilities of the DriftKit workflow framework. It includes production-ready examples for chat systems, RAG (Retrieval-Augmented Generation), reasoning workflows, prompt engineering, and intelligent routing - all built on the DriftKit workflow orchestration engine.
+The `driftkit-workflows-examples` module provides comprehensive reference implementations demonstrating the capabilities of the new DriftKit workflow engine. It includes production-ready examples for chat systems, RAG (Retrieval-Augmented Generation), reasoning workflows, prompt engineering, and intelligent routing - all built on the `driftkit-workflow-engine-core` orchestration engine.
 
 ## Spring Boot Initialization
 
@@ -71,9 +71,11 @@ driftkit-workflows-examples/
 
 ### Key Dependencies
 
-The module integrates extensively with other DriftKit components:
+The module integrates extensively with DriftKit components:
 
-- **DriftKit Workflows** - Core workflow orchestration engine
+- **driftkit-workflow-engine-core** - Core workflow orchestration engine with fluent builder API
+- **driftkit-workflow-engine-agents** - Multi-agent patterns and LLM agents
+- **driftkit-workflow-test-framework** - Testing utilities and mock builders
 - **DriftKit Clients** - AI model client abstractions
 - **DriftKit Vector** - Vector storage and similarity search
 - **DriftKit Embedding** - Text embedding generation
@@ -84,7 +86,7 @@ The module integrates extensively with other DriftKit components:
 
 ### ModelWorkflow Base Class
 
-All AI-powered workflows extend the `ModelWorkflow` base class, which provides common patterns and utilities:
+All AI-powered workflows in these examples extend the `ModelWorkflow` base class (example implementation), which provides common patterns and utilities for AI interactions. Note that actual workflows should use the `driftkit-workflow-engine-core` fluent API:
 
 ```java
 public abstract class ModelWorkflow<I extends StartEvent, O> extends ExecutableWorkflow<I, O> {
@@ -1443,22 +1445,27 @@ public void cleanup() {
 
 ### Custom Workflow Development
 
-Developers can extend the examples to create custom workflows:
+Developers should use the `driftkit-workflow-engine-core` fluent API to create custom workflows:
 
 ```java
 @Component
-public class CustomWorkflow extends ModelWorkflow<CustomStartEvent, CustomResult> {
+public class CustomWorkflowBuilder {
     
-    @Step(name = "start")
-    public DataEvent<String> start(CustomStartEvent startEvent, WorkflowContext context) {
-        // Custom workflow logic
-        return DataEvent.of(processedData, "nextStep");
-    }
-    
-    @Step(name = "nextStep")
-    public StopEvent<CustomResult> nextStep(DataEvent<String> input, WorkflowContext context) {
-        // Process and return result
-        return StopEvent.of(new CustomResult());
+    public Workflow<CustomInput, CustomOutput> buildWorkflow() {
+        return WorkflowBuilder.<CustomInput, CustomOutput>create("custom-workflow")
+            .withDescription("Custom business workflow")
+            .step("process", ProcessStep.class)
+            .asyncStep("analyze", AnalysisStep.class, 
+                AsyncConfig.builder()
+                    .timeout(Duration.ofMinutes(5))
+                    .build())
+            .branch("decision", DecisionStep.class,
+                branchBuilder -> branchBuilder
+                    .branch("option1", Option1Step.class)
+                    .branch("option2", Option2Step.class)
+                    .otherwise(DefaultStep.class))
+            .step("finalize", FinalStep.class)
+            .build();
     }
 }
 ```

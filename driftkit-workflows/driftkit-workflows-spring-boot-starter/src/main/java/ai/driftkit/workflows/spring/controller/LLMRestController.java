@@ -4,6 +4,7 @@ import ai.driftkit.common.domain.*;
 import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;

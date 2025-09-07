@@ -19,13 +19,8 @@ public class GeminiClientFactory {
                 .setPropertyNamingStrategy(PropertyNamingStrategies.LOWER_CAMEL_CASE);
         
         RequestInterceptor apiKeyInterceptor = requestTemplate -> {
-            // Gemini uses API key in URL parameter
-            String url = requestTemplate.url();
-            if (url.contains("?")) {
-                requestTemplate.uri(url + "&key=" + apiKey);
-            } else {
-                requestTemplate.uri(url + "?key=" + apiKey);
-            }
+            // Gemini uses API key in header
+            requestTemplate.header("x-goog-api-key", apiKey);
         };
         
         return Feign.builder()

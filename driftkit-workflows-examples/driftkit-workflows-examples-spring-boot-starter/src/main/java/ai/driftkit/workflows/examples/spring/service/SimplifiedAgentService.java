@@ -1,9 +1,9 @@
 package ai.driftkit.workflows.examples.spring.service;
 
 import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.common.service.ChatMemory;
-import ai.driftkit.common.service.TokenWindowChatMemory;
-import ai.driftkit.common.utils.SimpleTokenizer;
+import ai.driftkit.workflows.core.chat.ChatMemory;
+import ai.driftkit.workflows.core.chat.TokenWindowChatMemory;
+import ai.driftkit.workflows.core.chat.SimpleTokenizer;
 import ai.driftkit.common.tools.Tool;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.workflows.core.agent.AgentResponse;

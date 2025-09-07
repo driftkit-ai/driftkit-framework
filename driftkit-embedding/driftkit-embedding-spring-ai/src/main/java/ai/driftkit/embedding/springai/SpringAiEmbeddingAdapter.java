@@ -1,6 +1,7 @@
 package ai.driftkit.embedding.springai;
 
-import ai.driftkit.common.utils.SimpleTokenizer;
+import ai.djl.modality.nlp.preprocess.SimpleTokenizer;
+import ai.driftkit.common.service.TextTokenizer;
 import ai.driftkit.config.EtlConfig.EmbeddingServiceConfig;
 import ai.driftkit.embedding.core.domain.Embedding;
 import ai.driftkit.embedding.core.domain.TextSegment;
@@ -146,7 +147,7 @@ public class SpringAiEmbeddingAdapter implements EmbeddingModel {
         }
         
         // Use SimpleTokenizer's logic for consistent token estimation
-        return (int) (text.length() * SimpleTokenizer.DEFAULT_TOKEN_COST);
+        return (int) (text.length() * TextTokenizer.DEFAULT_TOKEN_COST);
     }
     
     /**

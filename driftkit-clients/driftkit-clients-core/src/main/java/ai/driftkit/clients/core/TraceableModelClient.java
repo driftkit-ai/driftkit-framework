@@ -3,8 +3,8 @@ package ai.driftkit.clients.core;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.common.domain.*;
-import ai.driftkit.common.utils.Tokenizer;
-import ai.driftkit.common.utils.SimpleTokenizer;
+import ai.driftkit.common.service.TextTokenizer;
+import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
 import lombok.Data;
 import lombok.Getter;
@@ -22,13 +22,13 @@ public class TraceableModelClient<T> extends ModelClient<T> {
 
     @Getter
     private final ModelClient<T> delegate;
-    private final Tokenizer tokenizer;
+    private final TextTokenizer tokenizer;
     
     public TraceableModelClient(ModelClient<T> delegate) {
-        this(delegate, new SimpleTokenizer());
+        this(delegate, new SimpleTextTokenizer());
     }
     
-    public TraceableModelClient(ModelClient<T> delegate, Tokenizer tokenizer) {
+    public TraceableModelClient(ModelClient<T> delegate, TextTokenizer tokenizer) {
         this.delegate = delegate;
         this.tokenizer = tokenizer;
     }
@@ -233,15 +233,7 @@ public class TraceableModelClient<T> extends ModelClient<T> {
             return 0;
         }
         
-        Message message = Message.builder()
-                .messageId("temp-id")
-                .message(text)
-                .type(ChatMessageType.USER)
-                .messageType(MessageType.TEXT)
-                .createdTime(System.currentTimeMillis())
-                .requestInitTime(System.currentTimeMillis())
-                .build();
-        return tokenizer.estimateTokenCountInMessage(message);
+        return tokenizer.estimateTokens(text);
     }
     
     @Override

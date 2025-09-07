@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-parent</artifactId>
-        <version>0.6.0</version>
+        <version>0.7.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -20,5 +20,9 @@
     <modules>
         <module>driftkit-workflows-core</module>
         <module>driftkit-workflows-spring-boot-starter</module>
+        <module>driftkit-workflow-engine-core</module>
+        <module>driftkit-workflow-engine-agents</module>
+        <module>driftkit-workflow-engine-spring-boot-starter</module>
+        <module>driftkit-workflow-test-framework</module>
     </modules>
 </project>

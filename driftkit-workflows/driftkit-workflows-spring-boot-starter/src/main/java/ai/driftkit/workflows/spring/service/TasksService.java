@@ -4,10 +4,10 @@ import ai.driftkit.common.domain.*;
 import ai.driftkit.workflows.spring.domain.ChatEntity;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Language;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
 import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,18 +23,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class TasksService {
 
-    @Autowired
-    private MessageTaskRepository messageTaskRepository;
-
-    @Autowired
-    private ChatRepository chatRepository;
-
-    @Autowired
-    private AIService aiService;
+    private final MessageTaskRepository messageTaskRepository;
+    private final ChatRepository chatRepository;
+    private final AIService aiService;
 
     private ExecutorService exec;
 
@@ -56,7 +53,7 @@ public class TasksService {
 
         Language language = messageTask.getLanguage() != null || chat == null ? messageTask.getLanguage() : chat.getLanguage();
         if (language == null) {
-            language = Language.SPANISH; // default
+            language = Language.ENGLISH; // default
         }
 
         messageTask.setSystemMessage(systemMessage);
@@ -127,14 +124,13 @@ public class TasksService {
                         ChatMessageType.AI,
                         MessageType.IMAGE,
                         e.getImageTaskId(),
-                        e.getGrade(),
+                        e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                         e.getGradeComment(),
                         e.getWorkflow(),
                         e.getContextJson(),
-                        e.getResponseTime(),
                         e.getCreatedTime(),
-                        e.getResponseTime(),
-                        null // Image messages don't have tokenLogprobs
+                        e.getCreatedTime(),
+                        e.getResponseTime()
                 );
             }
         } else {
@@ -144,19 +140,31 @@ public class TasksService {
                     ChatMessageType.AI,
                     MessageType.TEXT,
                     e.getImageTaskId(),
-                    e.getGrade(),
+                    e.getGrade() != null ? ai.driftkit.workflows.core.chat.Grade.valueOf(e.getGrade().name()) : null,
                     e.getGradeComment(),
                     e.getWorkflow(),
                     e.getContextJson(),
-                    e.getResponseTime(),
                     e.getCreatedTime(),
-                    e.getResponseTime(),
-                    e.getLogProbs()
+                    e.getCreatedTime(),
+                    e.getResponseTime()
             );
         }
 
         return Stream.of(
-                e.toUserMessage(),
+                new Message(
+                        e.getMessageId(),
+                        e.getMessage(),
+                        ChatMessageType.USER,
+                        MessageType.TEXT,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        e.getCreatedTime(),
+                        e.getCreatedTime(),
+                        null
+                ),
                 result
         );
     }

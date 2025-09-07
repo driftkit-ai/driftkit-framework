@@ -1,0 +1,24 @@
+# Test configuration for Spring Integration tests
+spring:
+  application:
+    name: driftkit-workflow-spring-test
+
+driftkit:
+  workflow:
+    enabled: true
+    core-threads: 2
+    max-threads: 10
+    queue-capacity: 100
+    scheduled-threads: 2
+    default-step-timeout-ms: 5000
+    state-repository:
+      type: in-memory
+      in-memory:
+        max-capacity: 1000
+    progress-tracker:
+      type: in-memory
+
+logging:
+  level:
+    ai.driftkit.workflow: DEBUG
+    org.springframework: INFO

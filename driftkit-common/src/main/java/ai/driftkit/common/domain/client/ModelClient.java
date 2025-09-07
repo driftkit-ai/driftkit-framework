@@ -1,5 +1,8 @@
 package ai.driftkit.common.domain.client;
 
+import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
 import ai.driftkit.common.utils.ModelUtils;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -13,6 +16,7 @@ import org.apache.commons.collections4.CollectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -152,6 +156,26 @@ public abstract class ModelClient<T> {
     public ModelTextResponse imageToText(ModelTextRequest image) throws UnsupportedCapabilityException {
         checkCapability(Capability.IMAGE_TO_TEXT);
         return null;
+    }
+    
+    /**
+     * Stream text-to-text response token by token.
+     * Default implementation converts synchronous response to streaming.
+     * 
+     * @param prompt The text request
+     * @return Streaming response that emits tokens
+     */
+    public StreamingResponse<String> streamTextToText(ModelTextRequest prompt) throws UnsupportedCapabilityException {
+        checkCapability(Capability.TEXT_TO_TEXT);
+        ModelTextResponse response = textToText(prompt);
+        if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+            ResponseMessage message = response.getChoices().get(0);
+            if (message != null && message.getMessage() != null && message.getMessage().getContent() != null) {
+                // Default implementation: return the whole response at once
+                return new BasicStreamingResponse<>(Collections.singletonList(message.getMessage().getContent()));
+            }
+        }
+        return new BasicStreamingResponse<>(Collections.emptyList());
     }
 
     private void checkCapability(Capability capability) throws UnsupportedCapabilityException {

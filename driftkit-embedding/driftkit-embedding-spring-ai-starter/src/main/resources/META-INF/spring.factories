@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+ai.driftkit.embedding.springai.autoconfigure.SpringAiEmbeddingAutoConfiguration

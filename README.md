@@ -58,7 +58,7 @@
 
 **Technical Implementation:**
 - **driftkit-context-engineering**: Create and A/B test response templates for different customer scenarios
-- **driftkit-workflows**: Intelligent routing - simple questions to AI, complex issues to specialists
+- **driftkit-workflow-engine-core**: Intelligent routing - simple questions to AI, complex issues to specialists
 - **driftkit-vector**: Knowledge base search for accurate, up-to-date information
 - **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro/Claude Opus 4 for complex, GPT-4o-mini/Gemini 2.5 Flash/Claude Haiku for simple queries)
 - **driftkit-common**: Conversation memory to maintain context across multiple interactions
@@ -73,7 +73,7 @@
 - **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5/Claude with vision) for processing PDFs, images, scanned documents
 - **driftkit-embedding**: Document similarity for duplicate detection and categorization  
 - **driftkit-vector**: Store processed documents for quick retrieval and compliance auditing
-- **driftkit-workflows**: Multi-step validation workflows with human-in-the-loop for critical decisions
+- **driftkit-workflow-engine-core**: Multi-step validation workflows with human-in-the-loop for critical decisions
 - **driftkit-common**: Structured output extraction directly into your ERP/accounting systems
 
 **Business Impact:** 90% faster processing, 95% error reduction, full compliance automation
@@ -86,7 +86,7 @@
 - **driftkit-vector**: Product catalog embeddings for intelligent similarity matching
 - **driftkit-embedding**: Customer behavior analysis and preference modeling
 - **driftkit-context-engineering**: Dynamic product description templates for different customer segments
-- **driftkit-workflows**: Real-time recommendation pipelines with A/B testing
+- **driftkit-workflow-engine-core**: Real-time recommendation pipelines with A/B testing
 - **driftkit-clients**: Multi-model optimization (fast models like GPT-4o-mini/Gemini Flash/Claude Haiku for real-time, advanced models like GPT-4/Gemini Pro/Claude Opus for deep analysis)
 
 **Business Impact:** 35% increase in conversion rates, 50% higher average order value, 60% improved customer lifetime value
@@ -97,7 +97,7 @@
 
 **Technical Implementation:**
 - **driftkit-context-engineering**: Brand voice templates with automated testing against brand guidelines
-- **driftkit-workflows**: Multi-stage content pipelines (research → draft → review → publish)
+- **driftkit-workflow-engine-agents**: Multi-stage content pipelines using SequentialAgent pattern
 - **driftkit-vector**: Content similarity checking to avoid duplication across channels
 - **driftkit-embedding**: SEO keyword optimization and content clustering
 - **driftkit-clients**: Model selection by content type (creative writing with GPT-4/Claude vs technical documentation with Gemini)
@@ -112,7 +112,7 @@
 - **driftkit-common**: Resume parsing and structured data extraction (skills, experience, education)
 - **driftkit-embedding**: Candidate-job matching based on semantic understanding, not just keywords
 - **driftkit-vector**: Talent pool management and similar candidate discovery
-- **driftkit-workflows**: Interview scheduling, personalized communications, feedback collection
+- **driftkit-workflow-engine-core**: Interview scheduling, personalized communications, feedback collection
 - **driftkit-context-engineering**: Personalized outreach templates optimized for response rates
 
 **Business Impact:** 70% faster hiring process, 40% improvement in hire quality, 90% candidate satisfaction
@@ -122,9 +122,9 @@
 **Solution:** Multi-step conversational AI that handles everything from balance inquiries to loan applications with seamless human handoff
 
 **Technical Implementation:**
-- **driftkit-chat-assistant-framework**: Core annotation-based workflow engine with @WorkflowStep and @AsyncStep for complex multi-turn conversations
+- **driftkit-workflow-engine**: Advanced conversational workflows with automatic message tracking and human-in-the-loop support
 - **driftkit-clients**: Dynamic model selection (GPT-4/Claude Opus for financial advice, GPT-4o-mini/Claude Haiku for simple queries) with structured outputs for transaction data
-- **driftkit-workflows**: Multi-step verification processes - identity verification → transaction authorization → fraud detection → execution
+- **driftkit-workflow-engine-agents**: Multi-agent orchestration for complex financial analysis - LoopAgent for iterative refinement of investment advice
 - **driftkit-vector**: Knowledge base for financial products, regulations, and personalized investment recommendations
 - **driftkit-context-engineering**: Compliance-tested prompt templates for different financial scenarios with A/B testing for conversion optimization
 - **driftkit-common**: Persistent session management with encrypted conversation history and document processing for uploaded statements
@@ -146,10 +146,9 @@
 | [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, Spring AI supported models, type-safe responses |
 | [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, Spring AI providers, local BERT models |
 | [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone, Spring AI |
-| [**driftkit-workflows**](driftkit-workflows/README.md) | Orchestration | Annotation-based, LLMAgent SDK |
+| [**driftkit-workflows**](driftkit-workflows/README.md) | AI Orchestration | Workflow engine, testing framework, multi-agent patterns, Spring Boot integration |
 | [**driftkit-context-engineering**](driftkit-context-engineering/README.md) | Prompt management | Web UI, versioning, A/B testing, Spring AI integration |
 | [**driftkit-audio**](driftkit-audio/README.md) | Audio processing | VAD, transcription, streaming |
-| [**driftkit-chat-assistant-framework**](driftkit-chat-assistant-framework/README.md) | Chat workflows | Multi-step conversations |
 
 ## 📦 Module structure
 
@@ -172,21 +171,21 @@ driftkit-framework/
 │   ├── driftkit-vector-spring-boot-starter/
 │   ├── driftkit-vector-spring-ai/       # Spring AI vector stores integration
 │   └── driftkit-vector-spring-ai-starter/
-├── driftkit-workflows/                  # ⚙️ Workflow orchestration engine
-│   ├── driftkit-workflows-core/         # Core workflow framework
-│   └── driftkit-workflows-spring-boot-starter/
+├── driftkit-workflows/                  # ⚙️ AI orchestration and chat workflows
+│   ├── driftkit-workflow-engine-core/   # Core engine with chat support
+│   ├── driftkit-workflow-engine-agents/ # Multi-agent patterns (Loop, Sequential, Hierarchical)
+│   ├── driftkit-workflow-test-framework/ # Comprehensive testing support
+│   └── driftkit-workflow-engine-spring-boot-starter/ # Spring Boot integration
 ├── driftkit-context-engineering/        # 📝 Prompt management and engineering
 │   ├── driftkit-context-engineering-core/
 │   ├── driftkit-context-engineering-spring-boot-starter/
 │   ├── driftkit-context-engineering-spring-ai/  # Spring AI integration
 │   └── driftkit-context-engineering-spring-ai-starter/
-├── driftkit-workflows-examples/         # 🎯 Reference workflow implementations
-│   ├── driftkit-workflows-examples-core/
-│   └── driftkit-workflows-examples-spring-boot-starter/
-├── driftkit-audio/                      # 🎵 Audio processing and transcription
-│   ├── driftkit-audio-core/             # Core audio processing
-│   └── driftkit-audio-spring-boot-starter/
-└── driftkit-chat-assistant-framework/   # 💬 Annotation-based conversational workflows
+├── driftkit-workflow-examples/          # 🎯 Reference workflow implementations
+│   └── example-workflows/               # Sample workflows using new engine
+└── driftkit-audio/                      # 🎵 Audio processing and transcription
+    ├── driftkit-audio-core/             # Core audio processing
+    └── driftkit-audio-spring-boot-starter/
 ```
 
 ## 🛠️ Technology stack
@@ -214,7 +213,7 @@ driftkit-framework/
 <!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
-    <artifactId>driftkit-workflows-core</artifactId>
+    <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
     <version>0.6.0</version>
 </dependency>
 ```
@@ -296,31 +295,41 @@ Person person = agent.executeStructured(
 - **Test sets** with automated evaluation
 - **Real-time preview** and variable detection
 
-### 3. Production workflows
+### 3. Chat Workflows with Human-in-the-Loop
 
 ```java
-@Component
-public class CustomerSupportWorkflow extends ExecutableWorkflow<ChatEvent, String> {
+@Workflow(id = "customer-support", version = "1.0")
+public class CustomerSupportWorkflow {
     
-    @Step(name = "classify", nextStep = "route")
-    public ClassificationEvent classifyMessage(ChatEvent event, WorkflowContext context) {
-        String category = classifyWithAI(event.getMessage());
-        return new ClassificationEvent(category, event.getMessage());
+    @InitialStep
+    public StepResult<SupportMenu> greetCustomer(StartEvent event, WorkflowContext context) {
+        SupportMenu menu = new SupportMenu();
+        menu.setGreeting("Hello! How can I help you today?");
+        menu.setOptions(Arrays.asList("Account Help", "Technical Support", "Billing"));
+        
+        // Suspend workflow and wait for customer choice
+        return StepResult.suspend(menu, CustomerChoice.class);
     }
     
-    @LLMRequest(
-        prompt = "Answer this {{category}} question: {{message}}",
-        modelName = "gpt-4",
-        temperature = 0.3,
-        nextStep = "finalize"
-    )
-    public void route(ClassificationEvent event, WorkflowContext context) {
-        // AI processing happens automatically
+    @Step
+    public StepResult<?> handleChoice(CustomerChoice choice, WorkflowContext context) {
+        if ("Billing".equals(choice.getSelection())) {
+            // Complex case - collect more info
+            BillingForm form = new BillingForm();
+            form.setMessage("I can help with billing. Please provide details:");
+            return StepResult.suspend(form, BillingDetails.class);
+        }
+        
+        // Simple case - provide immediate help
+        HelpResponse response = generateHelp(choice.getSelection());
+        return StepResult.finish(response);
     }
     
-    @FinalStep
-    public StopEvent<String> finalize(DataEvent<String> result, WorkflowContext context) {
-        return StopEvent.of(result.getData());
+    @Step
+    public StepResult<Resolution> processBilling(BillingDetails details, WorkflowContext context) {
+        // Process billing issue
+        Resolution resolution = resolveBillingIssue(details);
+        return StepResult.finish(resolution);
     }
 }
 ```
@@ -473,15 +482,15 @@ public class AIService {
 - HTML and plain text support
 
 ### DriftKit Workflows
-**Advanced workflow orchestration engine with AI integration**
+**Comprehensive AI orchestration engine with native chat and human-in-the-loop support**
 
-- **Annotation-driven** - Define workflows with Java annotations
-- **Event-based Execution** - Step communication via events
-- **Conditional Routing** - JEXL-based branching logic
-- **Retry Mechanisms** - Configurable retry policies with backoff
-- **External Composition** - Workflows can invoke other workflows
-- **AI Integration** - Built-in support for LLM requests
-- **LLMAgent SDK** - Simplified agent interface for tool calling and structured output
+- **Chat Workflows** - Multi-turn conversations with automatic message tracking
+- **Human-in-the-Loop** - Suspend/resume for data collection and approvals
+- **Annotation-driven** - Define workflows with @Workflow, @Step, @AsyncStep
+- **Fluent API** - Programmatic workflow construction with WorkflowBuilder
+- **Multi-Agent Patterns** - Loop, Sequential, and Hierarchical agent orchestration
+- **Async Processing** - Long-running operations with progress tracking
+- **Type-Safe Results** - StepResult types for suspend, continue, branch, async, finish
 
 #### LLMAgent SDK Features
 
@@ -505,11 +514,12 @@ The LLMAgent provides a simplified, type-safe interface for AI interactions:
 - `executeWithPrompt()` - Use prompt templates by ID
 - `executeWithImages()` - Multi-modal text + image processing
 
-**Core Annotations:**
-- `@Step` - Basic workflow step
-- `@LLMRequest` - AI model interaction
-- `@InlineStep` - Expression-based steps
-- `@FinalStep` - Workflow termination
+**Core Features:**
+- **Automatic Chat Tracking** - Messages saved to ChatStore without manual code
+- **Workflow Suspension** - Pause for human input with type-safe resumption
+- **Context Preservation** - State maintained across suspensions
+- **Progress Reporting** - Real-time updates for async operations
+- **Error Recovery** - Comprehensive error handling with retry policies
 
 ### DriftKit Context Engineering
 **Advanced prompt management and engineering platform**
@@ -533,14 +543,23 @@ The LLMAgent provides a simplified, type-safe interface for AI interactions:
 - Multi-language prompt support
 - Version comparison and rollback
 
-### DriftKit Workflows Examples
-**Production-ready reference implementations**
+### DriftKit Workflow Examples
+**Production-ready patterns for modern AI applications**
 
-- **ChatWorkflow** - Conversational AI with memory and routing
-- **RouterWorkflow** - Intelligent message classification and routing
-- **RAGModifyWorkflow** - Document ingestion for RAG systems
-- **RAGSearchWorkflow** - Vector similarity search with re-ranking
-- **ReasoningWorkflow** - Multi-step reasoning and validation
+**Chat & Conversational AI:**
+- **Customer Service Bot** - Multi-turn support with automatic message tracking
+- **Product Recommendation** - Conversational commerce with context awareness
+- **FAQ Assistant** - Intelligent routing with human escalation
+
+**Human-in-the-Loop:**
+- **Approval Workflows** - Document approval with suspension points
+- **Data Collection** - Multi-step forms with validation
+- **Review Processes** - Content moderation with human oversight
+
+**Multi-Agent Systems:**
+- **Research Pipeline** - Sequential agents for data gathering and analysis
+- **Content Creation** - LoopAgent for iterative refinement
+- **Complex Planning** - Hierarchical agents with specialized tools
 
 ## 🛠️ Production Features
 

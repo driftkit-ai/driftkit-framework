@@ -2,7 +2,7 @@ package ai.driftkit.clients.core;
 
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.common.utils.Tokenizer;
+import ai.driftkit.common.service.TextTokenizer;
 
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -53,7 +53,7 @@ public class ModelClientFactory {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> ModelClient<T> fromConfig(VaultConfig config, Tokenizer tokenizer) {
+    public static <T> ModelClient<T> fromConfig(VaultConfig config, TextTokenizer tokenizer) {
         ModelClient<T> baseClient = fromConfig(config);
         
         if (config.isTracing() && !(baseClient instanceof TraceableModelClient)) {
@@ -63,7 +63,7 @@ public class ModelClientFactory {
         return baseClient;
     }
 
-    public static <T> TraceableModelClient<T> createTraceable(ModelClient<T> delegate, Tokenizer tokenizer) {
+    public static <T> TraceableModelClient<T> createTraceable(ModelClient<T> delegate, TextTokenizer tokenizer) {
         return new TraceableModelClient<>(delegate, tokenizer);
     }
 

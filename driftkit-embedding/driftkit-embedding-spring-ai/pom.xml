@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-embedding</artifactId>
-        <version>0.6.0</version>
+        <version>0.7.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -16,22 +16,6 @@
 
     <name>DriftKit Embedding Spring AI</name>
     <description>Spring AI integration for DriftKit embedding services</description>
-
-    <properties>
-        <spring-ai.version>1.0.1</spring-ai.version>
-    </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <!-- DriftKit dependencies -->
@@ -47,45 +31,12 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Spring AI dependencies -->
+        <!-- Spring AI Client Chat -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-client-chat</artifactId>
+            <version>${spring-ai.version}</version>
         </dependency>
-
-        <!-- Spring AI Embedding Providers (optional at runtime) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-azure-openai</artifactId>
-            <optional>true</optional>
-        </dependency>
-        
-        <!-- Azure SDK dependency required for Azure OpenAI -->
-        <dependency>
-            <groupId>com.azure</groupId>
-            <artifactId>azure-ai-openai</artifactId>
-            <version>1.0.0-beta.6</version>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-ollama</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-bedrock</artifactId>
-            <optional>true</optional>
-        </dependency>
-
 
         <!-- Lombok -->
         <dependency>
@@ -113,15 +64,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <repositories>
-        <repository>
-            <id>spring-milestones</id>
-            <name>Spring Milestones</name>
-            <url>https://repo.spring.io/milestone</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
 </project>
