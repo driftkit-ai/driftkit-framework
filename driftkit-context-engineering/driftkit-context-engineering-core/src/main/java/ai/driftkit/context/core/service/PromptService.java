@@ -5,7 +5,6 @@ import ai.driftkit.common.domain.PromptRequest.PromptIdRequest;
 import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
-import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.common.domain.Prompt.ResolveStrategy;
 import ai.driftkit.common.domain.Prompt.State;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class PromptService implements PromptServiceBase {
-    public static final String STARTING_PROMPT = "Please respond to the user request [{{query}}], think step by step. Your response MUST be in [{{language}}] language";
     public static final String DEFAULT_STARTING_PROMPT = "default_starting_prompt";
 
     public static final String PREFIX_DICT = "dict";

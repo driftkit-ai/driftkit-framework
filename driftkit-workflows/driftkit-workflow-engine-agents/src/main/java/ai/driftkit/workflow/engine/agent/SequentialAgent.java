@@ -118,16 +118,5 @@ public class SequentialAgent implements Agent {
         return result;
     }
     
-    @Override
-    public StreamingResponse<String> executeStreaming(String input) {
-        return executeStreaming(input, null);
-    }
-    
-    @Override
-    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
-        // Sequential agents don't support true streaming since each agent needs the complete output of the previous one
-        // Return a basic streaming response with the final result
-        String result = runSequence(input, variables);
-        return new BasicStreamingResponse<>(Collections.singletonList(result));
-    }
+    // Sequential agents don't support streaming - each agent needs complete output of previous one
 }

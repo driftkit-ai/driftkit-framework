@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.spring.autoconfigure;
 import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
+import ai.driftkit.workflow.engine.core.WorkflowContextFactory;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
 import ai.driftkit.workflow.engine.persistence.*;
 import ai.driftkit.workflow.engine.persistence.inmemory.*;
@@ -10,7 +11,7 @@ import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.service.TextTokenizer;
 import ai.driftkit.common.service.impl.InMemoryChatStore;
 import ai.driftkit.common.service.impl.SimpleTextTokenizer;
-import ai.driftkit.workflow.engine.spring.controller.WorkflowController;
+import ai.driftkit.workflow.engine.spring.context.SpringWorkflowContextFactory;
 import ai.driftkit.workflow.engine.spring.service.WorkflowService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -20,6 +21,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 
 /**
  * Spring Boot auto-configuration for DriftKit Workflow Engine.
@@ -37,6 +39,7 @@ import org.springframework.context.annotation.Bean;
     havingValue = "true",
     matchIfMissing = true
 )
+@Import({WorkflowTracingAutoConfiguration.class})
 public class WorkflowEngineAutoConfiguration {
     
     @Bean
@@ -92,6 +95,13 @@ public class WorkflowEngineAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
+    public WorkflowContextFactory workflowContextFactory() {
+        log.info("Configuring SpringWorkflowContextFactory");
+        return new SpringWorkflowContextFactory();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
     public WorkflowEngine workflowEngine(
             WorkflowEngineProperties properties,
             WorkflowStateRepository stateRepository,
@@ -99,7 +109,8 @@ public class WorkflowEngineAutoConfiguration {
             ChatSessionRepository workflowChatSessionRepository,
             ChatStore chatStore,
             AsyncStepStateRepository asyncStepStateRepository,
-            SuspensionDataRepository suspensionDataRepository) {
+            SuspensionDataRepository suspensionDataRepository,
+            WorkflowContextFactory contextFactory) {
         
         log.info("Configuring WorkflowEngine with properties: {}", properties);
         
@@ -115,6 +126,7 @@ public class WorkflowEngineAutoConfiguration {
             .chatStore(chatStore)
             .asyncStepStateRepository(asyncStepStateRepository)
             .suspensionDataRepository(suspensionDataRepository)
+            .contextFactory(contextFactory)
             .build();
             
         return new WorkflowEngine(config);
@@ -147,20 +159,4 @@ public class WorkflowEngineAutoConfiguration {
         return new WorkflowBeanPostProcessor(engine);
     }
     
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnWebApplication
-    @ConditionalOnProperty(
-        prefix = "driftkit.workflow.engine.controller",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
-    public WorkflowController workflowController(
-            WorkflowEngine engine,
-            ProgressTracker progressTracker,
-            WorkflowService workflowService) {
-        log.info("Configuring WorkflowController");
-        return new WorkflowController(engine, progressTracker, workflowService);
-    }
 }

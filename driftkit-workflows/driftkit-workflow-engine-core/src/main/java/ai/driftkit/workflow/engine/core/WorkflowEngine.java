@@ -47,15 +47,6 @@ import java.util.function.Supplier;
 @Slf4j
 public class WorkflowEngine {
     
-    /**
-     * Factory for creating WorkflowContext instances.
-     * Can be overridden by test frameworks to provide custom context implementations.
-     */
-    @FunctionalInterface
-    public interface WorkflowContextFactory {
-        WorkflowContext create(String runId, Object triggerData, String instanceId);
-    }
-    
     // Default factory that creates standard WorkflowContext
     static WorkflowContextFactory contextFactory = (runId, triggerData, instanceId) -> 
         WorkflowContext.fromExisting(runId, triggerData, null, null, instanceId);
@@ -118,6 +109,11 @@ public class WorkflowEngine {
                 
         // Initialize chat store (optional)
         this.chatStore = config.getChatStore();
+        
+        // Set context factory if provided
+        if (config.getContextFactory() != null) {
+            WorkflowEngine.setContextFactory(config.getContextFactory());
+        }
 
         // Initialize async step handler
         this.asyncStepHandler = new AsyncStepHandler();

@@ -1,5 +1,6 @@
 package ai.driftkit.context.spring.controller;
 
+import ai.driftkit.common.domain.CreatePromptRequest;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.common.domain.RestResponse;
@@ -21,8 +22,7 @@ public class PromptRestController {
 
     @PostMapping("/create-if-not-exists")
     public @ResponseBody RestResponse<Prompt> createIfNotExists(
-            @RequestBody Prompt promptData,
-            @RequestParam(required = false) Boolean forceRepoVersion
+            @RequestBody CreatePromptRequest promptData
     ) {
         Prompt result = promptService.createIfNotExists(
                 promptData.getMethod(),
@@ -30,7 +30,7 @@ public class PromptRestController {
                 promptData.getSystemMessage(),
                 promptData.isJsonResponse(),
                 promptData.getLanguage(),
-                BooleanUtils.isTrue(forceRepoVersion),
+                BooleanUtils.isTrue(promptData.getForceRepoVersion()),
                 promptData.getWorkflow()
         );
 

@@ -22,6 +22,7 @@ public class ResponseFormat {
     private JsonSchema jsonSchema;
     
     public enum ResponseType {
+        IMAGE("image"),
         TEXT("text"),
         JSON_OBJECT("json_object"),
         JSON_SCHEMA("json_schema");
@@ -78,6 +79,10 @@ public class ResponseFormat {
 
     public static ResponseFormat text() {
         return new ResponseFormat(ResponseType.TEXT, null);
+    }
+
+    public static ResponseFormat image() {
+        return new ResponseFormat(ResponseType.IMAGE, null);
     }
 
     @Data

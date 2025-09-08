@@ -23,4 +23,6 @@ public class CreatePromptRequest {
     private boolean jsonResponse = false;
     @Builder.Default
     private Language language = Language.GENERAL;
+    @Builder.Default
+    private Boolean forceRepoVersion = false;
 }

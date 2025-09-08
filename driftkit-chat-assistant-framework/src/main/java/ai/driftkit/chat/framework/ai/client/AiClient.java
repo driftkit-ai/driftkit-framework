@@ -48,7 +48,7 @@ public interface AiClient {
     RestResponse<DictionaryGroup> getDictionaryGroup(@PathVariable String groupId);
     
     @PostMapping("/data/v1.0/admin/prompt/create-if-not-exists")
-    RestResponse<Prompt> createPromptIfNotExists(@RequestBody CreatePromptRequest createPromptRequest, @RequestParam Boolean forceRepoVersion);
+    RestResponse<Prompt> createPromptIfNotExists(@RequestBody CreatePromptRequest createPromptRequest);
 
     @SneakyThrows
     default MessageRestResponse sendDirectMessageAndWait(@RequestBody MessageRequest promptRequest) {

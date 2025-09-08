@@ -106,4 +106,16 @@ public class AgentResponse<T> {
             .type(ResponseType.MULTIMODAL)
             .build();
     }
+    
+    // Legacy support methods - to maintain backward compatibility
+    public static <T> AgentResponse<T> success(T data) {
+        if (data instanceof String) {
+            return (AgentResponse<T>) text((String) data);
+        }
+        return structured(data);
+    }
+    
+    public static AgentResponse<String> error(String errorMessage) {
+        return text("Error: " + errorMessage);
+    }
 }

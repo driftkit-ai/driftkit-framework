@@ -13,6 +13,7 @@ import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
+import java.util.concurrent.CompletableFuture;
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.tools.ToolInfo;
@@ -69,6 +70,11 @@ public class LLMAgent implements Agent {
     // Tracing support
     private final RequestTracingProvider tracingProvider;
     
+    // Workflow context fields for tracing
+    private final String workflowId;
+    private final String workflowType;
+    private final String workflowStep;
+    
     // Enable automatic tool execution
     private final boolean autoExecuteTools;
     
@@ -79,7 +85,8 @@ public class LLMAgent implements Agent {
     protected LLMAgent(ModelClient modelClient, String name, String description, String systemMessage,
                        Double temperature, Integer maxTokens, String model, String imageModel, String agentId,
                        ChatStore chatStore, String chatId, PromptService promptService, ToolRegistry toolRegistry,
-                       RequestTracingProvider tracingProvider, boolean autoExecuteTools) {
+                       RequestTracingProvider tracingProvider, String workflowId, String workflowType, 
+                       String workflowStep, boolean autoExecuteTools) {
         this.modelClient = modelClient;
         this.name = name;
         this.description = description;
@@ -94,6 +101,9 @@ public class LLMAgent implements Agent {
         this.promptService = promptService;
         this.toolRegistry = toolRegistry;
         this.tracingProvider = tracingProvider;
+        this.workflowId = workflowId;
+        this.workflowType = workflowType;
+        this.workflowStep = workflowStep;
         this.autoExecuteTools = autoExecuteTools;
     }
     
@@ -136,6 +146,10 @@ public class LLMAgent implements Agent {
                     .contextId(agentId)
                     .contextType(contextType)
                     .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceTextRequest(request, response, traceContext);
             }
@@ -179,6 +193,10 @@ public class LLMAgent implements Agent {
                     .contextId(agentId)
                     .contextType(contextType)
                     .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceTextRequest(request, response, traceContext);
             }
@@ -223,6 +241,10 @@ public class LLMAgent implements Agent {
                     .contextId(agentId)
                     .contextType(contextType)
                     .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceTextRequest(request, response, traceContext);
             }
@@ -304,6 +326,10 @@ public class LLMAgent implements Agent {
                 RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
                     .contextId(agentId)
                     .contextType(contextType)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceTextRequest(request, response, traceContext);
             }
@@ -392,6 +418,10 @@ public class LLMAgent implements Agent {
                     .contextType(contextType)
                     .promptId(promptId)
                     .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceTextRequest(request, response, traceContext);
             }
@@ -409,10 +439,23 @@ public class LLMAgent implements Agent {
      * Execute image generation using the agent's imageModel field
      */
     public AgentResponse<ModelContentElement.ImageData> executeImageGeneration(String prompt) {
+        return executeImageGeneration(prompt, null);
+    }
+    
+    /**
+     * Execute image generation with variables
+     */
+    public AgentResponse<ModelContentElement.ImageData> executeImageGeneration(String prompt, Map<String, Object> variables) {
         try {
+            // Process prompt with variables if provided
+            String processedPrompt = prompt;
+            if (variables != null && !variables.isEmpty()) {
+                processedPrompt = processMessageWithVariables(prompt, variables);
+            }
+            
             // Build image request using agent's imageModel field
             ModelImageRequest request = ModelImageRequest.builder()
-                .prompt(prompt)
+                .prompt(processedPrompt)
                 .model(imageModel)  // Use the agent's imageModel field!
                 .build();
             
@@ -426,6 +469,11 @@ public class LLMAgent implements Agent {
                 RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
                     .contextId(agentId)
                     .contextType(contextType)
+                    .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceImageRequest(request, response, traceContext);
             }
@@ -452,17 +500,37 @@ public class LLMAgent implements Agent {
     }
     
     /**
+     * Execute with images and variables
+     */
+    public AgentResponse<String> executeWithImages(String text, byte[] imageData, Map<String, Object> variables) {
+        return executeWithImages(text, Collections.singletonList(imageData), variables);
+    }
+    
+    /**
      * Execute with multiple images
      */
     public AgentResponse<String> executeWithImages(String text, List<byte[]> imageDataList) {
+        return executeWithImages(text, imageDataList, null);
+    }
+    
+    /**
+     * Execute with multiple images and variables
+     */
+    public AgentResponse<String> executeWithImages(String text, List<byte[]> imageDataList, Map<String, Object> variables) {
         try {
+            // Process text with variables if provided
+            String processedText = text;
+            if (variables != null && !variables.isEmpty()) {
+                processedText = processMessageWithVariables(text, variables);
+            }
+            
             // Convert byte arrays to image data objects
             List<ModelContentElement.ImageData> imageDataObjects = imageDataList.stream()
                 .map(bytes -> new ModelContentElement.ImageData(bytes, "image/jpeg"))
                 .collect(Collectors.toList());
             
             // Build multimodal content
-            List<ModelContentElement> content = buildMultimodalContent(text, imageDataObjects);
+            List<ModelContentElement> content = buildMultimodalContent(processedText, imageDataObjects);
             
             // Create multimodal message
             ModelContentMessage userMessage = ModelContentMessage.builder()
@@ -471,7 +539,7 @@ public class LLMAgent implements Agent {
                 .build();
             
             // Add to memory
-            addUserMessage(text); // Add text version to memory
+            addUserMessage(processedText); // Add processed text version to memory
             
             // Build messages with system and multimodal content
             List<ModelContentMessage> messages = buildBaseMessages();
@@ -494,6 +562,11 @@ public class LLMAgent implements Agent {
                 RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
                     .contextId(agentId)
                     .contextType(contextType)
+                    .variables(variables)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
                     .build();
                 provider.traceImageToTextRequest(request, response, traceContext);
             }
@@ -609,13 +682,25 @@ public class LLMAgent implements Agent {
         return executeText(input, variables).getText();
     }
     
-    @Override
-    public StreamingResponse<String> executeStreaming(String input) {
-        return executeStreaming(input, null);
+    /**
+     * Execute with streaming and required callback
+     * @return CompletableFuture with the complete response text
+     */
+    public CompletableFuture<String> executeStreaming(String input, StreamingCallback<String> callback) {
+        return executeStreaming(input, null, callback);
     }
     
-    @Override
-    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
+    /**
+     * Execute with streaming, variables and required callback
+     * @return CompletableFuture with the complete response text
+     */
+    public CompletableFuture<String> executeStreaming(String input, Map<String, Object> variables, StreamingCallback<String> callback) {
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback is required for streaming execution");
+        }
+        
+        CompletableFuture<String> future = new CompletableFuture<>();
+        
         try {
             // Process message with variables
             String processedMessage = processMessageWithVariables(input, variables);
@@ -641,77 +726,71 @@ public class LLMAgent implements Agent {
             // Get streaming response from model client
             StreamingResponse<String> streamingResponse = modelClient.streamTextToText(request);
             
-            // Wrap the response to handle memory and tracing
-            return new StreamingResponse<String>() {
-                private boolean cancelled = false;
-                private final StringBuilder fullResponse = new StringBuilder();
-                
+            // Create wrapper for memory and tracing
+            final StringBuilder fullResponse = new StringBuilder();
+            
+            // Subscribe immediately with the provided callback
+            streamingResponse.subscribe(new StreamingCallback<String>() {
                 @Override
-                public void subscribe(StreamingCallback<String> callback) {
-                    streamingResponse.subscribe(new StreamingCallback<String>() {
-                        @Override
-                        public void onNext(String item) {
-                            fullResponse.append(item);
-                            callback.onNext(item);
-                        }
-                        
-                        @Override
-                        public void onError(Throwable error) {
-                            log.error("Streaming error in LLMAgent", error);
-                            callback.onError(error);
-                        }
-                        
-                        @Override
-                        public void onComplete() {
-                            // Add complete response to memory
-                            if (fullResponse.length() > 0) {
-                                addAssistantMessage(fullResponse.toString());
-                            }
-                            
-                            // Trace if provider is available
-                            RequestTracingProvider provider = getTracingProvider();
-                            if (provider != null) {
-                                String contextType = buildContextType("STREAM");
-                                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                                    .contextId(agentId)
-                                    .contextType(contextType)
-                                    .variables(variables)
-                                    .build();
-                                // Create a synthetic response for tracing
-                                ModelTextResponse syntheticResponse = ModelTextResponse.builder()
-                                    .choices(Collections.singletonList(
-                                        ResponseMessage.builder()
-                                            .message(ModelMessage.builder()
-                                                .role(Role.assistant)
-                                                .content(fullResponse.toString())
-                                                .build())
-                                            .build()
-                                    ))
-                                    .build();
-                                provider.traceTextRequest(request, syntheticResponse, traceContext);
-                            }
-                            
-                            callback.onComplete();
-                        }
-                    });
+                public void onNext(String item) {
+                    fullResponse.append(item);
+                    callback.onNext(item);
                 }
                 
                 @Override
-                public void cancel() {
-                    cancelled = true;
-                    streamingResponse.cancel();
+                public void onError(Throwable error) {
+                    log.error("Streaming error in LLMAgent", error);
+                    callback.onError(error);
+                    future.completeExceptionally(error);
                 }
                 
                 @Override
-                public boolean isActive() {
-                    return !cancelled && streamingResponse.isActive();
+                public void onComplete() {
+                    // Add complete response to memory
+                    String finalResponse = fullResponse.toString();
+                    if (finalResponse.length() > 0) {
+                        addAssistantMessage(finalResponse);
+                    }
+                    
+                    // Trace if provider is available
+                    RequestTracingProvider provider = getTracingProvider();
+                    if (provider != null) {
+                        String contextType = buildContextType("STREAM");
+                        RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
+                            .contextId(agentId)
+                            .contextType(contextType)
+                            .variables(variables)
+                            .chatId(chatId)
+                            .workflowId(workflowId)
+                            .workflowType(workflowType)
+                            .workflowStep(workflowStep)
+                            .build();
+                        // Create a synthetic response for tracing
+                        ModelTextResponse syntheticResponse = ModelTextResponse.builder()
+                            .choices(Collections.singletonList(
+                                ResponseMessage.builder()
+                                    .message(ModelMessage.builder()
+                                        .role(Role.assistant)
+                                        .content(finalResponse)
+                                        .build())
+                                    .build()
+                            ))
+                            .build();
+                        provider.traceTextRequest(request, syntheticResponse, traceContext);
+                    }
+                    
+                    callback.onComplete();
+                    future.complete(finalResponse);
                 }
-            };
+            });
             
         } catch (Exception e) {
             log.error("Error in executeStreaming", e);
-            throw new RuntimeException("Failed to execute streaming", e);
+            callback.onError(new RuntimeException("Failed to execute streaming", e));
+            future.completeExceptionally(new RuntimeException("Failed to execute streaming", e));
         }
+        
+        return future;
     }
     
     // Private helper methods
@@ -724,13 +803,13 @@ public class LLMAgent implements Agent {
     }
     
     private void addUserMessage(String content) {
-        if (chatStore != null) {
+        if (chatStore != null && StringUtils.isBlank(workflowId)) {
             chatStore.add(chatId, content, MessageType.USER);
         }
     }
     
     private void addAssistantMessage(String content) {
-        if (chatStore != null) {
+        if (chatStore != null && StringUtils.isBlank(workflowId)) {
             chatStore.add(chatId, content, MessageType.AI);
         }
     }
@@ -986,6 +1065,9 @@ public class LLMAgent implements Agent {
         private PromptService promptService;
         private ToolRegistry toolRegistry;
         private RequestTracingProvider tracingProvider;
+        private String workflowId;
+        private String workflowType;
+        private String workflowStep;
         private boolean autoExecuteTools = true;
         
         private List<ToolInfo> pendingTools = new ArrayList<>();
@@ -1070,6 +1152,21 @@ public class LLMAgent implements Agent {
             return this;
         }
         
+        public CustomLLMAgentBuilder workflowId(String workflowId) {
+            this.workflowId = workflowId;
+            return this;
+        }
+        
+        public CustomLLMAgentBuilder workflowType(String workflowType) {
+            this.workflowType = workflowType;
+            return this;
+        }
+        
+        public CustomLLMAgentBuilder workflowStep(String workflowStep) {
+            this.workflowStep = workflowStep;
+            return this;
+        }
+        
         /**
          * Add a tool to the agent
          */
@@ -1104,7 +1201,8 @@ public class LLMAgent implements Agent {
             return new LLMAgent(modelClient, name, description, systemMessage,
                     temperature, maxTokens, model, imageModel, agentId,
                     chatStore, chatId, promptService, toolRegistry,
-                    tracingProvider, autoExecuteTools);
+                    tracingProvider, workflowId, workflowType, workflowStep, 
+                    autoExecuteTools);
         }
     }
 }

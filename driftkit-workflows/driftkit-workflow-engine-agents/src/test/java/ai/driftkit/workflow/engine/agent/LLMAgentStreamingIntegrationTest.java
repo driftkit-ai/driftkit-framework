@@ -3,10 +3,10 @@ package ai.driftkit.workflow.engine.agent;
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
-import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,30 +39,29 @@ public class LLMAgentStreamingIntegrationTest {
                 .temperature(0.1)
                 .build();
 
-        StreamingResponse<String> streamingResponse = agent.executeStreaming(
-                "Count from 1 to 5, with each number on a new line.");
-
         CountDownLatch latch = new CountDownLatch(1);
         StringBuilder result = new StringBuilder();
         AtomicReference<Throwable> error = new AtomicReference<>();
 
-        streamingResponse.subscribe(new StreamingCallback<String>() {
-            @Override
-            public void onNext(String item) {
-                result.append(item);
-            }
+        CompletableFuture<String> streamingResponse = agent.executeStreaming(
+                "Count from 1 to 5, with each number on a new line.", new StreamingCallback<String>() {
+                    @Override
+                    public void onNext(String item) {
+                        result.append(item);
+                    }
 
-            @Override
-            public void onError(Throwable throwable) {
-                error.set(throwable);
-                latch.countDown();
-            }
+                    @Override
+                    public void onError(Throwable throwable) {
+                        error.set(throwable);
+                        latch.countDown();
+                    }
 
-            @Override
-            public void onComplete() {
-                latch.countDown();
-            }
-        });
+                    @Override
+                    public void onComplete() {
+                        latch.countDown();
+                    }
+                });
+
 
         boolean completed = latch.await(30, TimeUnit.SECONDS);
         assertTrue(completed, "Stream did not complete in time");

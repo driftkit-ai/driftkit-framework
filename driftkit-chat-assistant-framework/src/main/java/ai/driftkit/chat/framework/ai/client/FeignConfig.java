@@ -1,10 +1,16 @@
 package ai.driftkit.chat.framework.ai.client;
 
 import feign.RequestInterceptor;
+import feign.codec.Encoder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.cloud.openfeign.support.SpringEncoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -18,6 +24,9 @@ public class FeignConfig {
     
     @Value("${ai-props.password:}")
     private String password;
+    
+    @Autowired
+    private ObjectFactory<HttpMessageConverters> messageConverters;
 
     @Bean
     public RequestInterceptor basicAuthRequestInterceptor() {
@@ -30,6 +39,14 @@ public class FeignConfig {
             } else {
                 log.warn("AI client credentials not configured. Set ai-props.username and ai-props.password");
             }
+            requestTemplate.header("Content-Type", "application/json");
+            requestTemplate.header("Accept", "application/json");
         };
+    }
+    
+    @Bean("aiClientEncoder")
+    @Primary
+    public Encoder aiClientEncoder() {
+        return new SpringEncoder(this.messageConverters);
     }
 }

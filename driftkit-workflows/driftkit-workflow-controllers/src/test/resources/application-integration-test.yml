@@ -1,0 +1,40 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/driftkit-test
+      auto-index-creation: true
+  
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 10
+        queue-capacity: 100
+
+driftkit:
+  test:
+    enabled: true
+  workflow:
+    tracing:
+      enabled: true
+      store-messages: true
+      store-traces: true
+    analytics:
+      enabled: true
+    controllers:
+      enabled: true
+  async:
+    tasks:
+      enabled: true
+      cleanup:
+        enabled: false
+
+openai:
+  api:
+    key: ${OPENAI_API_KEY:test-key}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+
+logging:
+  level:
+    ai.driftkit: DEBUG
+    org.springframework.data.mongodb: DEBUG

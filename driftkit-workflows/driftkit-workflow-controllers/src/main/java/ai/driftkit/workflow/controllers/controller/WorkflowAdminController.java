@@ -1,4 +1,4 @@
-package ai.driftkit.workflow.engine.spring.controller;
+package ai.driftkit.workflow.controllers.controller;
 
 import ai.driftkit.workflow.engine.domain.WorkflowMetadata;
 import ai.driftkit.workflow.engine.spring.dto.RestResponse;

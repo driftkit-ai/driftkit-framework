@@ -1,5 +1,6 @@
 package ai.driftkit.workflows.spring.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -12,8 +13,9 @@ import java.util.concurrent.Executors;
 @EnableAsync
 public class AsyncConfig {
 
-    @Bean(name = "traceExecutor")
-    public Executor traceExecutor() {
+    @Bean(name = "workflowTraceExecutor")
+    @ConditionalOnMissingBean(name = "traceExecutor")
+    public Executor workflowTraceExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);

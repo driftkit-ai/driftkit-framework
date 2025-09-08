@@ -1,4 +1,4 @@
-package ai.driftkit.workflow.engine.spring.controller;
+package ai.driftkit.workflow.controllers.controller;
 
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.common.domain.chat.ChatRequest;

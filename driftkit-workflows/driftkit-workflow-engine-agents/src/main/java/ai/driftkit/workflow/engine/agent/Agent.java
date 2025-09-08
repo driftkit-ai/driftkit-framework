@@ -1,7 +1,5 @@
 package ai.driftkit.workflow.engine.agent;
 
-import ai.driftkit.common.domain.streaming.StreamingResponse;
-
 import java.util.List;
 import java.util.Map;
 
@@ -60,23 +58,4 @@ public interface Agent {
      * @return The agent's description
      */
     String getDescription();
-    
-    /**
-     * Execute the agent with streaming response.
-     * Implementations should use the underlying client's streaming capabilities.
-     * 
-     * @param input The text input to process
-     * @return Streaming response that emits tokens
-     */
-    StreamingResponse<String> executeStreaming(String input);
-    
-    /**
-     * Execute the agent with streaming response and context variables.
-     * Implementations should use the underlying client's streaming capabilities.
-     * 
-     * @param input The text input to process
-     * @param variables Context variables for template processing
-     * @return Streaming response that emits tokens
-     */
-    StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables);
 }

@@ -223,16 +223,5 @@ public class LoopAgent implements Agent {
             .build();
     }
     
-    @Override
-    public StreamingResponse<String> executeStreaming(String input) {
-        return executeStreaming(input, null);
-    }
-    
-    @Override
-    public StreamingResponse<String> executeStreaming(String input, Map<String, Object> variables) {
-        // Loop agents don't support true streaming since they need to evaluate complete results at each iteration
-        // Return a basic streaming response with the final result
-        String result = runLoop(input, variables);
-        return new BasicStreamingResponse<>(Collections.singletonList(result));
-    }
+    // Loop agents don't support streaming - need to evaluate complete results at each iteration
 }

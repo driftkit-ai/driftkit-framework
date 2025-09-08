@@ -1,5 +1,6 @@
 package ai.driftkit.audio.model.deepgram;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class DeepgramResponse {
     
     @JsonProperty("metadata")
@@ -41,6 +43,9 @@ public class DeepgramResponse {
     
     @JsonProperty("from_finalize")
     private Boolean fromFinalize;
+    
+    @JsonProperty("transaction_key")
+    private String transactionKey;
     
     public Map<String, Object> toMap() {
         return Map.of(

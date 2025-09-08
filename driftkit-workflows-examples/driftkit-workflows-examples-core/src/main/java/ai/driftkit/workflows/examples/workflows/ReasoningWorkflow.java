@@ -27,6 +27,8 @@ import java.util.*;
 
 @Slf4j
 public class ReasoningWorkflow extends ModelWorkflow<StartEvent, JsonNode> {
+    public static final String STARTING_PROMPT = "Please respond to the user request [{{query}}], think step by step. Your response MUST be in [{{language}}] language";
+
     public static final String REASONING_METHOD = "reasoning";
     public static final String CHECK_RESULT_METHOD = "check_result";
     public static final String REPLAY_RESPONSE_AFTER_CHECK_METHOD = "replay_response_after_check";
@@ -67,7 +69,7 @@ public class ReasoningWorkflow extends ModelWorkflow<StartEvent, JsonNode> {
 
         promptService.createIfNotExists(
                 PromptService.DEFAULT_STARTING_PROMPT,
-                PromptService.STARTING_PROMPT,
+                STARTING_PROMPT,
                 null,
                 false,
                 Language.GENERAL

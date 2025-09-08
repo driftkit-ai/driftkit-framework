@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class ChatWorkflow extends ModelWorkflow<ChatStartEvent, ChatResult> {
-
+    public static final String STARTING_PROMPT = "Please respond to the user request [{{query}}], think step by step. Your response MUST be in [{{language}}] language";
     public static final String CURRENT_MESSAGE_NAME = "currentMessage";
     private final VaultConfig modelConfig;
     private final ImageModelService imageService;
@@ -61,7 +61,7 @@ public class ChatWorkflow extends ModelWorkflow<ChatStartEvent, ChatResult> {
 
         promptService.createIfNotExists(
                 PromptService.DEFAULT_STARTING_PROMPT,
-                PromptService.STARTING_PROMPT,
+                STARTING_PROMPT,
                 null,
                 false,
                 Language.GENERAL

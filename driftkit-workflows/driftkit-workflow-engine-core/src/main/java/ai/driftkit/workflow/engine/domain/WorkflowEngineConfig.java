@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.domain;
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.core.RetryExecutor;
+import ai.driftkit.workflow.engine.core.WorkflowContextFactory;
 import ai.driftkit.workflow.engine.persistence.AsyncStepStateRepository;
 import ai.driftkit.workflow.engine.persistence.ChatSessionRepository;
 import ai.driftkit.workflow.engine.persistence.SuspensionDataRepository;
@@ -96,6 +97,12 @@ public class WorkflowEngineConfig {
      * If null, the default retry executor will be used.
      */
     private RetryExecutor retryExecutor;
+    
+    /**
+     * Factory for creating WorkflowContext instances.
+     * If null, the default factory will be used.
+     */
+    private WorkflowContextFactory contextFactory;
     
     /**
      * Creates a default configuration.
