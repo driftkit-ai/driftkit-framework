@@ -359,12 +359,12 @@ public class LLMAgent implements Agent {
             }
             
             // Get prompt by ID
-            Optional<Prompt> promptOpt = effectivePromptService.getPromptById(promptId);
-            if (promptOpt.isEmpty()) {
+            List<Prompt> promptOpt = effectivePromptService.getPromptsByMethods(List.of(promptId));
+            if (CollectionUtils.isEmpty(promptOpt)) {
                 throw new IllegalArgumentException("Prompt not found: " + promptId);
             }
-            
-            Prompt prompt = promptOpt.get();
+
+            Prompt prompt = promptOpt.getFirst();
             
             // Apply variables to prompt
             String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);
@@ -418,6 +418,10 @@ public class LLMAgent implements Agent {
             
             // Extract and parse response
             String jsonResponse = extractResponseText(response);
+            
+            // Add logging to see the actual JSON response
+            log.info("Raw JSON response from AI: {}", jsonResponse);
+            
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
             
             return AgentResponse.structured(result);
@@ -451,12 +455,12 @@ public class LLMAgent implements Agent {
             }
             
             // Get prompt by ID
-            Optional<Prompt> promptOpt = effectivePromptService.getPromptById(promptId);
-            if (promptOpt.isEmpty()) {
+            List<Prompt> promptOpt = effectivePromptService.getPromptsByMethods(List.of(promptId));
+            if (CollectionUtils.isEmpty(promptOpt)) {
                 throw new IllegalArgumentException("Prompt not found: " + promptId);
             }
             
-            Prompt prompt = promptOpt.get();
+            Prompt prompt = promptOpt.getFirst();
             
             // Apply variables to prompt
             String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);

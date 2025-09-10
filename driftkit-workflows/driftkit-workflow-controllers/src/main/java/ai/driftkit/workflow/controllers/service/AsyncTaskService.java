@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -47,11 +48,13 @@ import java.util.concurrent.CompletableFuture;
 @ConditionalOnBean(MongoTemplate.class)
 @RequiredArgsConstructor
 public class AsyncTaskService {
-    
+
+    @Autowired(required = false)
+    private RequestTracingProvider tracingProvider;
+
     private final AsyncTaskRepository asyncTaskRepository;
     private final ModelClient modelClient;
     private final PromptService promptService;
-    private final RequestTracingProvider tracingProvider;
     private final ChatStore chatStore;
     private final WorkflowEngine workflowEngine;
     

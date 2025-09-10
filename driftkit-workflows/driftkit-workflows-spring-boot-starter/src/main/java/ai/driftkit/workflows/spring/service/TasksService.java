@@ -1,20 +1,20 @@
 package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.*;
+import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.workflows.spring.domain.ChatEntity;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
-import ai.driftkit.common.domain.Language;
-import ai.driftkit.workflows.core.chat.Message;
 import ai.driftkit.workflows.spring.repository.ChatRepository;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import javax.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Objects;
@@ -23,13 +23,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class TasksService {
 
-    private final MessageTaskRepository messageTaskRepository;
+    private final MessageTaskRepositoryV1 messageTaskRepository;
     private final ChatRepository chatRepository;
     private final AIService aiService;
 

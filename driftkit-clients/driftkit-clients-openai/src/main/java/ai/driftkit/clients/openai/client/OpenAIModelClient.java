@@ -3,6 +3,7 @@ package ai.driftkit.clients.openai.client;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
 import ai.driftkit.common.domain.client.ModelTextRequest.ReasoningEffort;
+import ai.driftkit.common.domain.client.ResponseFormat.ResponseType;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.tools.ToolCall;
@@ -284,7 +285,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         Boolean logprobs = Optional.ofNullable(prompt.getLogprobs()).orElse(getLogprobs());
         Integer topLogprobs = Optional.ofNullable(prompt.getTopLogprobs()).orElse(getTopLogprobs());
         
-        ChatCompletionRequest.ResponseFormat responseFormat = !jsonObjectSupport || prompt.getResponseFormat() == null ? null : new ChatCompletionRequest.ResponseFormat(
+        ChatCompletionRequest.ResponseFormat responseFormat = prompt.getResponseFormat() == null || prompt.getResponseFormat().getType() == ResponseType.TEXT ? null : new ChatCompletionRequest.ResponseFormat(
             prompt.getResponseFormat().getType().getValue(),
             convertModelJsonSchema(prompt.getResponseFormat().getJsonSchema())
         );
@@ -457,7 +458,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         Boolean logprobs = Optional.ofNullable(prompt.getLogprobs()).orElse(getLogprobs());
         Integer topLogprobs = Optional.ofNullable(prompt.getTopLogprobs()).orElse(getTopLogprobs());
 
-        ChatCompletionRequest.ResponseFormat responseFormat = !jsonObjectSupport || prompt.getResponseFormat() == null ? null : new ChatCompletionRequest.ResponseFormat(
+        ChatCompletionRequest.ResponseFormat responseFormat = prompt.getResponseFormat() == null || prompt.getResponseFormat().getType() == ResponseType.TEXT ? null : new ChatCompletionRequest.ResponseFormat(
             prompt.getResponseFormat().getType().getValue(),
             convertModelJsonSchema(prompt.getResponseFormat().getJsonSchema())
         );
@@ -529,7 +530,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                 new ChatCompletionRequest.ResponseFormat.SchemaDefinition(
                         schemaA.getType(),
                         properties,
-                        schemaA.getRequired()
+                        new ArrayList<>(properties.keySet())
                 );
         schemaDefinition.setAdditionalProperties(schemaA.getAdditionalProperties());
 
@@ -574,8 +575,8 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
 
         if (nestedProperties != null) {
             result.setProperties(nestedProperties);
-        }
-        if (property.getRequired() != null) {
+            result.setRequired(new ArrayList<>(nestedProperties.keySet()));
+        } else if (property.getRequired() != null) {
             result.setRequired(property.getRequired());
         }
         if (items != null) {

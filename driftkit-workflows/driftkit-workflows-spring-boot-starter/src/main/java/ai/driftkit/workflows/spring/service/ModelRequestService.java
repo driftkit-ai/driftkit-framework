@@ -9,10 +9,10 @@ import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.common.domain.client.ModelTextRequest.ModelTextRequestBuilder;
 import ai.driftkit.workflows.spring.repository.ModelRequestTraceRepository;
 import ai.driftkit.common.utils.AIUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,11 +23,16 @@ import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ModelRequestService {
 
     private final ModelRequestTraceRepository traceRepository;
     private final Executor traceExecutor;
+    
+    public ModelRequestService(ModelRequestTraceRepository traceRepository,
+                              @Qualifier("workflowTraceExecutor") Executor traceExecutor) {
+        this.traceRepository = traceRepository;
+        this.traceExecutor = traceExecutor;
+    }
     
     public ModelTextResponse textToText(ModelClient modelClient, ModelRequestContext context) {
         if (context.getRequestType() == null) {

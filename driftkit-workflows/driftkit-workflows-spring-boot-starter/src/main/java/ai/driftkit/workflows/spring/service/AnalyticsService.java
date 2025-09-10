@@ -3,11 +3,11 @@ package ai.driftkit.workflows.spring.service;
 
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
-import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
 import ai.driftkit.workflows.spring.repository.ModelRequestTraceRepository;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.annotation.PostConstruct;
@@ -45,7 +45,7 @@ public class AnalyticsService {
     private ModelRequestTraceRepository modelRequestTraceRepository;
 
     @Autowired
-    private MessageTaskRepository messageTaskRepository;
+    private MessageTaskRepositoryV1 messageTaskRepository;
 
     @Autowired
     private MongoTemplate mongoTemplate;

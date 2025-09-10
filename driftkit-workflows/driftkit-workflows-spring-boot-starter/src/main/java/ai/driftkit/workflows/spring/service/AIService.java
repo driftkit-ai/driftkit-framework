@@ -1,31 +1,27 @@
 package ai.driftkit.workflows.spring.service;
 
+import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
-import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
-import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.clients.core.ModelClientFactory;
-import ai.driftkit.common.domain.client.ModelImageResponse;
-import ai.driftkit.common.domain.client.ResponseFormat;
-import ai.driftkit.common.domain.client.Role;
+import ai.driftkit.common.domain.client.*;
+import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.VaultConfig;
-import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.workflows.core.domain.LLMRequestEvent;
 import ai.driftkit.workflows.core.domain.StopEvent;
 import ai.driftkit.workflows.core.domain.WorkflowContext;
 import ai.driftkit.workflows.core.service.WorkflowRegistry;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
-import ai.driftkit.common.utils.JsonUtils;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
+import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -49,7 +45,7 @@ public class AIService {
     private EtlConfig config;
 
     @Autowired
-    private MessageTaskRepository messageTaskRepository;
+    private MessageTaskRepositoryV1 messageTaskRepository;
 
     @Getter
     @Autowired

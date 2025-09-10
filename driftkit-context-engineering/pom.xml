@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-parent</artifactId>
-        <version>0.7.5</version>
+        <version>0.7.8</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -19,6 +19,7 @@
 
     <modules>
         <module>driftkit-context-engineering-core</module>
+        <module>driftkit-context-engineering-services</module>
         <module>driftkit-context-engineering-spring-boot-starter</module>
         <module>driftkit-context-engineering-spring-ai</module>
         <module>driftkit-context-engineering-spring-ai-starter</module>

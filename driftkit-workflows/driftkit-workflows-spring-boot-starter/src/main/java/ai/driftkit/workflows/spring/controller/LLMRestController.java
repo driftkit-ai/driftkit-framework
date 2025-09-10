@@ -2,12 +2,11 @@ package ai.driftkit.workflows.spring.controller;
 
 import ai.driftkit.common.domain.*;
 import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
-import ai.driftkit.common.domain.Language;
+import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.workflows.core.chat.Message;
-import ai.driftkit.common.utils.AIUtils;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
 import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
 import ai.driftkit.workflows.spring.service.AIService.LLMTaskFuture;
 import ai.driftkit.workflows.spring.service.ChatService;
 import ai.driftkit.workflows.spring.service.ImageModelService;
@@ -29,7 +28,6 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.constraints.NotNull;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.stream.Collectors;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -48,7 +46,7 @@ public class LLMRestController {
     private TasksService tasksService;
 
     @Autowired
-    private MessageTaskRepository messageTaskRepository;
+    private MessageTaskRepositoryV1 messageTaskRepository;
 
     @Autowired
     private ImageModelService imageGenerationService;

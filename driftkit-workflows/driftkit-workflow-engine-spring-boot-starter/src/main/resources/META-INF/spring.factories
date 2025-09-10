@@ -1,3 +1,5 @@
 # Spring Boot 2.x compatibility
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-ai.driftkit.workflow.engine.spring.autoconfigure.WorkflowEngineAutoConfiguration
+ai.driftkit.workflow.engine.spring.autoconfigure.WorkflowMongoRepositoriesAutoConfiguration,\
+ai.driftkit.workflow.engine.spring.autoconfigure.WorkflowEngineAutoConfiguration,\
+ai.driftkit.workflow.engine.spring.autoconfigure.WorkflowTracingAutoConfiguration

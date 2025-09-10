@@ -1,19 +1,20 @@
 package ai.driftkit.workflows.spring.service;
 
+import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.Grade;
 import ai.driftkit.common.domain.ImageMessageTask;
 import ai.driftkit.common.domain.ImageMessageTask.GeneratedImage;
 import ai.driftkit.common.domain.LLMRequest;
 import ai.driftkit.common.domain.MessageTask;
-import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
-import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
 import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.clients.core.ModelClientFactory;
 import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
 import ai.driftkit.config.EtlConfig;
+import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
+import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +36,7 @@ public class ImageModelService {
     private ImageTaskRepository imageTaskRepository;
 
     @Autowired
-    private MessageTaskRepository messageTaskRepository;
+    private MessageTaskRepositoryV1 messageTaskRepository;
     
     @Autowired
     private EtlConfig etlConfig;

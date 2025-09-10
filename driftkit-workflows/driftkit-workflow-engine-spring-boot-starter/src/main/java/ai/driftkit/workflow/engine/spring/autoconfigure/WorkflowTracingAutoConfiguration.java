@@ -1,5 +1,6 @@
 package ai.driftkit.workflow.engine.spring.autoconfigure;
 
+import ai.driftkit.workflow.engine.agent.NoOpRequestTracingProvider;
 import ai.driftkit.workflow.engine.agent.RequestTracingProvider;
 import ai.driftkit.workflow.engine.spring.tracing.SpringRequestTracingProvider;
 import ai.driftkit.workflow.engine.spring.tracing.repository.CoreModelRequestTraceRepository;
@@ -49,5 +50,12 @@ public class WorkflowTracingAutoConfiguration {
             Executor traceExecutor) {
         log.info("Configuring SpringRequestTracingProvider for workflow tracing");
         return new SpringRequestTracingProvider(repository, traceExecutor);
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean(RequestTracingProvider.class)
+    public RequestTracingProvider noOpRequestTracingProvider() {
+        log.info("MongoDB not available or tracing disabled - using NoOpRequestTracingProvider");
+        return new NoOpRequestTracingProvider();
     }
 }

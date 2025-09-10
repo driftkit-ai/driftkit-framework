@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-context-engineering</artifactId>
-        <version>0.7.5</version>
+        <version>0.7.8</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,6 +27,11 @@
         <dependency>
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-context-engineering-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-context-engineering-services</artifactId>
+            <version>0.7.8</version>
         </dependency>
 
         <!-- Spring Boot -->
@@ -69,7 +74,7 @@
         <dependency>
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-workflows-spring-boot-starter</artifactId>
-            <version>0.7.5</version>
+            <version>0.7.8</version>
             <scope>compile</scope>
         </dependency>
         
@@ -77,7 +82,7 @@
         <dependency>
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-vector-spring-boot-starter</artifactId>
-            <version>0.7.5</version>
+            <version>0.7.8</version>
         </dependency>
         
         <!-- Swagger/OpenAPI for annotations -->

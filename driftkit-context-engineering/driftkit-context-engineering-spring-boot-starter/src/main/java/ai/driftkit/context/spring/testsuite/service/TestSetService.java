@@ -9,10 +9,10 @@ import ai.driftkit.context.spring.testsuite.domain.archive.TestSetItemImpl;
 import ai.driftkit.context.spring.testsuite.repository.TestSetItemRepository;
 import ai.driftkit.context.spring.testsuite.repository.TestSetRepository;
 import ai.driftkit.workflows.spring.domain.ImageMessageTaskEntity;
+import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.workflows.spring.repository.ImageTaskRepository;
-import ai.driftkit.workflows.spring.repository.MessageTaskRepository;
-import ai.driftkit.workflows.spring.domain.MessageTaskEntity;
+import ai.driftkit.workflows.spring.repository.MessageTaskRepositoryV1;
 import ai.driftkit.workflows.spring.repository.ModelRequestTraceRepository;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -29,7 +28,7 @@ public class TestSetService {
 
     private final TestSetRepository testSetRepository;
     private final TestSetItemRepository testSetItemRepository;
-    private final MessageTaskRepository messageTaskRepository;
+    private final MessageTaskRepositoryV1 messageTaskRepository;
     private final ModelRequestTraceRepository modelRequestTraceRepository;
     private final ImageTaskRepository imageTaskRepository;
     
