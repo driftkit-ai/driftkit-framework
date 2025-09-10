@@ -186,6 +186,10 @@ public abstract class AnnotatedWorkflow implements ChatWorkflow {
         // Reset session state
         session.setCurrentStepId(getFirstStepId());
         session.setCurrentResponseId(responseId);
+        // Add properties to session context
+        if (properties != null && !properties.isEmpty()) {
+            session.getProperties().putAll(properties);
+        }
         return executeStep(session, request, properties);
     }
 

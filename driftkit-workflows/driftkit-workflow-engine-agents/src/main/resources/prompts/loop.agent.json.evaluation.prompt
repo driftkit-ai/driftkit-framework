@@ -1,0 +1,5 @@
+Original request: {{originalRequest}}
+
+Generated result: {{generatedResult}}
+
+Please respond with JSON in format: {"status": "COMPLETE|REVISE|RETRY|FAILED|CONTINUE", "feedback": "optional feedback", "reason": "optional reason"}

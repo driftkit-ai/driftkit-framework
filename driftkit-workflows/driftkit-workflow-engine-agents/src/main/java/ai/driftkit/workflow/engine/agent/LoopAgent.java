@@ -4,15 +4,21 @@ import ai.driftkit.common.domain.client.ResponseFormat;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
 import ai.driftkit.common.utils.JsonUtils;
+import ai.driftkit.context.core.util.DefaultPromptLoader;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Agent that executes a worker agent in a loop until a stop condition is met.
@@ -137,42 +143,41 @@ public class LoopAgent implements Agent {
     
     /**
      * Build input for the evaluator agent with structured output.
+     * Uses DefaultPromptLoader to get prompt from resources or PromptService.
      */
     private String buildStructuredEvaluationInput(String originalInput, String workerResult) {
-        return String.format(
-            "Evaluate the following result against the original request.\n\n" +
-            "Original request: %s\n\n" +
-            "Generated result: %s\n\n" +
-            "Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) " +
-            "and provide feedback or reason if applicable.",
-            originalInput, workerResult
-        );
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("originalRequest", originalInput);
+        variables.put("generatedResult", workerResult);
+        
+        return DefaultPromptLoader.loadPrompt("loop.agent.structured.evaluation", variables);
     }
     
     /**
      * Build input for the evaluator agent (legacy JSON format).
+     * Uses DefaultPromptLoader to get prompt from resources or PromptService.
      */
     private String buildEvaluationInput(String originalInput, String workerResult) {
-        String statusOptions = String.join("|", 
-            LoopStatus.COMPLETE.name(),
-            LoopStatus.REVISE.name(), 
-            LoopStatus.RETRY.name(),
-            LoopStatus.FAILED.name(),
-            LoopStatus.CONTINUE.name()
-        );
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("originalRequest", originalInput);
+        variables.put("generatedResult", workerResult);
         
-        return String.format("Original request: %s\n\nGenerated result: %s\n\nPlease respond with JSON in format: {\"status\": \"%s\", \"feedback\": \"optional feedback\", \"reason\": \"optional reason\"}", 
-                            originalInput, workerResult, statusOptions);
+        return DefaultPromptLoader.loadPrompt("loop.agent.json.evaluation", variables);
     }
     
     /**
      * Build input for revision based on evaluator feedback.
+     * Uses DefaultPromptLoader to get prompt from resources or PromptService.
      */
     private String buildRevisionInput(String workerResult, String feedback) {
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("previousResult", workerResult);
+        
         if (StringUtils.isNotBlank(feedback)) {
-            return String.format("Previous result: %s\n\nFeedback for improvement: %s", workerResult, feedback);
+            variables.put("feedback", feedback);
+            return DefaultPromptLoader.loadPrompt("loop.agent.revision", variables);
         } else {
-            return String.format("Previous result needs revision: %s", workerResult);
+            return DefaultPromptLoader.loadPrompt("loop.agent.revision.no_feedback", variables);
         }
     }
     

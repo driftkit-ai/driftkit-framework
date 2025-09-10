@@ -262,25 +262,14 @@ public class LLMAgent implements Agent {
     /**
      * Execute with structured output extraction
      */
-    public <T> AgentResponse<T> executeStructured(String text, Class<T> targetClass) {
-        return executeStructured(text, targetClass, null);
-    }
-    
-    /**
-     * Execute with structured output extraction and custom prompt
-     */
-    public <T> AgentResponse<T> executeStructured(String text, Class<T> targetClass, String customPrompt) {
+    public <T> AgentResponse<T> executeStructured(String userMessage, Class<T> targetClass) {
         try {
-            // Build extraction prompt
-            String prompt = customPrompt != null ? customPrompt : 
-                "Extract the following information from the text:\n\n" + text;
-            
             // Create response format for structured output
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
             
             // Build messages
             List<ModelContentMessage> messages = buildBaseMessages();
-            messages.add(ModelContentMessage.create(Role.user, prompt));
+            messages.add(ModelContentMessage.create(Role.user, userMessage));
             
             // Build request with structured output
             ModelTextRequest request = ModelTextRequest.builder()
@@ -313,6 +302,95 @@ public class LLMAgent implements Agent {
         } catch (Exception e) {
             log.error("Error extracting structured data", e);
             throw new RuntimeException("Failed to extract structured data", e);
+        }
+    }
+    
+    /**
+     * Execute structured extraction using prompt template by ID
+     */
+    public <T> AgentResponse<T> executeStructuredWithPrompt(String promptId, Map<String, Object> variables, Class<T> targetClass) {
+        return executeStructuredWithPrompt(promptId, variables, targetClass, Language.GENERAL);
+    }
+    
+    /**
+     * Execute structured extraction using prompt template by ID with language
+     */
+    public <T> AgentResponse<T> executeStructuredWithPrompt(String promptId, Map<String, Object> variables, 
+                                                           Class<T> targetClass, Language language) {
+        try {
+            // Use injected PromptService or fall back to registry
+            PromptService effectivePromptService = promptService != null ? 
+                promptService : PromptServiceRegistry.getInstance();
+                
+            if (effectivePromptService == null) {
+                throw new IllegalStateException("PromptService not configured. " +
+                    "Please ensure PromptService is available in your application context " +
+                    "or register one via PromptServiceRegistry.register()");
+            }
+            
+            // Get prompt by ID
+            Optional<Prompt> promptOpt = effectivePromptService.getPromptById(promptId);
+            if (promptOpt.isEmpty()) {
+                throw new IllegalArgumentException("Prompt not found: " + promptId);
+            }
+            
+            Prompt prompt = promptOpt.get();
+            
+            // Apply variables to prompt
+            String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);
+            
+            // Create response format for structured output
+            ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
+            
+            // Build messages with prompt system message if available
+            List<ModelContentMessage> messages = new ArrayList<>();
+            String promptSystemMessage = prompt.getSystemMessage();
+            if (StringUtils.isNotBlank(promptSystemMessage)) {
+                promptSystemMessage = PromptUtils.applyVariables(promptSystemMessage, variables);
+                messages.add(ModelContentMessage.create(Role.system, promptSystemMessage));
+            } else if (StringUtils.isNotBlank(systemMessage)) {
+                messages.add(ModelContentMessage.create(Role.system, systemMessage));
+            }
+            
+            // Add conversation history if needed
+            messages.addAll(convertMemoryToMessages());
+            
+            // Add user message
+            messages.add(ModelContentMessage.create(Role.user, processedMessage));
+            
+            // Build request
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(prompt.getTemperature() != null ? prompt.getTemperature() : STRUCTURED_EXTRACTION_TEMPERATURE)
+                .messages(messages)
+                .responseFormat(responseFormat)
+                .build();
+            
+            // Execute request
+            ModelTextResponse response = modelClient.textToText(request);
+            
+            // Trace if provider is available
+            RequestTracingProvider provider = getTracingProvider();
+            if (provider != null) {
+                String contextType = buildContextType("STRUCTURED_PROMPT");
+                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
+                    .contextId(agentId)
+                    .contextType(contextType)
+                    .promptId(promptId)
+                    .variables(variables)
+                    .build();
+                provider.traceTextRequest(request, response, traceContext);
+            }
+            
+            // Extract and parse response
+            String jsonResponse = extractResponseText(response);
+            T result = JsonUtils.fromJson(jsonResponse, targetClass);
+            
+            return AgentResponse.structured(result);
+            
+        } catch (Exception e) {
+            log.error("Error in executeStructuredWithPrompt", e);
+            throw new RuntimeException("Failed to execute structured with prompt", e);
         }
     }
     

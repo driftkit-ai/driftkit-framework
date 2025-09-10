@@ -117,11 +117,11 @@ public class SimplifiedAgentService {
     }
     
     /**
-     * Extract structured data with custom prompt
+     * Extract structured data with user-controlled prompt
      */
     public Company extractCompanyInfo(String text) {
-        String customPrompt = "Extract company information including name, founded year, and CEO from the following text:\n\n" + text;
-        AgentResponse<Company> response = agent.executeStructured(text, Company.class, customPrompt);
+        String userMessage = "Extract company information including name, founded year, and CEO from the following text:\n\n" + text;
+        AgentResponse<Company> response = agent.executeStructured(userMessage, Company.class);
         return response.getStructuredData();
     }
     

@@ -1,0 +1,7 @@
+Evaluate the following result against the original request.
+
+Original request: {{originalRequest}}
+
+Generated result: {{generatedResult}}
+
+Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) and provide feedback or reason if applicable.

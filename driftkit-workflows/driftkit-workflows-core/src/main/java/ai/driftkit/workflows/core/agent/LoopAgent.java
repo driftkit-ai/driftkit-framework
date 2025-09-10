@@ -134,32 +134,26 @@ public class LoopAgent implements Agent {
     
     /**
      * Build input for the evaluator agent with structured output.
+     * The evaluator agent should have its own system message that defines evaluation criteria.
      */
     private String buildStructuredEvaluationInput(String originalInput, String workerResult) {
+        // Simply pass the original request and result as structured data
+        // The evaluator agent's system message should define how to evaluate
         return String.format(
-            "Evaluate the following result against the original request.\n\n" +
             "Original request: %s\n\n" +
-            "Generated result: %s\n\n" +
-            "Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) " +
-            "and provide feedback or reason if applicable.",
+            "Generated result: %s",
             originalInput, workerResult
         );
     }
     
     /**
      * Build input for the evaluator agent (legacy JSON format).
+     * The evaluator agent should have its own system message that defines expected JSON format.
      */
     private String buildEvaluationInput(String originalInput, String workerResult) {
-        String statusOptions = String.join("|", 
-            LoopStatus.COMPLETE.name(),
-            LoopStatus.REVISE.name(), 
-            LoopStatus.RETRY.name(),
-            LoopStatus.FAILED.name(),
-            LoopStatus.CONTINUE.name()
-        );
-        
-        return String.format("Original request: %s\n\nGenerated result: %s\n\nPlease respond with JSON in format: {\"status\": \"%s\", \"feedback\": \"optional feedback\", \"reason\": \"optional reason\"}", 
-                            originalInput, workerResult, statusOptions);
+        // Simply pass the data - evaluator agent's system message should define the expected JSON format
+        return String.format("Original request: %s\n\nGenerated result: %s", 
+                            originalInput, workerResult);
     }
     
     /**

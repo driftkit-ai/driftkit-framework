@@ -202,8 +202,8 @@ public class SchemaUtils {
             T instance = schemaClass.getDeclaredConstructor().newInstance();
             
             if (properties != null && !properties.isEmpty()) {
-                // Get all accessible fields from the class
-                List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(schemaClass, false);
+                // Get all accessible fields from the class including inherited fields
+                List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(schemaClass, true);
                 
                 for (Field field : accessibleFields) {
                     String propertyName = field.getName();
@@ -265,8 +265,8 @@ public class SchemaUtils {
         Map<String, String> properties = new HashMap<>();
         
         try {
-            // Get all accessible fields from the class
-            List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(object.getClass(), false);
+            // Get all accessible fields from the class including inherited fields
+            List<Field> accessibleFields = ReflectionUtils.getAccessibleFields(object.getClass(), true);
             
             for (Field field : accessibleFields) {
                 String propertyName = field.getName();

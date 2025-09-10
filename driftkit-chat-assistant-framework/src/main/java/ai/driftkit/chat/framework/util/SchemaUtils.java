@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -138,7 +139,7 @@ public class SchemaUtils {
             T instance = schemaClass.getDeclaredConstructor().newInstance();
             
             if (properties != null && !properties.isEmpty()) {
-                for (java.lang.reflect.Field field : schemaClass.getDeclaredFields()) {
+                for (Field field : schemaClass.getDeclaredFields()) {
                     field.setAccessible(true);
                     String propertyName = field.getName();
                     
@@ -187,7 +188,10 @@ public class SchemaUtils {
         Map<String, String> properties = new HashMap<>();
         
         try {
-            for (java.lang.reflect.Field field : object.getClass().getDeclaredFields()) {
+            // Get all fields including inherited ones
+            List<Field> allFields = getAllFields(object.getClass());
+            
+            for (Field field : allFields) {
                 field.setAccessible(true);
                 String propertyName = field.getName();
                 Object value = field.get(object);
@@ -259,7 +263,19 @@ public class SchemaUtils {
         return isComplete ? combinedProperties : null;
     }
     
-    private static void setFieldValue(java.lang.reflect.Field field, Object instance, String value) {
+    /**
+     * Helper method to get all fields from a class including inherited fields
+     */
+    private static List<Field> getAllFields(Class<?> clazz) {
+        List<Field> fields = new ArrayList<>();
+        while (clazz != null && clazz != Object.class) {
+            fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
+            clazz = clazz.getSuperclass();
+        }
+        return fields;
+    }
+    
+    private static void setFieldValue(Field field, Object instance, String value) {
         try {
             Class<?> fieldType = field.getType();
             

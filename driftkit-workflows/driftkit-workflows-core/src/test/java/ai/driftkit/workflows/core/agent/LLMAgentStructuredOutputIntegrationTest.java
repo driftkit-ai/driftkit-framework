@@ -263,14 +263,13 @@ public class LLMAgentStructuredOutputIntegrationTest {
                              "Bill to: ABC Corporation, 456 Business Ave, Dallas, TX 75201. " +
                              "Items: Software License ($5000), Support ($1000). Total: $6000.";
 
-        String customPrompt = "Extract invoice information from this document. " +
+        String userMessage = "Extract invoice information from this document. " +
                             "Focus on invoice number, date, customer, and total amount. " +
                             "Text: " + documentText;
 
         AgentResponse<InvoiceInfo> response = agent.executeStructured(
-            documentText, 
-            InvoiceInfo.class, 
-            customPrompt
+            userMessage, 
+            InvoiceInfo.class
         );
         
         assertNotNull(response);

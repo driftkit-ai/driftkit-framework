@@ -9,6 +9,7 @@ import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest.MessageType;
 import ai.driftkit.common.utils.JsonUtils;
+import ai.driftkit.context.core.util.DefaultPromptLoader;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.rag.core.retriever.Retriever.RetrievalResult;
@@ -56,18 +57,6 @@ public class ModelBasedReranker implements Reranker {
         private Map<String, Float> documentScores;
     }
     
-    private static final String DEFAULT_RERANK_PROMPT = """
-        You are a relevance scoring system. Given a query and a list of documents, score each document's relevance to the query.
-        
-        Query: {{query}}
-        
-        Documents:
-        {{documents}}
-        
-        Score each document from 0.0 to 1.0 based on relevance to the query.
-        Higher scores indicate higher relevance. Be strict in your scoring.
-        Only give high scores (>0.7) to documents that directly answer or relate to the query.
-        """;
     
     /**
      * Rerank documents based on the query.
@@ -92,19 +81,13 @@ public class ModelBasedReranker implements Reranker {
             resultMap.put(docId, result);
         }
         
-        // Get or create prompt
-        Prompt prompt = promptService.createIfNotExists(
-            promptId,
-            DEFAULT_RERANK_PROMPT,
-            null,
-            true
-        );
-        String promptTemplate = prompt.getMessage();
+        // Prepare variables for prompt
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("query", query);
+        variables.put("documents", documentsText.toString());
         
-        // Replace variables in prompt
-        String finalPrompt = promptTemplate
-            .replace("{{query}}", query)
-            .replace("{{documents}}", documentsText.toString());
+        // Load prompt using DefaultPromptLoader
+        String finalPrompt = DefaultPromptLoader.loadPrompt(promptId, variables);
         
         // Create request with structured output
         ModelTextRequest request = ModelTextRequest.builder()
