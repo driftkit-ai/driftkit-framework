@@ -45,4 +45,9 @@ public class PromptServiceSpringAdapter extends PromptService {
                 promptServiceConfig.getName());
         }
     }
+
+    @Override
+    public boolean isConfigured() {
+        return initialized;
+    }
 }

@@ -53,7 +53,7 @@ public class WorkflowAnalyticsService {
     @Autowired
     private MongoTemplate mongoTemplate;
 
-    @Autowired(required = false)
+    @Autowired
     private PromptService promptService;
     private Map<String, DailyMetricsResponse> dailyMetricsCache;
 
@@ -214,6 +214,10 @@ public class WorkflowAnalyticsService {
      * @return DailyMetricsResponse object containing all metrics
      */
     public DailyMetricsResponse getDailyMetrics(LocalDate startDate, LocalDate endDate) {
+        if (!promptService.isConfigured()) {
+            return new DailyMetricsResponse();
+        }
+
         // Default to today if not specified
         if (startDate == null) {
             startDate = LocalDate.now();
