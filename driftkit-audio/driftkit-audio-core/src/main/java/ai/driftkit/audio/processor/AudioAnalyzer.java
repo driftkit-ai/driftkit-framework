@@ -188,6 +188,10 @@ public class AudioAnalyzer {
      * Get current silence threshold (may be adapted)
      */
     public int getCurrentSilenceThreshold() {
+        if (!config.getVad().isEnabled()) {
+            return 0;
+        }
+
         return currentSilenceThreshold > 0 ? currentSilenceThreshold : (int)(config.getVad().getThreshold() * 100);
     }
     

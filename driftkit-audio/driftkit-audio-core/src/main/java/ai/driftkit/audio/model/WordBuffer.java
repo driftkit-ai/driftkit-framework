@@ -24,16 +24,16 @@ public class WordBuffer {
      * Handles deduplication and merging of overlapping words.
      * Returns the current segment transcript (since last final).
      */
-    public SegmentResult updateWords(List<WordInfo> newWords, boolean isFinal) {
+    public SegmentResult updateWords(List<WordInfo> newWords, boolean isFinal, boolean isInterimEnabled) {
         synchronized (lock) {
             // If this is a final result, first clean up old words
-            if (isFinal) {
+            if (isInterimEnabled && isFinal) {
                 cleanupOldWords();
             }
             
             for (WordInfo newWord : newWords) {
                 // Only process words that are after the last final end time
-                if (newWord.getEnd() <= lastFinalEndTime) {
+                if (isInterimEnabled && newWord.getEnd() <= lastFinalEndTime) {
                     continue;
                 }
                 
@@ -59,7 +59,9 @@ public class WordBuffer {
             
             // Clean up overlapping words if this is a final result
             if (isFinal) {
-                cleanupOverlaps();
+                if (isInterimEnabled) {
+                    cleanupOverlaps();
+                }
                 // Update final state
                 String currentSegmentText = getCurrentSegmentTranscript();
                 if (!currentSegmentWords.isEmpty()) {

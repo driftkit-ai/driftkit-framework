@@ -407,7 +407,7 @@ public class DeepgramEngine extends AbstractTranscriptionEngine {
                     // Convert words and update buffer
                     List<WordInfo> words = convertToWordInfoList(bestAlternative);
                     boolean isFinal = Boolean.TRUE.equals(response.getIsFinal());
-                    SegmentResult segmentResult = wordBuffer.updateWords(words, isFinal);
+                    SegmentResult segmentResult = wordBuffer.updateWords(words, isFinal, config.getDeepgram().isInterimResults());
                     
                     // Create and send result only if we have new content
                     if (StringUtils.isNotBlank(segmentResult.getText())) {
