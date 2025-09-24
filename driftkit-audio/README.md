@@ -49,7 +49,7 @@ The library is built with a modular architecture:
 
 ## Requirements
 
-- Java 17+
+- Java 21+
 - Maven 3.6+
 - FFmpeg (optional, for extended audio format support)
 
@@ -603,7 +603,7 @@ driftkit-ai-audio/
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache License, Version 2.0 - see the LICENSE file for details.
 
 ## Demo Examples
 
