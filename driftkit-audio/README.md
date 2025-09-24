@@ -6,8 +6,8 @@ A high-performance Java library for real-time audio processing with voice activi
 
 The library is built with a modular architecture:
 
-- **Core Module** (`audio-processing-core`): Framework-agnostic audio processing engine
-- **Spring Boot Starter** (`audio-processing-spring-boot-starter`): Spring Boot integration and auto-configuration
+- **Core Module** (`driftkit-audio-core`): Framework-agnostic audio processing engine
+- **Spring Boot Starter** (`driftkit-audio-spring-boot-starter`): Spring Boot integration and auto-configuration
 
 ## Features
 
@@ -32,8 +32,8 @@ The library is built with a modular architecture:
 ```xml
 <dependency>
     <groupId>ai.driftkit</groupId>
-    <artifactId>audio-processing-spring-boot-starter</artifactId>
-    <version>1.0.1</version>
+    <artifactId>driftkit-audio-spring-boot-starter</artifactId>
+    <version>0.8.0</version>
 </dependency>
 ```
 
@@ -42,19 +42,9 @@ The library is built with a modular architecture:
 ```xml
 <dependency>
     <groupId>ai.driftkit</groupId>
-    <artifactId>audio-processing-core</artifactId>
-    <version>1.0.1</version>
+    <artifactId>driftkit-audio-core</artifactId>
+    <version>0.8.0</version>
 </dependency>
-```
-
-### Gradle
-
-```gradle
-// With Spring Boot
-implementation 'ai.driftkit:audio-processing-spring-boot-starter:1.0.1'
-
-// Core only
-implementation 'ai.driftkit:audio-processing-core:1.0.1'
 ```
 
 ## Requirements

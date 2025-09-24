@@ -207,14 +207,14 @@ driftkit-framework/
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.6.0</version>
+    <version>0.8.0</version>
 </dependency>
 
 <!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
-    <version>0.6.0</version>
+    <version>0.8.0</version>
 </dependency>
 ```
 
@@ -669,9 +669,9 @@ public class StrictPerson {
 ## 🗺️ Roadmap
 
 ### Ecosystem expansion
-- **Additional LLM providers** - Anthropic Claude, Google Gemini, Mistral AI, local Ollama models
-- **PostgreSQL backend** - Enterprise-grade persistence for context-engineering module  
-- **Extended vector storage** - Weaviate, Qdrant, Redis Vector, Elasticsearch support
+- **Additional LLM providers** - Mistral AI, Grok, DeepSeek
+- **PostgreSQL backend** - Enterprise-grade persistence for context-engineering module
+- **Extended vector storage** - Native support without Spring: Weaviate, Qdrant, Redis Vector, Elasticsearch
 
 ### Developer experience  
 - **Frontend upgrade** - Modern UI/UX for prompt engineering, real-time collaboration, advanced debugging
@@ -790,7 +790,7 @@ Add the starter for automatic configuration:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-ai-starter</artifactId>
-    <version>0.6.0</version>
+    <version>0.8.0</version>
 </dependency>
 ```
 
@@ -870,7 +870,7 @@ limitations under the License.
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.6.0</version>
+    <version>0.8.0</version>
 </dependency>
 ```
 
