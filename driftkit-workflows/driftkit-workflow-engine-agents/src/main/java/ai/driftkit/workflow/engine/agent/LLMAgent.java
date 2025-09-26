@@ -300,7 +300,7 @@ public class LLMAgent implements Agent {
             // Build request with structured output
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
-                .temperature(temperature != null ? temperature : STRUCTURED_EXTRACTION_TEMPERATURE)
+                .temperature(getTemperature(null))
                 .messages(messages)
                 .responseFormat(responseFormat)
                 .build();
@@ -391,7 +391,7 @@ public class LLMAgent implements Agent {
             // Build request
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
-                .temperature(prompt.getTemperature() != null ? prompt.getTemperature() : STRUCTURED_EXTRACTION_TEMPERATURE)
+                .temperature(getTemperature(prompt))
                 .messages(messages)
                 .responseFormat(responseFormat)
                 .build();
@@ -431,7 +431,19 @@ public class LLMAgent implements Agent {
             throw new RuntimeException("Failed to execute structured with prompt", e);
         }
     }
-    
+
+    private double getTemperature(Prompt prompt) {
+        if (temperature != null) {
+            return temperature;
+        }
+
+        if (prompt != null && prompt.getTemperature() != null) {
+            return prompt.getTemperature();
+        }
+
+        return modelClient.getTemperature();
+    }
+
     /**
      * Execute using prompt template by ID
      */
@@ -488,7 +500,7 @@ public class LLMAgent implements Agent {
             // Build request
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
-                .temperature(prompt.getTemperature() != null ? prompt.getTemperature() : getEffectiveTemperature())
+                .temperature(getTemperature(prompt))
                 .messages(messages)
                 .build();
             
@@ -634,7 +646,7 @@ public class LLMAgent implements Agent {
             // Build request
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
-                .temperature(getEffectiveTemperature())
+                .temperature(getTemperature(null))
                 .messages(messages)
                 .build();
             
@@ -802,7 +814,7 @@ public class LLMAgent implements Agent {
                 messages.add(ModelContentMessage.create(Role.user, processedMessage));
                 request = ModelTextRequest.builder()
                     .model(getEffectiveModel())
-                    .temperature(getEffectiveTemperature())
+                    .temperature(getTemperature(null))
                     .messages(messages)
                     .build();
             } else {
@@ -906,7 +918,7 @@ public class LLMAgent implements Agent {
         
         return ModelTextRequest.builder()
             .model(getEffectiveModel())
-            .temperature(getEffectiveTemperature())
+            .temperature(getTemperature(null))
             .messages(messages)
             .build();
     }
@@ -919,7 +931,7 @@ public class LLMAgent implements Agent {
         
         return ModelTextRequest.builder()
             .model(getEffectiveModel())
-            .temperature(getEffectiveTemperature())
+            .temperature(getTemperature(null))
             .messages(messages)
             .tools(tools.length > 0 ? Arrays.asList(tools) : null)
             .build();
@@ -1090,14 +1102,7 @@ public class LLMAgent implements Agent {
     private String getEffectiveModel() {
         return StringUtils.isNotBlank(model) ? model : modelClient.getModel();
     }
-    
-    /**
-     * Get effective temperature (from agent config or client default).
-     */
-    private Double getEffectiveTemperature() {
-        return temperature != null ? temperature : modelClient.getTemperature();
-    }
-    
+
     /**
      * Get effective max tokens (from agent config or client default).
      */
