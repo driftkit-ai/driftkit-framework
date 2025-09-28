@@ -6,7 +6,6 @@ import ai.driftkit.workflows.core.agent.RequestTracingProvider;
 import ai.driftkit.workflows.core.agent.RequestTracingRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.*;
@@ -19,7 +18,6 @@ import reactor.core.scheduler.Schedulers;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -246,16 +244,16 @@ public class DriftKitTracingAdvisor implements CallAdvisor, StreamAdvisor {
      * Build ModelTextRequest from Spring AI request context
      */
     private ModelTextRequest buildModelTextRequest(RequestContext reqContext) {
-        List<ModelImageResponse.ModelContentMessage> messages = new ArrayList<>();
+        List<ModelContentMessage> messages = new ArrayList<>();
         
         // Add system message if present
         if (reqContext.systemMessage != null && !reqContext.systemMessage.isBlank()) {
-            messages.add(ModelImageResponse.ModelContentMessage.create(Role.system, reqContext.systemMessage));
+            messages.add(ModelContentMessage.create(Role.system, reqContext.systemMessage));
         }
         
         // Add user message
         if (reqContext.userMessage != null && !reqContext.userMessage.isBlank()) {
-            messages.add(ModelImageResponse.ModelContentMessage.create(Role.user, reqContext.userMessage));
+            messages.add(ModelContentMessage.create(Role.user, reqContext.userMessage));
         }
         
         // Build request
@@ -297,7 +295,7 @@ public class DriftKitTracingAdvisor implements CallAdvisor, StreamAdvisor {
                 String content = result.getOutput() != null ? result.getOutput().getText() : "";
                 
                 var message = ModelTextResponse.ResponseMessage.builder()
-                    .message(ModelImageResponse.ModelMessage.builder()
+                    .message(ModelMessage.builder()
                         .role(Role.assistant)
                         .content(content)
                         .build())

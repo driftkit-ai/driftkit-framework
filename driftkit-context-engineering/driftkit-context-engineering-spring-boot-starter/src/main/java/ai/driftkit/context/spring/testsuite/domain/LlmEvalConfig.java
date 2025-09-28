@@ -3,7 +3,7 @@ package ai.driftkit.context.spring.testsuite.domain;
 import ai.driftkit.common.domain.ImageMessageTask;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.context.spring.testsuite.service.EvaluationService;
 import ai.driftkit.workflows.spring.domain.ModelRequestTrace;

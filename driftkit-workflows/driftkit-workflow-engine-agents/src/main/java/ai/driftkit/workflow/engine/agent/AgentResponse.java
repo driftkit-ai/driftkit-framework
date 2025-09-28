@@ -1,6 +1,6 @@
 package ai.driftkit.workflow.engine.agent;
 
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.tools.ToolCall;
 import lombok.Builder;
 import lombok.Data;

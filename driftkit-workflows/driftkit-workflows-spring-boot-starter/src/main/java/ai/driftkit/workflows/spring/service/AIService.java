@@ -116,11 +116,11 @@ public class AIService {
 
                 msg = PromptUtils.applyVariables(msg, task.getVariables());
 
-                List<ModelImageResponse.ModelContentMessage> messages = new ArrayList<>();
-                messages.add(ModelImageResponse.ModelContentMessage.create(Role.user, msg));
+                List<ModelContentMessage> messages = new ArrayList<>();
+                messages.add(ModelContentMessage.create(Role.user, msg));
 
                 if (StringUtils.isNotBlank(task.getSystemMessage())) {
-                    messages.add(ModelImageResponse.ModelContentMessage.create(Role.system, task.getSystemMessage()));
+                    messages.add(ModelContentMessage.create(Role.system, task.getSystemMessage()));
                 }
 
                 String model = Optional.ofNullable(task.getModelId()).orElse(modelConfig.getModel());
@@ -141,10 +141,10 @@ public class AIService {
                         .chatId(task.getChatId());
 
                 if (isImageToText) {
-                    List<ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData> images = new ArrayList<>();
+                    List<ModelContentMessage.ModelContentElement.ImageData> images = new ArrayList<>();
                     for (String base64Image : task.getImageBase64()) {
                         byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Image);
-                        images.add(new ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData(
+                        images.add(new ModelContentMessage.ModelContentElement.ImageData(
                                 imageBytes,
                                 task.getImageMimeType()
                         ));

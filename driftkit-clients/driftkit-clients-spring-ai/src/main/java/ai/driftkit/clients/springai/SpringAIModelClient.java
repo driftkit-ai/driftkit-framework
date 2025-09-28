@@ -13,12 +13,10 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.content.Media;
-import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.util.MimeType;
 import org.springframework.core.io.ByteArrayResource;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.function.Function;
@@ -131,7 +129,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
     
     // Conversion methods
     
-    private List<Message> convertToSpringAIMessages(List<ModelImageResponse.ModelContentMessage> driftKitMessages) {
+    private List<Message> convertToSpringAIMessages(List<ModelContentMessage> driftKitMessages) {
         List<Message> messages = new ArrayList<>();
         
         // Add system messages first
@@ -140,7 +138,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         }
         
         // Convert DriftKit messages
-        for (ModelImageResponse.ModelContentMessage msg : driftKitMessages) {
+        for (ModelContentMessage msg : driftKitMessages) {
             Message springAIMessage = convertMessage(msg);
             if (springAIMessage != null) {
                 messages.add(springAIMessage);
@@ -150,7 +148,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         return messages;
     }
     
-    private List<Message> convertToSpringAIMessagesWithImages(List<ModelImageResponse.ModelContentMessage> driftKitMessages) {
+    private List<Message> convertToSpringAIMessagesWithImages(List<ModelContentMessage> driftKitMessages) {
         List<Message> messages = new ArrayList<>();
         
         // Add system messages first
@@ -159,7 +157,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         }
         
         // Convert DriftKit messages including multimodal content
-        for (ModelImageResponse.ModelContentMessage msg : driftKitMessages) {
+        for (ModelContentMessage msg : driftKitMessages) {
             Message springAIMessage = convertMessageWithImages(msg);
             if (springAIMessage != null) {
                 messages.add(springAIMessage);
@@ -169,7 +167,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         return messages;
     }
     
-    private Message convertMessage(ModelImageResponse.ModelContentMessage msg) {
+    private Message convertMessage(ModelContentMessage msg) {
         String content = extractTextContent(msg);
         
         switch (msg.getRole()) {
@@ -185,7 +183,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         }
     }
     
-    private Message convertMessageWithImages(ModelImageResponse.ModelContentMessage msg) {
+    private Message convertMessageWithImages(ModelContentMessage msg) {
         if (msg.getContent() == null || msg.getContent().isEmpty()) {
             return convertMessage(msg);
         }
@@ -194,7 +192,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
         List<Media> mediaList = new ArrayList<>();
         String textContent = "";
         
-        for (ModelImageResponse.ModelContentMessage.ModelContentElement element : msg.getContent()) {
+        for (ModelContentMessage.ModelContentElement element : msg.getContent()) {
             if (element.getType() == ModelTextRequest.MessageType.text) {
                 textContent += element.getText() + " ";
             } else if (element.getType() == ModelTextRequest.MessageType.image && element.getImage() != null) {
@@ -216,14 +214,14 @@ public class SpringAIModelClient extends ModelClient<Object> {
         }
     }
     
-    private String extractTextContent(ModelImageResponse.ModelContentMessage msg) {
+    private String extractTextContent(ModelContentMessage msg) {
         if (msg.getContent() == null || msg.getContent().isEmpty()) {
             return "";
         }
         
         return msg.getContent().stream()
             .filter(element -> element.getType() == ModelTextRequest.MessageType.text)
-            .map(ModelImageResponse.ModelContentMessage.ModelContentElement::getText)
+            .map(ModelContentMessage.ModelContentElement::getText)
             .collect(Collectors.joining(" "));
     }
     
@@ -366,7 +364,7 @@ public class SpringAIModelClient extends ModelClient<Object> {
                 String content = generation.getOutput().getText();
                 
                 ModelTextResponse.ResponseMessage choice = ModelTextResponse.ResponseMessage.builder()
-                    .message(ModelImageResponse.ModelMessage.builder()
+                    .message(ModelMessage.builder()
                         .role(Role.assistant)
                         .content(content)
                         .build())

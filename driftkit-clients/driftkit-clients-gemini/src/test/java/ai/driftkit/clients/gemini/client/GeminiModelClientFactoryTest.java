@@ -2,7 +2,7 @@ package ai.driftkit.clients.gemini.client;
 
 import ai.driftkit.clients.gemini.utils.GeminiUtils;
 import ai.driftkit.common.domain.client.*;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.config.EtlConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

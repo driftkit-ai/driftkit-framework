@@ -1,16 +1,14 @@
 package ai.driftkit.workflow.test.examples;
 
-import ai.driftkit.workflow.engine.annotations.*;
 import ai.driftkit.workflow.engine.core.*;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
 import ai.driftkit.workflow.engine.builder.RetryPolicyBuilder;
 import ai.driftkit.workflow.test.core.WorkflowTestBase;
 import ai.driftkit.workflow.engine.core.WorkflowEngine;
 import ai.driftkit.workflow.test.mock.MockAIClient;
-import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.workflow.engine.persistence.WorkflowInstance;
 import lombok.Data;
@@ -19,10 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static ai.driftkit.workflow.engine.persistence.WorkflowInstance.WorkflowStatus;

@@ -8,7 +8,7 @@ import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.config.EtlConfig.VaultConfig;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
@@ -38,9 +38,7 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -671,7 +669,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
             .build();
     }
 
-    private static ModelImageResponse.ModelMessage mapMessage(ChatCompletionResponse.Message message) {
+    private static ModelMessage mapMessage(ChatCompletionResponse.Message message) {
         if (message == null) {
             return null;
         }
@@ -690,7 +688,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                     .collect(Collectors.toList());
         }
 
-        return ModelImageResponse.ModelMessage.builder()
+        return ModelMessage.builder()
                 .role(Role.valueOf(message.getRole()))
                 .content(content)
                 .toolCalls(toolCalls)
@@ -742,7 +740,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
     /**
      * Convert message for streaming requests - always uses StringMessage for simple text
      */
-    private Message toStreamingMessage(ModelImageResponse.ModelContentMessage message) {
+    private Message toStreamingMessage(ModelContentMessage message) {
         // For streaming, we prefer StringMessage when possible for better compatibility
         if (message.getContent() != null && !message.getContent().isEmpty()) {
             // Check if all elements are text
@@ -764,7 +762,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         return toMessage(message);
     }
     
-    private Message toMessage(ModelImageResponse.ModelContentMessage message) {
+    private Message toMessage(ModelContentMessage message) {
 //        if (message.getContent().size() == 1) {
 //            ModelContentElement mce = message.getContent().get(0);
 //

@@ -5,8 +5,6 @@ import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import org.junit.Before;
-import org.junit.Test;
-import org.junit.Assume;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,19 +46,19 @@ public class OpenAIStreamingIntegrationTest {
                 .model("gpt-4o-mini")
                 .temperature(0.7)
                 .messages(Arrays.asList(
-                    ModelImageResponse.ModelContentMessage.builder()
+                    ModelContentMessage.builder()
                         .role(Role.system)
                         .content(Collections.singletonList(
-                            ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                            ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("You are a helpful assistant.")
                                 .build()
                         ))
                         .build(),
-                    ModelImageResponse.ModelContentMessage.builder()
+                    ModelContentMessage.builder()
                         .role(Role.user)
                         .content(Collections.singletonList(
-                            ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                            ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("Count from 1 to 10 slowly, with each number on a new line")
                                 .build()
@@ -136,10 +134,10 @@ public class OpenAIStreamingIntegrationTest {
                 .model("gpt-4o-mini")
                 .temperature(0.0)
                 .messages(Collections.singletonList(
-                    ModelImageResponse.ModelContentMessage.builder()
+                    ModelContentMessage.builder()
                         .role(Role.user)
                         .content(Collections.singletonList(
-                            ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                            ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("What is 2+2? Answer with just the number.")
                                 .build()
@@ -194,10 +192,10 @@ public class OpenAIStreamingIntegrationTest {
                 .model("gpt-4o-mini")
                 .temperature(0.7)
                 .messages(Collections.singletonList(
-                    ModelImageResponse.ModelContentMessage.builder()
+                    ModelContentMessage.builder()
                         .role(Role.user)
                         .content(Collections.singletonList(
-                            ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                            ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("Write a very long story about space exploration")
                                 .build()

@@ -2,8 +2,8 @@ package ai.driftkit.clients.gemini.client;
 
 import ai.driftkit.clients.gemini.utils.GeminiUtils;
 import ai.driftkit.common.domain.client.*;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
 import ai.driftkit.config.EtlConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,7 +1,6 @@
 package ai.driftkit.common.domain.client;
 
 import ai.driftkit.common.domain.ModelTrace;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.common.utils.ModelUtils;
 import com.fasterxml.jackson.annotation.JsonProperty;

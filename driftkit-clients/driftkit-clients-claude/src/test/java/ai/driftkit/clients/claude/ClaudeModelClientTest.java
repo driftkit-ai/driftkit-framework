@@ -5,7 +5,7 @@ import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.Capability;
 import ai.driftkit.common.domain.client.ModelClient.ResponseFormatType;
 import ai.driftkit.common.domain.client.ModelClient.UnsupportedCapabilityException;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -119,7 +119,7 @@ public class ClaudeModelClientTest {
         assertNotNull(response.getChoices());
         assertFalse(response.getChoices().isEmpty());
         
-        ModelImageResponse.ModelMessage message = response.getChoices().get(0).getMessage();
+        ModelMessage message = response.getChoices().get(0).getMessage();
         assertNotNull(message);
         
         if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {

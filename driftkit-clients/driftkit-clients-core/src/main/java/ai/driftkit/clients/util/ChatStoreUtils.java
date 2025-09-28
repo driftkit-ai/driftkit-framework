@@ -1,8 +1,7 @@
 package ai.driftkit.clients.util;
 
 import ai.driftkit.common.domain.chat.ChatMessage;
-import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.common.service.ChatStore;
 import ai.driftkit.common.utils.JsonUtils;

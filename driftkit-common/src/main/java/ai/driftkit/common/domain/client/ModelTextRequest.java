@@ -1,7 +1,6 @@
 package ai.driftkit.common.domain.client;
 
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement.ImageData;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

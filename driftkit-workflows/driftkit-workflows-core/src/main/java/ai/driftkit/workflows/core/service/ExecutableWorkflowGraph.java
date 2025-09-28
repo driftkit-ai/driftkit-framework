@@ -358,8 +358,8 @@ public class ExecutableWorkflowGraph extends WorkflowGraph {
 
     private ModelTextResponse sendLLMRequest(String prompt, String modelName, Map<String, Object> config, ModelClient modelClient) {
         // Use the model client to send the request
-        List<ModelImageResponse.ModelContentMessage> messages = new ArrayList<>();
-        messages.add(ModelImageResponse.ModelContentMessage.create(Role.user, prompt));
+        List<ModelContentMessage> messages = new ArrayList<>();
+        messages.add(ModelContentMessage.create(Role.user, prompt));
 
         ModelTextRequest request = ModelTextRequest.builder()
                 .temperature((Double) config.getOrDefault("temperature", 0.7))

@@ -4,7 +4,7 @@ import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
 import ai.driftkit.common.domain.Prompt;
-import ai.driftkit.common.domain.client.ModelImageResponse;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.clients.core.ModelClientFactory;
@@ -244,24 +244,24 @@ public class ReasoningWorkflow extends ModelWorkflow<StartEvent, JsonNode> {
     @SneakyThrows
     private ModelTextResponse sendQuery(String query, Map<String, Object> variables, WorkflowContext workflowContext, boolean reasoning) {
         // Convert context objects to ModelContentMessages for the conversation history
-        List<ModelImageResponse.ModelContentMessage> contextMessages = workflowContext.getOrDefault(CONTEXT, Collections.emptyList())
+        List<ModelContentMessage> contextMessages = workflowContext.getOrDefault(CONTEXT, Collections.emptyList())
                 .stream()
                 .map(e -> {
                     JsonNode nextAction = e instanceof JsonNode node ? node.get(NEXT_ACTION) : null;
 
                     if (nextAction == null) {
-                        return ModelImageResponse.ModelContentMessage.create(Role.user, e.toString());
+                        return ModelContentMessage.create(Role.user, e.toString());
                     } else {
-                        return ModelImageResponse.ModelContentMessage.create(Role.assistant, e.toString());
+                        return ModelContentMessage.create(Role.assistant, e.toString());
                     }
                 })
                 .toList();
 
-        List<ModelImageResponse.ModelContentMessage> messages = new ArrayList<>();
+        List<ModelContentMessage> messages = new ArrayList<>();
 
         if (!reasoning) {
             Prompt prompt = promptService.getCurrentPromptOrThrow(REASONING_METHOD, Language.GENERAL);
-            messages.add(ModelImageResponse.ModelContentMessage.create(Role.system, prompt.getMessage()));
+            messages.add(ModelContentMessage.create(Role.system, prompt.getMessage()));
         }
 
         messages.addAll(contextMessages);

@@ -1,7 +1,7 @@
 package ai.driftkit.workflows.spring;
 
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData;
+import ai.driftkit.common.domain.client.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement.ImageData;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.NoArgsConstructor;

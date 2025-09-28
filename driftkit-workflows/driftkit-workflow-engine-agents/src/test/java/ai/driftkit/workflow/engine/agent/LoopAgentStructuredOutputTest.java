@@ -1,10 +1,6 @@
 package ai.driftkit.workflow.engine.agent;
 
-import ai.driftkit.common.domain.client.ModelClient;
-import ai.driftkit.common.domain.client.ModelImageResponse;
-import ai.driftkit.common.domain.client.ModelTextRequest;
-import ai.driftkit.common.domain.client.ModelTextResponse;
-import ai.driftkit.common.domain.client.ResponseFormat;
+import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.utils.JsonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +58,7 @@ class LoopAgentStructuredOutputTest {
         ModelTextResponse mockResponse = ModelTextResponse.builder()
             .choices(java.util.List.of(
                 ModelTextResponse.ResponseMessage.builder()
-                    .message(ModelImageResponse.ModelMessage.builder()
+                    .message(ModelMessage.builder()
                         .content(JsonUtils.toJson(evalResult))
                         .build())
                     .build()

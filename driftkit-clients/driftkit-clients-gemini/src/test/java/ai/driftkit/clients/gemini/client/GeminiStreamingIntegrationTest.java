@@ -2,7 +2,7 @@ package ai.driftkit.clients.gemini.client;
 
 import ai.driftkit.common.domain.client.ModelClient;
 import ai.driftkit.common.domain.client.ModelTextRequest;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.domain.streaming.StreamingResponse;

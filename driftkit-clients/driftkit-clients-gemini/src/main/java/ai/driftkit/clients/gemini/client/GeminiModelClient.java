@@ -7,9 +7,9 @@ import ai.driftkit.clients.gemini.domain.GeminiImageRequest.ImageGenerationConfi
 import ai.driftkit.clients.gemini.utils.GeminiUtils;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;

@@ -44,7 +44,7 @@ A comprehensive testing framework for DriftKit workflows that provides powerful 
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-test-framework</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.2</version>
     <scope>test</scope>
 </dependency>
 ```

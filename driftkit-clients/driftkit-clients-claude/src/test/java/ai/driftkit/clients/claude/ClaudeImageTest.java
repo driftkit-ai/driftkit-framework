@@ -1,10 +1,7 @@
 package ai.driftkit.clients.claude;
 
 import ai.driftkit.clients.claude.client.ClaudeModelClient;
-import ai.driftkit.common.domain.client.ModelImageResponse;
-import ai.driftkit.common.domain.client.ModelTextRequest;
-import ai.driftkit.common.domain.client.ModelTextResponse;
-import ai.driftkit.common.domain.client.Role;
+import ai.driftkit.common.domain.client.*;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,16 +42,16 @@ public class ClaudeImageTest {
     void testImageAnalysis() throws IOException {
         byte[] imageData = createTestImage();
         
-        ModelImageResponse.ModelContentMessage message = ModelImageResponse.ModelContentMessage.builder()
+        ModelContentMessage message = ModelContentMessage.builder()
                 .role(Role.user)
                 .content(List.of(
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("What do you see in this image? Describe the colors and shapes.")
                                 .build(),
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.image)
-                                .image(new ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData(
+                                .image(new ModelContentMessage.ModelContentElement.ImageData(
                                         imageData,
                                         "image/png"
                                 ))
@@ -84,16 +81,16 @@ public class ClaudeImageTest {
     void testImageWithText() throws IOException {
         byte[] imageData = createTestImageWithText("Hello Claude!");
         
-        ModelImageResponse.ModelContentMessage message = ModelImageResponse.ModelContentMessage.builder()
+        ModelContentMessage message = ModelContentMessage.builder()
                 .role(Role.user)
                 .content(List.of(
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("What text do you see in this image?")
                                 .build(),
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.image)
-                                .image(new ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData(
+                                .image(new ModelContentMessage.ModelContentElement.ImageData(
                                         imageData,
                                         "image/png"
                                 ))
@@ -119,27 +116,27 @@ public class ClaudeImageTest {
         byte[] image1 = createTestImage();
         byte[] image2 = createTestImageWithText("Test Text");
         
-        ModelImageResponse.ModelContentMessage message = ModelImageResponse.ModelContentMessage.builder()
+        ModelContentMessage message = ModelContentMessage.builder()
                 .role(Role.user)
                 .content(List.of(
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("Compare these two images. What are the differences?")
                                 .build(),
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.image)
-                                .image(new ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData(
+                                .image(new ModelContentMessage.ModelContentElement.ImageData(
                                         image1,
                                         "image/png"
                                 ))
                                 .build(),
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.text)
                                 .text("versus")
                                 .build(),
-                        ModelImageResponse.ModelContentMessage.ModelContentElement.builder()
+                        ModelContentMessage.ModelContentElement.builder()
                                 .type(ModelTextRequest.MessageType.image)
-                                .image(new ModelImageResponse.ModelContentMessage.ModelContentElement.ImageData(
+                                .image(new ModelContentMessage.ModelContentElement.ImageData(
                                         image2,
                                         "image/png"
                                 ))

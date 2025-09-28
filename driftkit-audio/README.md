@@ -33,7 +33,7 @@ The library is built with a modular architecture:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-audio-spring-boot-starter</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.2</version>
 </dependency>
 ```
 
@@ -43,7 +43,7 @@ The library is built with a modular architecture:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-audio-core</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.2</version>
 </dependency>
 ```
 

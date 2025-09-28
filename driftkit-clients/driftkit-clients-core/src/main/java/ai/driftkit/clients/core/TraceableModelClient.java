@@ -216,7 +216,7 @@ public class TraceableModelClient<T> extends ModelClient<T> {
             .sum();
     }
     
-    private int estimateContentMessageTokens(ModelImageResponse.ModelContentMessage message) {
+    private int estimateContentMessageTokens(ModelContentMessage message) {
         if (message == null || message.getContent() == null) {
             return 0;
         }

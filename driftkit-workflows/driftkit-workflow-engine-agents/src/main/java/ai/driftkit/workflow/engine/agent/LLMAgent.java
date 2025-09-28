@@ -2,13 +2,12 @@ package ai.driftkit.workflow.engine.agent;
 
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.chat.ChatMessage;
-import ai.driftkit.common.domain.chat.ChatMessage.MessageType;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
@@ -24,7 +23,6 @@ import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.core.util.PromptUtils;
-import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -74,10 +72,7 @@ public class LLMAgent implements Agent {
     private final String workflowId;
     private final String workflowType;
     private final String workflowStep;
-    
-    // Enable automatic tool execution
-    private final boolean autoExecuteTools;
-    
+
     // Default temperature for structured extraction
     private static final double STRUCTURED_EXTRACTION_TEMPERATURE = 0.1;
     
@@ -104,7 +99,6 @@ public class LLMAgent implements Agent {
         this.workflowId = workflowId;
         this.workflowType = workflowType;
         this.workflowStep = workflowStep;
-        this.autoExecuteTools = autoExecuteTools;
     }
     
     /**
@@ -130,13 +124,34 @@ public class LLMAgent implements Agent {
         try {
             // Process message with variables
             String processedMessage = processMessageWithVariables(message, variables);
+
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Add user message to memory
-            addUserMessage(processedMessage);
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
             
-            // Build and execute request
-            ModelTextRequest request = buildChatRequest();
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(processedMessage);
+            
+            // Build request
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(getTemperature(null))
+                .messages(messages)
+                .build();
+            
+            // Execute request
             ModelTextResponse response = modelClient.textToText(request);
+            
+            // Save assistant response
+            String responseText = extractResponseText(response);
+            if (StringUtils.isNotBlank(responseText)) {
+                context.addAssistantMessage(responseText);
+            }
             
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
@@ -154,8 +169,13 @@ public class LLMAgent implements Agent {
                 provider.traceTextRequest(request, response, traceContext);
             }
             
-            // Extract response
-            return extractResponse(response);
+            // Check if response contains images
+            List<ModelContentElement.ImageData> images = extractImages(response);
+            if (CollectionUtils.isNotEmpty(images)) {
+                return AgentResponse.multimodal(responseText, images);
+            }
+            
+            return AgentResponse.text(responseText);
             
         } catch (Exception e) {
             log.error("Error in executeText", e);
@@ -178,11 +198,29 @@ public class LLMAgent implements Agent {
             // Process message with variables
             String processedMessage = processMessageWithVariables(message, variables);
             
-            // Add user message to memory
-            addUserMessage(processedMessage);
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Build and execute request with tools
-            ModelTextRequest request = buildChatRequestWithTools();
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
+            
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(processedMessage);
+            
+            // Build request with tools
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+            ModelClient.Tool[] tools = toolRegistry != null ? toolRegistry.getTools() : new ModelClient.Tool[0];
+            
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(getTemperature(null))
+                .messages(messages)
+                .tools(tools.length > 0 ? Arrays.asList(tools) : null)
+                .build();
+            
+            // Execute request
             ModelTextResponse response = modelClient.textToText(request);
             
             // Trace if provider is available
@@ -226,11 +264,29 @@ public class LLMAgent implements Agent {
             // Process message with variables
             String processedMessage = processMessageWithVariables(message, variables);
             
-            // Add user message to memory
-            addUserMessage(processedMessage);
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Build and execute request with tools
-            ModelTextRequest request = buildChatRequestWithTools();
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
+            
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(processedMessage);
+            
+            // Build request with tools
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+            ModelClient.Tool[] tools = toolRegistry != null ? toolRegistry.getTools() : new ModelClient.Tool[0];
+            
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(getTemperature(null))
+                .messages(messages)
+                .tools(tools.length > 0 ? Arrays.asList(tools) : null)
+                .build();
+            
+            // Execute request
             ModelTextResponse response = modelClient.textToText(request);
             
             // Trace if provider is available
@@ -251,28 +307,22 @@ public class LLMAgent implements Agent {
             
             // Check for tool calls
             if (hasToolCalls(response)) {
-                // Execute tools and get typed results
-                List<ToolExecutionResult> results = executeToolsAndGetResults(response);
+                // Extract tool calls and assistant message
+                List<ToolCall> toolCalls = extractToolCalls(response);
+                String assistantContent = extractResponseText(response);
                 
-                // Get final response from model
-                ModelTextRequest followUpRequest = buildChatRequest();
-                ModelTextResponse finalResponse = modelClient.textToText(followUpRequest);
-                
-                // Trace follow-up request if provider is available
-                if (provider != null) {
-                    String contextType = buildContextType("TOOLS_FOLLOWUP");
-                    RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                        .contextId(agentId)
-                        .contextType(contextType)
-                        .variables(variables)
-                        .build();
-                    provider.traceTextRequest(followUpRequest, finalResponse, traceContext);
+                // ALWAYS add assistant response to context for building follow-up request
+                if (StringUtils.isNotBlank(assistantContent)) {
+                    context.addAssistantMessage(assistantContent);
                 }
-                
-                // Add final response to memory
-                String finalText = extractResponseText(finalResponse);
-                addAssistantMessage(finalText);
-                
+
+                List<ToolExecutionResult> results = new ArrayList<>();
+
+                for (ToolCall toolCall : toolCalls) {
+                    ToolExecutionResult result = executeToolCall(toolCall);
+                    results.add(result);
+                }
+
                 return AgentResponse.toolResults(results);
             }
             
@@ -293,11 +343,19 @@ public class LLMAgent implements Agent {
             // Create response format for structured output
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
             
-            // Build messages
-            List<ModelContentMessage> messages = buildBaseMessages();
-            messages.add(ModelContentMessage.create(Role.user, userMessage));
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
+            
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(userMessage);
             
             // Build request with structured output
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
@@ -325,6 +383,12 @@ public class LLMAgent implements Agent {
             
             // Extract and parse response
             String jsonResponse = extractResponseText(response);
+            
+            // Save assistant response
+            if (StringUtils.isNotBlank(jsonResponse)) {
+                context.addAssistantMessage(jsonResponse);
+            }
+            
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
             
             return AgentResponse.structured(result);
@@ -372,23 +436,23 @@ public class LLMAgent implements Agent {
             // Create response format for structured output
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
             
-            // Build messages with prompt system message if available
-            List<ModelContentMessage> messages = new ArrayList<>();
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            
+            // Add system message - prefer prompt's system message
             String promptSystemMessage = prompt.getSystemMessage();
             if (StringUtils.isNotBlank(promptSystemMessage)) {
                 promptSystemMessage = PromptUtils.applyVariables(promptSystemMessage, variables);
-                messages.add(ModelContentMessage.create(Role.system, promptSystemMessage));
+                context.addSystemMessage(promptSystemMessage);
             } else if (StringUtils.isNotBlank(systemMessage)) {
-                messages.add(ModelContentMessage.create(Role.system, systemMessage));
+                context.addSystemMessage(systemMessage);
             }
             
-            // Add conversation history if needed
-            messages.addAll(convertMemoryToMessages());
-            
             // Add user message
-            messages.add(ModelContentMessage.create(Role.user, processedMessage));
+            context.addUserMessage(processedMessage);
             
             // Build request
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
                 .temperature(getTemperature(prompt))
@@ -483,21 +547,21 @@ public class LLMAgent implements Agent {
                 promptSystemMessage = PromptUtils.applyVariables(promptSystemMessage, variables);
             }
             
-            // Add messages to memory
-            addUserMessage(processedMessage);
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Build messages with prompt system message
-            List<ModelContentMessage> messages = new ArrayList<>();
+            // Add system message - prefer prompt's system message
             if (StringUtils.isNotBlank(promptSystemMessage)) {
-                messages.add(ModelContentMessage.create(Role.system, promptSystemMessage));
+                context.addSystemMessage(promptSystemMessage);
             } else if (StringUtils.isNotBlank(systemMessage)) {
-                messages.add(ModelContentMessage.create(Role.system, systemMessage));
+                context.addSystemMessage(systemMessage);
             }
             
-            // Add conversation history
-            messages.addAll(convertMemoryToMessages());
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(processedMessage);
             
             // Build request
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
                 .temperature(getTemperature(prompt))
@@ -525,7 +589,20 @@ public class LLMAgent implements Agent {
             }
             
             // Extract response
-            return extractResponse(response);
+            String responseText = extractResponseText(response);
+            
+            // Save assistant response
+            if (StringUtils.isNotBlank(responseText)) {
+                context.addAssistantMessage(responseText);
+            }
+            
+            // Check if response contains images
+            List<ModelContentElement.ImageData> images = extractImages(response);
+            if (CollectionUtils.isNotEmpty(images)) {
+                return AgentResponse.multimodal(responseText, images);
+            }
+            
+            return AgentResponse.text(responseText);
             
         } catch (Exception e) {
             log.error("Error in executeWithPrompt", e);
@@ -636,11 +713,21 @@ public class LLMAgent implements Agent {
                 .content(content)
                 .build();
             
-            // Add to memory
-            addUserMessage(processedText); // Add processed text version to memory
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Build messages with system and multimodal content
-            List<ModelContentMessage> messages = buildBaseMessages();
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
+            
+            // Add to context (saves to store if in history mode)
+            context.addUserMessage(processedText); // Add processed text version
+            
+            // Get all messages from context (includes system message and history)
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+            
+            // Add the multimodal message with image data
             messages.add(userMessage);
             
             // Build request
@@ -670,7 +757,20 @@ public class LLMAgent implements Agent {
             }
             
             // Extract response
-            return extractResponse(response);
+            String responseText = extractResponseText(response);
+            
+            // Save assistant response
+            if (StringUtils.isNotBlank(responseText)) {
+                context.addAssistantMessage(responseText);
+            }
+            
+            // Check if response contains images
+            List<ModelContentElement.ImageData> images = extractImages(response);
+            if (CollectionUtils.isNotEmpty(images)) {
+                return AgentResponse.multimodal(responseText, images);
+            }
+            
+            return AgentResponse.text(responseText);
             
         } catch (Exception e) {
             log.error("Error executing with images", e);
@@ -803,24 +903,25 @@ public class LLMAgent implements Agent {
             // Process message with variables
             String processedMessage = processMessageWithVariables(input, variables);
             
-            // Add user message to memory
-            addUserMessage(processedMessage);
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
             
-            // Build chat request
-            ModelTextRequest request;
-            if (chatStore == null) {
-                // If no chat store, manually add the user message to the request
-                List<ModelContentMessage> messages = buildBaseMessages();
-                messages.add(ModelContentMessage.create(Role.user, processedMessage));
-                request = ModelTextRequest.builder()
-                    .model(getEffectiveModel())
-                    .temperature(getTemperature(null))
-                    .messages(messages)
-                    .build();
-            } else {
-                request = buildChatRequest();
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
             }
             
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(processedMessage);
+            
+            // Build request
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(getTemperature(null))
+                .messages(messages)
+                .build();
+
             // Get streaming response from model client
             StreamingResponse<String> streamingResponse = modelClient.streamTextToText(request);
             
@@ -844,10 +945,10 @@ public class LLMAgent implements Agent {
                 
                 @Override
                 public void onComplete() {
-                    // Add complete response to memory
+                    // Save complete response
                     String finalResponse = fullResponse.toString();
                     if (finalResponse.length() > 0) {
-                        addAssistantMessage(finalResponse);
+                        context.addAssistantMessage(finalResponse);
                     }
                     
                     // Trace if provider is available
@@ -900,64 +1001,13 @@ public class LLMAgent implements Agent {
         return message;
     }
     
-    private void addUserMessage(String content) {
-        if (chatStore != null && StringUtils.isBlank(workflowId)) {
-            chatStore.add(chatId, content, MessageType.USER);
-        }
-    }
-    
-    private void addAssistantMessage(String content) {
-        if (chatStore != null && StringUtils.isBlank(workflowId)) {
-            chatStore.add(chatId, content, MessageType.AI);
-        }
-    }
-    
-    private ModelTextRequest buildChatRequest() {
-        List<ModelContentMessage> messages = buildBaseMessages();
-        messages.addAll(convertMemoryToMessages());
-        
-        return ModelTextRequest.builder()
-            .model(getEffectiveModel())
-            .temperature(getTemperature(null))
-            .messages(messages)
-            .build();
-    }
-    
-    private ModelTextRequest buildChatRequestWithTools() {
-        List<ModelContentMessage> messages = buildBaseMessages();
-        messages.addAll(convertMemoryToMessages());
-        
-        ModelClient.Tool[] tools = toolRegistry.getTools();
-        
-        return ModelTextRequest.builder()
-            .model(getEffectiveModel())
-            .temperature(getTemperature(null))
-            .messages(messages)
-            .tools(tools.length > 0 ? Arrays.asList(tools) : null)
-            .build();
-    }
-    
-    private List<ModelContentMessage> buildBaseMessages() {
-        List<ModelContentMessage> messages = new ArrayList<>();
-        
-        // Add system message if present
-        if (StringUtils.isNotBlank(systemMessage)) {
-            messages.add(ModelContentMessage.create(Role.system, systemMessage));
-        }
-        
-        return messages;
-    }
-    
-    private List<ModelContentMessage> convertMemoryToMessages() {
-        if (chatStore == null) {
-            return Collections.emptyList();
-        }
-        
-        // Get messages with default token limit
-        List<ChatMessage> messages = chatStore.getRecent(chatId);
-        
-        return messages.stream()
-            .map(this::convertMessageToModelMessage)
+    // Convert ModelMessage list to ModelContentMessage list
+    private List<ModelContentMessage> convertToModelContentMessages(List<ModelMessage> modelMessages) {
+        return modelMessages.stream()
+            .map(msg -> ModelContentMessage.create(
+                msg.getRole(), 
+                msg.getContent()
+            ))
             .collect(Collectors.toList());
     }
     
@@ -984,32 +1034,30 @@ public class LLMAgent implements Agent {
     }
     
     private boolean hasToolCalls(ModelTextResponse response) {
-        return response != null && 
-               CollectionUtils.isNotEmpty(response.getChoices()) &&
-               response.getChoices().get(0).getMessage() != null &&
-               CollectionUtils.isNotEmpty(response.getChoices().get(0).getMessage().getToolCalls());
+        if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
+            return false;
+        }
+        
+        // Check if any choice has tool calls
+        return response.getChoices().stream()
+            .anyMatch(choice -> choice.getMessage() != null && 
+                               CollectionUtils.isNotEmpty(choice.getMessage().getToolCalls()));
     }
     
     private List<ToolCall> extractToolCalls(ModelTextResponse response) {
-        if (!hasToolCalls(response)) {
+        if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
             return Collections.emptyList();
         }
         
-        return response.getChoices().get(0).getMessage().getToolCalls();
+        // Collect tool calls from all choices
+        return response.getChoices().stream()
+            .filter(choice -> choice.getMessage() != null)
+            .map(choice -> choice.getMessage().getToolCalls())
+            .filter(CollectionUtils::isNotEmpty)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
     }
     
-    private AgentResponse<String> extractResponse(ModelTextResponse response) {
-        String responseText = extractResponseText(response);
-        addAssistantMessage(responseText);
-        
-        // Check if response contains images
-        List<ModelContentElement.ImageData> images = extractImages(response);
-        if (CollectionUtils.isNotEmpty(images)) {
-            return AgentResponse.multimodal(responseText, images);
-        }
-        
-        return AgentResponse.text(responseText);
-    }
     
     private List<ModelContentElement.ImageData> extractImages(ModelTextResponse response) {
         // For now, text-to-text responses don't contain images
@@ -1017,31 +1065,6 @@ public class LLMAgent implements Agent {
         return Collections.emptyList();
     }
     
-    private List<ToolExecutionResult> executeToolsAndGetResults(ModelTextResponse response) {
-        List<ToolCall> toolCalls = extractToolCalls(response);
-        List<ToolExecutionResult> results = new ArrayList<>();
-        
-        // Add assistant message with tool calls to memory
-        String assistantContent = extractResponseText(response);
-        if (StringUtils.isNotBlank(assistantContent)) {
-            addAssistantMessage(assistantContent);
-        }
-        
-        // Execute each tool call
-        for (ToolCall toolCall : toolCalls) {
-            ToolExecutionResult result = executeToolCall(toolCall);
-            results.add(result);
-            
-            // Add tool result to memory as user message
-            String resultStr = result.isSuccess() ? 
-                String.format("[Tool: %s]\nResult: %s", result.getToolName(), convertResultToString(result.getResult())) :
-                String.format("[Tool: %s]\nError: %s", result.getToolName(), result.getError());
-            
-            addUserMessage(resultStr);
-        }
-        
-        return results;
-    }
     
     private String convertResultToString(Object result) {
         if (result == null) {
@@ -1088,12 +1111,17 @@ public class LLMAgent implements Agent {
             return "";
         }
 
-        ResponseMessage choice = response.getChoices().get(0);
-        if (choice.getMessage() == null) {
-            return "";
+        StringBuilder allResponses = new StringBuilder();
+        for (int i = 0; i < response.getChoices().size(); i++) {
+            ResponseMessage choice = response.getChoices().get(i);
+            if (choice.getMessage() != null && choice.getMessage().getContent() != null) {
+                if (i > 0) {
+                    allResponses.append("\n---\n"); // Separator between choices
+                }
+                allResponses.append(choice.getMessage().getContent());
+            }
         }
-        
-        return choice.getMessage().getContent();
+        return allResponses.toString();
     }
     
     /**

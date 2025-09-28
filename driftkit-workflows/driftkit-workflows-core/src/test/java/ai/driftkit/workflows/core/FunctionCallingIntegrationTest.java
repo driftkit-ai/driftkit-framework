@@ -2,8 +2,8 @@ package ai.driftkit.workflows.core;
 
 import ai.driftkit.clients.openai.client.OpenAIModelClient;
 import ai.driftkit.common.domain.client.*;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage;
-import ai.driftkit.common.domain.client.ModelImageResponse.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelContentMessage;
+import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelTextRequest.MessageType;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.tools.ToolCall;
@@ -109,7 +109,7 @@ public class FunctionCallingIntegrationTest {
         assertFalse(response.getChoices().isEmpty());
         
         // Check if tools were called
-        ModelImageResponse.ModelMessage message = response.getChoices().get(0).getMessage();
+        ModelMessage message = response.getChoices().get(0).getMessage();
         if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
             log.info("Tool calls found: {}", message.getToolCalls().size());
             
@@ -158,7 +158,7 @@ public class FunctionCallingIntegrationTest {
         ModelTextResponse response = modelClient.textToText(request);
         
         assertNotNull(response);
-        ModelImageResponse.ModelMessage message = response.getChoices().get(0).getMessage();
+        ModelMessage message = response.getChoices().get(0).getMessage();
         
         if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
             for (ToolCall toolCall : message.getToolCalls()) {
@@ -206,7 +206,7 @@ public class FunctionCallingIntegrationTest {
         ModelTextResponse response = modelClient.textToText(request);
         
         assertNotNull(response);
-        ModelImageResponse.ModelMessage message = response.getChoices().get(0).getMessage();
+        ModelMessage message = response.getChoices().get(0).getMessage();
         
         if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
             log.info("Multiple tool calls found: {}", message.getToolCalls().size());
@@ -258,7 +258,7 @@ public class FunctionCallingIntegrationTest {
         ModelTextResponse response = modelClient.textToText(request);
         
         assertNotNull(response);
-        ModelImageResponse.ModelMessage message = response.getChoices().get(0).getMessage();
+        ModelMessage message = response.getChoices().get(0).getMessage();
 
         boolean toolCalled = CollectionUtils.isNotEmpty(message.getToolCalls());
 
