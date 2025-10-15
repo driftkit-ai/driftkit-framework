@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-workflows</artifactId>
-        <version>0.8.2</version>
+        <version>0.8.3</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -28,7 +28,14 @@
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-common</artifactId>
         </dependency>
-        
+
+        <!-- DriftKit Vector (for ContentType enum) -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-vector-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- DriftKit Clients Core -->
         <dependency>
             <groupId>ai.driftkit</groupId>

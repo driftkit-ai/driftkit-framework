@@ -55,8 +55,9 @@ public class JsonSchemaGenerator {
         Map<String, ResponseFormat.SchemaProperty> properties = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
         
-        // Process all declared fields
-        for (Field field : clazz.getDeclaredFields()) {
+        // Process all fields including inherited ones
+        List<Field> allFields = getAllFields(clazz);
+        for (Field field : allFields) {
             // Skip static and transient fields
             if (Modifier.isStatic(field.getModifiers()) || 
                 Modifier.isTransient(field.getModifiers())) {
@@ -84,6 +85,28 @@ public class JsonSchemaGenerator {
         }
         
         return schema;
+    }
+
+    /**
+     * Collects all fields from a class including inherited fields from parent classes.
+     * 
+     * @param clazz The class to get fields from
+     * @return List of all fields including inherited ones
+     */
+    private static List<Field> getAllFields(Class<?> clazz) {
+        List<Field> fields = new ArrayList<>();
+        
+        // Walk up the class hierarchy
+        Class<?> currentClass = clazz;
+        while (currentClass != null && currentClass != Object.class) {
+            // Add fields from current class
+            fields.addAll(Arrays.asList(currentClass.getDeclaredFields()));
+            
+            // Move to parent class
+            currentClass = currentClass.getSuperclass();
+        }
+        
+        return fields;
     }
 
     /**

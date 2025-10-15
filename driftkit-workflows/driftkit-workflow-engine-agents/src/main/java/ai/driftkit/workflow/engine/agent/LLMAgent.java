@@ -9,6 +9,7 @@ import ai.driftkit.common.domain.client.ModelContentMessage;
 import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
 import ai.driftkit.common.domain.client.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest;
+import ai.driftkit.common.domain.client.ModelTextRequest.ReasoningEffort;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
@@ -23,6 +24,8 @@ import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.core.util.PromptUtils;
+import ai.driftkit.vector.spring.domain.ContentType;
+import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -55,7 +58,8 @@ public class LLMAgent implements Agent {
     private final Integer maxTokens;
     private final String model;
     private final String imageModel;
-    
+    private final ReasoningEffort reasoningEffort;
+
     // Unique agent identifier
     private final String agentId;
     
@@ -81,7 +85,7 @@ public class LLMAgent implements Agent {
                        Double temperature, Integer maxTokens, String model, String imageModel, String agentId,
                        ChatStore chatStore, String chatId, PromptService promptService, ToolRegistry toolRegistry,
                        RequestTracingProvider tracingProvider, String workflowId, String workflowType, 
-                       String workflowStep, boolean autoExecuteTools) {
+                       String workflowStep, boolean autoExecuteTools, ReasoningEffort reasoningEffort) {
         this.modelClient = modelClient;
         this.name = name;
         this.description = description;
@@ -89,6 +93,7 @@ public class LLMAgent implements Agent {
         this.temperature = temperature;
         this.maxTokens = maxTokens;
         this.model = model;
+        this.reasoningEffort = reasoningEffort;
         this.imageModel = imageModel;
         this.agentId = agentId != null ? agentId : AIUtils.generateId();
         this.chatStore = chatStore;
@@ -141,6 +146,7 @@ public class LLMAgent implements Agent {
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
+                .reasoningEffort(reasoningEffort)
                 .messages(messages)
                 .build();
             
@@ -217,6 +223,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
                 .messages(messages)
+                .reasoningEffort(reasoningEffort)
                 .tools(tools.length > 0 ? Arrays.asList(tools) : null)
                 .build();
             
@@ -283,6 +290,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
                 .messages(messages)
+                .reasoningEffort(reasoningEffort)
                 .tools(tools.length > 0 ? Arrays.asList(tools) : null)
                 .build();
             
@@ -361,6 +369,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(null))
                 .messages(messages)
                 .responseFormat(responseFormat)
+                .reasoningEffort(reasoningEffort)
                 .build();
             
             // Execute request
@@ -457,6 +466,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(prompt))
                 .messages(messages)
+                .reasoningEffort(reasoningEffort)
                 .responseFormat(responseFormat)
                 .build();
             
@@ -566,6 +576,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(prompt))
                 .messages(messages)
+                .reasoningEffort(reasoningEffort)
                 .build();
             
             // Execute request
@@ -735,6 +746,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
                 .messages(messages)
+                .reasoningEffort(reasoningEffort)
                 .build();
             
             // Execute request
@@ -778,6 +790,150 @@ public class LLMAgent implements Agent {
         }
     }
     
+    /**
+     * Media content wrapper - binary data + content type
+     */
+    @Data
+    @Builder
+    public static class MediaContent {
+        private byte[] data;
+        private ContentType contentType;
+
+        public String getMimeType() {
+            return contentType.getMimeType();
+        }
+
+        public static MediaContent of(byte[] data, ContentType contentType) {
+            return MediaContent.builder()
+                .data(data)
+                .contentType(contentType)
+                .build();
+        }
+    }
+
+    /**
+     * Execute with binary media content and structured output extraction
+     *
+     * @param text Prompt text
+     * @param mediaContent Single media content (image, video, audio, pdf, etc.)
+     * @param targetClass Target class for structured output
+     */
+    public <T> AgentResponse<T> executeStructuredWithMedia(String text, MediaContent mediaContent, Class<T> targetClass) {
+        return executeStructuredWithMedia(text, Collections.singletonList(mediaContent), targetClass);
+    }
+
+    /**
+     * Execute with multiple binary media files and structured output extraction
+     *
+     * @param text Prompt text
+     * @param mediaContentList List of media content (images, videos, audio, pdfs, etc.)
+     * @param targetClass Target class for structured output
+     */
+    public <T> AgentResponse<T> executeStructuredWithMedia(String text, List<MediaContent> mediaContentList, Class<T> targetClass) {
+        try {
+            // Create response format for structured output
+            ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
+
+            // Convert media content to ModelContentElement.ImageData (used for all media types)
+            List<ModelContentElement.ImageData> mediaDataObjects = mediaContentList.stream()
+                .map(media -> new ModelContentElement.ImageData(media.getData(), media.getMimeType()))
+                .collect(Collectors.toList());
+
+            // Build multimodal content
+            List<ModelContentElement> content = buildMultimodalContent(text, mediaDataObjects);
+
+            // Create multimodal message
+            ModelContentMessage userMessage = ModelContentMessage.builder()
+                .role(Role.user)
+                .content(content)
+                .build();
+
+            // Create conversation context with token limit
+            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+
+            // Add system message if present
+            if (StringUtils.isNotBlank(systemMessage)) {
+                context.addSystemMessage(systemMessage);
+            }
+
+            // Add user message (saves to store if in history mode)
+            context.addUserMessage(text);
+
+            // Get all messages from context (includes system message and history)
+            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
+
+            // Add the multimodal message with media data
+            messages.add(userMessage);
+
+            // Build request with structured output
+            ModelTextRequest request = ModelTextRequest.builder()
+                .model(getEffectiveModel())
+                .temperature(STRUCTURED_EXTRACTION_TEMPERATURE)
+                .messages(messages)
+                .reasoningEffort(reasoningEffort)
+                .responseFormat(responseFormat)
+                .build();
+
+            // Execute request
+            ModelTextResponse response = modelClient.imageToText(request);
+
+            // Trace if provider is available
+            RequestTracingProvider provider = getTracingProvider();
+            if (provider != null) {
+                String contextType = buildContextType("MEDIA_STRUCTURED");
+                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
+                    .contextId(agentId)
+                    .contextType(contextType)
+                    .chatId(chatId)
+                    .workflowId(workflowId)
+                    .workflowType(workflowType)
+                    .workflowStep(workflowStep)
+                    .build();
+                provider.traceImageToTextRequest(request, response, traceContext);
+            }
+
+            // Extract and parse response
+            String jsonResponse = extractResponseText(response);
+
+            // Save assistant response
+            if (StringUtils.isNotBlank(jsonResponse)) {
+                context.addAssistantMessage(jsonResponse);
+            }
+
+            T result = JsonUtils.fromJson(jsonResponse, targetClass);
+
+            return AgentResponse.structured(result);
+
+        } catch (Exception e) {
+            log.error("Error extracting structured data from media", e);
+            throw new RuntimeException("Failed to extract structured data from media", e);
+        }
+    }
+
+    /**
+     * Convenience method: Execute with single image and structured output
+     */
+    public <T> AgentResponse<T> executeStructuredWithImage(String text, byte[] imageData, Class<T> targetClass) {
+        MediaContent media = MediaContent.of(imageData, ContentType.JPG);
+        return executeStructuredWithMedia(text, media, targetClass);
+    }
+
+    /**
+     * Convenience method: Execute with video and structured output
+     */
+    public <T> AgentResponse<T> executeStructuredWithVideo(String text, byte[] videoData, Class<T> targetClass) {
+        MediaContent media = MediaContent.of(videoData, ContentType.VIDEO_MP4);
+        return executeStructuredWithMedia(text, media, targetClass);
+    }
+
+    /**
+     * Convenience method: Execute with PDF and structured output
+     */
+    public <T> AgentResponse<T> executeStructuredWithPDF(String text, byte[] pdfData, Class<T> targetClass) {
+        MediaContent media = MediaContent.of(pdfData, ContentType.PDF);
+        return executeStructuredWithMedia(text, media, targetClass);
+    }
+
     /**
      * Execute a single tool call manually
      */
@@ -919,6 +1075,7 @@ public class LLMAgent implements Agent {
             ModelTextRequest request = ModelTextRequest.builder()
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
+                .reasoningEffort(reasoningEffort)
                 .messages(messages)
                 .build();
 
@@ -1188,14 +1345,20 @@ public class LLMAgent implements Agent {
         private String workflowType;
         private String workflowStep;
         private boolean autoExecuteTools = true;
-        
+        private ReasoningEffort reasoningEffort;
+
         private List<ToolInfo> pendingTools = new ArrayList<>();
         
         public CustomLLMAgentBuilder() {
             // Set defaults
             this.autoExecuteTools = true;
         }
-        
+
+        public CustomLLMAgentBuilder reasoningEffort(ReasoningEffort reasoningEffort) {
+            this.reasoningEffort = reasoningEffort;
+            return this;
+        }
+
         public CustomLLMAgentBuilder modelClient(ModelClient modelClient) {
             this.modelClient = modelClient;
             return this;
@@ -1321,7 +1484,7 @@ public class LLMAgent implements Agent {
                     temperature, maxTokens, model, imageModel, agentId,
                     chatStore, chatId, promptService, toolRegistry,
                     tracingProvider, workflowId, workflowType, workflowStep, 
-                    autoExecuteTools);
+                    autoExecuteTools, reasoningEffort);
         }
     }
 }

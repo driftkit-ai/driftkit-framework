@@ -196,7 +196,7 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
         return variables.entrySet().stream()
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
-                entry -> entry.getValue() != null ? entry.getValue().toString() : null
+                entry -> entry.getValue() != null ? entry.getValue().toString() : ""
             ));
     }
     

@@ -479,7 +479,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                 .build();
 
         try {
-            if (model != null && model.startsWith("o")) {
+            if (model != null && (model.startsWith("o") || model.equals("gpt-5"))) {
                 req.setTemperature(null);
                 ReasoningEffort effort = prompt.getReasoningEffort();
 
@@ -492,7 +492,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                         effort = ReasoningEffort.high;
                         break;
                     case none:
-                        effort = ReasoningEffort.low;
+                        effort = ReasoningEffort.minimal;
                         break;
                 }
 

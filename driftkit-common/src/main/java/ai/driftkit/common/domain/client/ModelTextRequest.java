@@ -88,6 +88,7 @@ public class ModelTextRequest {
         high,
         low,
         none,
+        minimal,
         dynamic
     }
 
