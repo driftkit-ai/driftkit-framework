@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
  * - Async configuration for workflow execution
  */
 @Slf4j
-@AutoConfiguration(after = ai.driftkit.config.autoconfigure.EtlConfigAutoConfiguration.class)
+@AutoConfiguration(after = ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration.class)
 @ComponentScan(basePackages = {
     "ai.driftkit.workflows.spring.service",
     "ai.driftkit.workflows.spring.config",

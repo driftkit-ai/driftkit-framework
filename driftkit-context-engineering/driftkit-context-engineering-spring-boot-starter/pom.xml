@@ -77,7 +77,14 @@
             <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
-        
+
+        <!-- Clients module for EtlConfig autoconfiguration -->
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Vector module for ParserController -->
         <dependency>
             <groupId>ai.driftkit</groupId>

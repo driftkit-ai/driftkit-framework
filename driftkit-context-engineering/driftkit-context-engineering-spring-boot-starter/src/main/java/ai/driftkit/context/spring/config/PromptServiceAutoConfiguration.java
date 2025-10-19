@@ -24,7 +24,7 @@ import jakarta.annotation.PreDestroy;
  * - PromptService implementation
  */
 @Slf4j
-@AutoConfiguration(after = ai.driftkit.config.autoconfigure.EtlConfigAutoConfiguration.class)
+@AutoConfiguration(after = ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration.class)
 @ComponentScan(basePackages = {
     "ai.driftkit.context.spring.service",
     "ai.driftkit.context.spring.repository",

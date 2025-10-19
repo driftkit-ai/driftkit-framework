@@ -5,10 +5,9 @@ import ai.driftkit.config.EtlConfig.VectorStoreConfig;
 import ai.driftkit.vector.core.domain.BaseVectorStore;
 import ai.driftkit.vector.core.service.VectorStoreFactory;
 import lombok.extern.slf4j.Slf4j;
+import ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
@@ -20,7 +19,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
  * from the EtlConfig.vectorStore configuration when available.
  */
 @Slf4j
-@AutoConfiguration(after = ai.driftkit.config.autoconfigure.EtlConfigAutoConfiguration.class)
+@AutoConfiguration(after = EtlConfigAutoConfiguration.class)
 @ComponentScan(basePackages = {
     "ai.driftkit.vector.spring.service",
     "ai.driftkit.vector.spring.config",

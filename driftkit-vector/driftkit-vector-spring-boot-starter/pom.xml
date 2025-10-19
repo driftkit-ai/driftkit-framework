@@ -34,7 +34,11 @@
             <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-embedding-core</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-clients-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
