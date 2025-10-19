@@ -7,6 +7,7 @@ import ai.driftkit.context.core.service.PromptServiceBase;
 import ai.driftkit.context.services.config.ApplicationContextProvider;
 import ai.driftkit.context.services.repository.PromptRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 
 import java.util.List;
 import java.util.Map;
@@ -30,11 +31,17 @@ public class MongodbPromptService implements PromptServiceBase {
 
     private PromptRepository getPromptRepository() {
         if (this.promptRepository == null) {
-            if (ApplicationContextProvider.getApplicationContext() != null) {
-                this.promptRepository = ApplicationContextProvider.getApplicationContext().getBean(PromptRepository.class);
-            } else {
-                throw new IllegalStateException("ApplicationContext is not initialized yet.");
+            try {
+                ApplicationContext context = ApplicationContextProvider.getApplicationContext();
+                if (context != null) {
+                    this.promptRepository = context.getBean(PromptRepository.class);
+                }
+            } catch (IllegalStateException e) {
+                throw new IllegalStateException("ApplicationContext is not initialized yet. Cannot access PromptRepository.", e);
             }
+        }
+        if (this.promptRepository == null) {
+            throw new IllegalStateException("PromptRepository is not available. ApplicationContext may not be fully initialized.");
         }
         return this.promptRepository;
     }

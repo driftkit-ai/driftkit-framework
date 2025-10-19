@@ -1,1 +1,1 @@
-ai.driftkit.context.spring.service.MongodbPromptService
+ai.driftkit.context.services.MongodbPromptService

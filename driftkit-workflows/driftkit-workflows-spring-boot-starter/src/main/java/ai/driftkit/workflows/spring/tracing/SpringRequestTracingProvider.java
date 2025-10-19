@@ -11,9 +11,9 @@ import ai.driftkit.workflows.spring.domain.ModelRequestTrace;
 import ai.driftkit.workflows.spring.repository.ModelRequestTraceRepository;
 import ai.driftkit.common.utils.AIUtils;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -27,11 +27,16 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SpringRequestTracingProvider implements RequestTracingProvider {
     
     private final ModelRequestTraceRepository traceRepository;
     private final Executor traceExecutor;
+    
+    public SpringRequestTracingProvider(ModelRequestTraceRepository traceRepository, 
+                                      @Qualifier("workflowTraceExecutor") Executor traceExecutor) {
+        this.traceRepository = traceRepository;
+        this.traceExecutor = traceExecutor;
+    }
     
     @PostConstruct
     public void registerSelf() {

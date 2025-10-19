@@ -46,17 +46,6 @@ public class EtlConfigAutoConfiguration {
     @ConfigurationProperties(prefix = "driftkit")
     public EtlConfig etlConfig() {
         log.info("Creating EtlConfig bean from configuration properties");
-        EtlConfig config = new EtlConfig();
-        
-        // If no prompt service is configured, log a warning
-        if (config.getPromptService() == null) {
-            log.warn("========================================");
-            log.warn("WARNING: No prompt service configuration found!");
-            log.warn("DriftKit services that depend on prompt service may not work properly.");
-            log.warn("Please configure driftkit.promptService in your application properties.");
-            log.warn("========================================");
-        }
-        
-        return config;
+        return new EtlConfig();
     }
 }

@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-audio</artifactId>
-        <version>0.8.3</version>
+        <version>0.8.4</version>
     </parent>
 
     <artifactId>driftkit-audio-core</artifactId>
