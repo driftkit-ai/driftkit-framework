@@ -1,4 +1,4 @@
-package ai.driftkit.config.autoconfigure;
+package ai.driftkit.clients.autoconfigure;
 
 import ai.driftkit.config.EtlConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Base auto-configuration for EtlConfig.
  * This configuration MUST load first before any other DriftKit configurations.
- * 
+ *
  * EtlConfig is the foundation of the entire DriftKit framework and contains
  * all necessary configuration for various services.
  */
@@ -20,7 +20,7 @@ public class EtlConfigAutoConfiguration {
 
     /**
      * Creates EtlConfig bean from application properties.
-     * 
+     *
      * This bean can be configured in application.yml/properties:
      * <pre>
      * driftkit:
@@ -37,7 +37,7 @@ public class EtlConfigAutoConfiguration {
      *     config:
      *       apiKey: ${OPENAI_API_KEY}
      * </pre>
-     * 
+     *
      * If no configuration is provided, creates a default EtlConfig with
      * file-based prompt service as a fallback.
      */

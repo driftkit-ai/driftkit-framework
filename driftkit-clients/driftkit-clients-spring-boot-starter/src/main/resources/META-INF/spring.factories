@@ -1,2 +1,3 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration,\
 ai.driftkit.clients.autoconfigure.ModelClientAutoConfiguration
