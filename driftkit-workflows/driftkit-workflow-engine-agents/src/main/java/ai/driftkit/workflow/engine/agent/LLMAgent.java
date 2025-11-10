@@ -432,12 +432,12 @@ public class LLMAgent implements Agent {
             }
             
             // Get prompt by ID
-            List<Prompt> promptOpt = effectivePromptService.getPromptsByMethods(List.of(promptId));
-            if (CollectionUtils.isEmpty(promptOpt)) {
+            Optional<Prompt> promptOpt = effectivePromptService.getCurrentPrompt(promptId, language);
+            if (promptOpt.isEmpty()) {
                 throw new IllegalArgumentException("Prompt not found: " + promptId);
             }
 
-            Prompt prompt = promptOpt.getFirst();
+            Prompt prompt = promptOpt.get();
             
             // Apply variables to prompt
             String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);
@@ -541,12 +541,12 @@ public class LLMAgent implements Agent {
             }
             
             // Get prompt by ID
-            List<Prompt> promptOpt = effectivePromptService.getPromptsByMethods(List.of(promptId));
-            if (CollectionUtils.isEmpty(promptOpt)) {
+            Optional<Prompt> promptOpt = effectivePromptService.getCurrentPrompt(promptId, language);
+            if (promptOpt.isEmpty()) {
                 throw new IllegalArgumentException("Prompt not found: " + promptId);
             }
             
-            Prompt prompt = promptOpt.getFirst();
+            Prompt prompt = promptOpt.get();
             
             // Apply variables to prompt
             String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);

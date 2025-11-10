@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-context-engineering</artifactId>
-        <version>0.8.4</version>
+        <version>0.8.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -61,13 +61,18 @@
 
         <!-- Testing -->
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
