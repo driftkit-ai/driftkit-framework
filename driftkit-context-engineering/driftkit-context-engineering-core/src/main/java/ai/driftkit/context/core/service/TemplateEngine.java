@@ -55,6 +55,10 @@ public class TemplateEngine {
         }
         @Override
         public String render(Map<String, Object> variables) {
+            // If the key contains {{ }}, treat it as a nested template
+            if (key.contains("{{") && key.contains("}}")) {
+                return renderTemplate(key, variables);
+            }
             Object value = resolveValue(key, variables);
             return value != null ? value.toString() : "";
         }
@@ -120,7 +124,7 @@ public class TemplateEngine {
         @Override
         public String render(Map<String, Object> variables) {
             StringBuilder sb = new StringBuilder();
-            Object collectionObj = variables.get(collectionKey);
+            Object collectionObj = resolveValue(collectionKey, variables);
             Iterable<?> iterable = toIterable(collectionObj);
             if (iterable != null) {
                 for (Object item : iterable) {
@@ -182,6 +186,28 @@ public class TemplateEngine {
         }
     }
 
+    // Find the matching closing braces "}}" for an opening at position 'open',
+    // accounting for nested "{{" ... "}}" pairs.
+    private static int findMatchingClose(String template, int open) {
+        int depth = 1;
+        int pos = open + 2; // Start after the opening "{{"
+        while (pos < template.length() - 1) {
+            if (template.charAt(pos) == '{' && template.charAt(pos + 1) == '{') {
+                depth++;
+                pos += 2;
+            } else if (template.charAt(pos) == '}' && template.charAt(pos + 1) == '}') {
+                depth--;
+                if (depth == 0) {
+                    return pos;
+                }
+                pos += 2;
+            } else {
+                pos++;
+            }
+        }
+        return -1; // No matching close found
+    }
+
     // Recursively parse nodes until an optional endTag is encountered.
     private static ParseResult parseNodes(String template, int start, String endTag) {
         List<TemplateNode> nodes = new ArrayList<>();
@@ -196,7 +222,7 @@ public class TemplateEngine {
             if (open > index) {
                 nodes.add(new TextNode(template.substring(index, open)));
             }
-            int close = template.indexOf("}}", open);
+            int close = findMatchingClose(template, open);
             if (close < 0) {
                 nodes.add(new TextNode(template.substring(open)));
                 index = template.length();
@@ -217,11 +243,22 @@ public class TemplateEngine {
                 // Don't add the end tag as a text node, it should never be in the output
                 // Just ignore it - it's likely a mismatched close tag
             } else if (tagContent.startsWith("list ") || tagContent.startsWith("#list ")) {
-                String listContent = tagContent.startsWith("#list ") ? 
+                String listContent = tagContent.startsWith("#list ") ?
                     tagContent.substring(6) : tagContent.substring(5);
                 String[] parts = listContent.split("\\s+as\\s+");
                 if (parts.length != 2) {
+                    // Malformed list syntax - treat as text and find matching /list to include as text too
                     nodes.add(new TextNode("{{" + tagContent + "}}"));
+                    // Find and consume the matching {{/list}} tag to include it as text
+                    int listClose = template.indexOf("{{/list}}", index);
+                    if (listClose >= 0) {
+                        // Add everything between as text
+                        if (listClose > index) {
+                            nodes.add(new TextNode(template.substring(index, listClose)));
+                        }
+                        nodes.add(new TextNode("{{/list}}"));
+                        index = listClose + 9; // length of "{{/list}}"
+                    }
                 } else {
                     String collectionKey = parts[0].trim();
                     String itemName = parts[1].trim();
@@ -233,8 +270,7 @@ public class TemplateEngine {
                 if (endTag != null && endTag.equals("/list")) {
                     return new ParseResult(nodes, index);
                 }
-                // Don't add the end tag as a text node, it should never be in the output
-                // Just ignore it - it's likely a mismatched close tag
+                // Orphaned /list tag - ignore it (don't add as text)
             } else {
                 nodes.add(new VariableNode(tagContent));
             }
@@ -295,16 +331,14 @@ public class TemplateEngine {
             for (String clause : andClauses) {
                 clause = clause.trim();
                 if (clause.contains(".size")) {
-                    String[] parts = clause.split("\\.");
-                    if (parts.length < 2) {
-                        allAndTrue = false;
-                        break;
-                    }
-                    String varName = parts[0].trim();
-                    String rest = parts[1].trim(); // e.g., "size > 0"
-                    Object obj = variables.get(varName);
+                    // Extract the path before ".size" (e.g., "order.items" from "order.items.size > 0")
+                    int sizeIndex = clause.indexOf(".size");
+                    String pathBeforeSize = clause.substring(0, sizeIndex).trim();
+                    String rest = clause.substring(sizeIndex + 5).trim(); // everything after ".size"
+
+                    Object obj = resolveValue(pathBeforeSize, variables);
                     int size = getSize(obj);
-                    Pattern p = Pattern.compile("size\\s*(>|>=|<|<=|==)\\s*(\\d+)");
+                    Pattern p = Pattern.compile("^\\s*(>|>=|<|<=|==)\\s*(\\d+)");
                     Matcher m = p.matcher(rest);
                     if (m.find()) {
                         String operator = m.group(1);
@@ -328,14 +362,14 @@ public class TemplateEngine {
                     String expectedValue = parts[1].trim()
                         .replaceAll("^\"|\"$", "") // Remove surrounding quotes if present
                         .replaceAll("\\\\\"", "\""); // Replace escaped quotes with actual quotes
-                    
-                    Object actual = variables.get(varName);
+
+                    Object actual = resolveValue(varName, variables);
                     if (actual == null || !actual.toString().equals(expectedValue)) {
                         allAndTrue = false;
                         break;
                     }
                 } else {
-                    Object value = variables.get(clause);
+                    Object value = resolveValue(clause, variables);
                     if (!isTruthy(value)) {
                         allAndTrue = false;
                         break;
