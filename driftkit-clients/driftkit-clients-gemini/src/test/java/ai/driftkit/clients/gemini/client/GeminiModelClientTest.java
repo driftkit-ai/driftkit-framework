@@ -234,13 +234,13 @@ public class GeminiModelClientTest {
                 .logprobs(true)
                 .topLogprobs(3)
                 .build();
-        
+
         ModelTextResponse response = client.textToText(request);
-        
+
         assertNotNull(response);
         assertNotNull(response.getResponse());
         assertTrue(response.getResponse().toLowerCase().contains("paris"));
-        
+
         // Check if logprobs are included (if supported by the model)
         if (response.getChoices() != null && !response.getChoices().isEmpty()) {
             var logprobs = response.getChoices().get(0).getLogprobs();
@@ -249,5 +249,207 @@ public class GeminiModelClientTest {
                 assertFalse(logprobs.getContent().isEmpty());
             }
         }
+    }
+
+    @Test
+    void testStructuredOutputJsonSchema() {
+        // Test structured output with JSON schema
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("PersonInfo")
+                .type("object")
+                .properties(Map.of(
+                        "name", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("The person's full name")
+                                .build(),
+                        "age", ResponseFormat.SchemaProperty.builder()
+                                .type("integer")
+                                .description("The person's age in years")
+                                .build(),
+                        "city", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("The person's city of residence")
+                                .build()
+                ))
+                .required(List.of("name", "age", "city"))
+                .additionalProperties(false)
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Extract information from: Sarah Connor is 35 years old and lives in Los Angeles")
+                ))
+                .model(GeminiUtils.GEMINI_FLASH_2_5)
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        assertNotNull(response.getResponse());
+
+        String content = response.getResponse();
+        // Verify JSON structure
+        assertTrue(content.contains("Sarah Connor") || content.contains("Sarah"));
+        assertTrue(content.contains("35"));
+        assertTrue(content.contains("Los Angeles"));
+    }
+
+    @Test
+    void testStructuredOutputWithNestedObjects() {
+        // Test structured output with nested objects
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("Product")
+                .type("object")
+                .properties(Map.of(
+                        "name", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Product name")
+                                .build(),
+                        "price", ResponseFormat.SchemaProperty.builder()
+                                .type("number")
+                                .description("Price in USD")
+                                .build(),
+                        "dimensions", ResponseFormat.SchemaProperty.builder()
+                                .type("object")
+                                .description("Product dimensions")
+                                .properties(Map.of(
+                                        "width", ResponseFormat.SchemaProperty.builder()
+                                                .type("number")
+                                                .build(),
+                                        "height", ResponseFormat.SchemaProperty.builder()
+                                                .type("number")
+                                                .build(),
+                                        "unit", ResponseFormat.SchemaProperty.builder()
+                                                .type("string")
+                                                .build()
+                                ))
+                                .build()
+                ))
+                .required(List.of("name", "price", "dimensions"))
+                .additionalProperties(false)
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Create a product listing for: Laptop X1 priced at 999.99 USD with dimensions 35x24 centimeters")
+                ))
+                .model(GeminiUtils.GEMINI_FLASH_2_5)
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        String content = response.getResponse();
+
+        // Verify nested structure
+        assertTrue(content.contains("Laptop") || content.contains("X1"));
+        assertTrue(content.contains("999") || content.contains("1000"));
+        assertTrue(content.contains("35") || content.contains("24"));
+    }
+
+    @Test
+    void testStructuredOutputWithEnums() {
+        // Test structured output with enum values
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("WeatherReport")
+                .type("object")
+                .properties(Map.of(
+                        "location", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("City name")
+                                .build(),
+                        "condition", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Weather condition")
+                                .enumValues(List.of("sunny", "cloudy", "rainy", "snowy", "windy"))
+                                .build(),
+                        "temperature", ResponseFormat.SchemaProperty.builder()
+                                .type("number")
+                                .description("Temperature in Celsius")
+                                .build()
+                ))
+                .required(List.of("location", "condition", "temperature"))
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Generate a weather report for Tokyo with sunny weather and 25 degrees")
+                ))
+                .model(GeminiUtils.GEMINI_FLASH_2_5)
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        String content = response.getResponse();
+
+        // Condition should be one of the enum values
+        assertTrue(content.contains("sunny") || content.contains("cloudy") ||
+                   content.contains("rainy") || content.contains("snowy") || content.contains("windy"));
+        assertTrue(content.contains("Tokyo"));
+        assertTrue(content.contains("25"));
+    }
+
+    @Test
+    void testStructuredOutputWithArray() {
+        // Test structured output with arrays
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("BookList")
+                .type("object")
+                .properties(Map.of(
+                        "genre", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Book genre")
+                                .build(),
+                        "books", ResponseFormat.SchemaProperty.builder()
+                                .type("array")
+                                .description("List of book titles")
+                                .items(ResponseFormat.SchemaProperty.builder()
+                                        .type("string")
+                                        .build())
+                                .build()
+                ))
+                .required(List.of("genre", "books"))
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "List 3 science fiction books: Dune, Ender's Game, and Foundation")
+                ))
+                .model(GeminiUtils.GEMINI_FLASH_2_5)
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        String content = response.getResponse();
+
+        // Should contain array with book titles
+        assertTrue(content.contains("Dune"));
+        assertTrue(content.contains("Ender") || content.contains("Foundation"));
     }
 }

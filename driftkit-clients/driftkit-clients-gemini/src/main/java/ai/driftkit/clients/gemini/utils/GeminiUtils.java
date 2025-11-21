@@ -154,27 +154,30 @@ public class GeminiUtils {
         if (schema == null) {
             return null;
         }
-        
+
         GeminiSchema.GeminiSchemaBuilder builder = GeminiSchema.builder()
                 .type(mapSchemaType(schema.getType()))
                 .description(schema.getTitle()) // Use title as description
                 .required(schema.getRequired());
-        
+
         // Convert properties
         if (schema.getProperties() != null) {
             Map<String, GeminiSchema> properties = new HashMap<>();
+            List<String> propertyOrder = new java.util.ArrayList<>();
             schema.getProperties().forEach((key, value) -> {
                 properties.put(key, convertSchemaProperty(value));
+                propertyOrder.add(key);
             });
             builder.properties(properties);
+            // Add propertyOrdering for Gemini 2.0+ models compatibility
+            builder.propertyOrdering(propertyOrder);
         }
-        
-        // Handle additional properties
-        if (schema.getAdditionalProperties() != null) {
-            // Gemini doesn't support additionalProperties directly
-            // We'll need to handle this in the generation config
+
+        // Set required to all properties if not specified
+        if (schema.getRequired() == null && schema.getProperties() != null) {
+            builder.required(new java.util.ArrayList<>(schema.getProperties().keySet()));
         }
-        
+
         return builder.build();
     }
     
@@ -210,19 +213,22 @@ public class GeminiUtils {
         if (type == null) {
             return "STRING";
         }
-        
+
         switch (type.toLowerCase()) {
             case "string":
                 return "STRING";
             case "number":
-            case "integer":
                 return "NUMBER";
+            case "integer":
+                return "INTEGER";
             case "boolean":
                 return "BOOLEAN";
             case "array":
                 return "ARRAY";
             case "object":
                 return "OBJECT";
+            case "null":
+                return "STRING"; // Gemini doesn't support null type directly, use STRING with nullable
             default:
                 return "STRING";
         }

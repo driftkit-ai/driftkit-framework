@@ -264,8 +264,8 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 .presencePenalty(getPresencePenalty())
                 .frequencyPenalty(getFrequencyPenalty());
         
-        // Handle structured output
-        if (jsonObjectSupport && prompt.getResponseFormat() != null) {
+        // Handle structured output - works regardless of jsonObjectSupport flag
+        if (prompt.getResponseFormat() != null) {
             if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_OBJECT) {
                 configBuilder.responseMimeType("application/json");
             } else if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_SCHEMA) {
@@ -685,14 +685,14 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         // Extract configuration
         Double temperature = Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature());
         String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
-        
+
         // Build Gemini contents
         List<GeminiContent> contents = new ArrayList<>();
-        
+
         // Process messages
         for (ModelContentMessage message : prompt.getMessages()) {
             List<Part> parts = new ArrayList<>();
-            
+
             if (message.getContent() != null) {
                 for (ModelContentElement element : message.getContent()) {
                     if (element.getText() != null) {
@@ -700,20 +700,31 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                     }
                 }
             }
-            
+
             String role = message.getRole() == Role.assistant ? "model" : message.getRole().name();
             contents.add(GeminiContent.builder()
                     .role(role)
                     .parts(parts)
                     .build());
         }
-        
+
         // Build generation config
-        GeminiGenerationConfig config = GeminiGenerationConfig.builder()
+        GeminiGenerationConfig.GeminiGenerationConfigBuilder configBuilder = GeminiGenerationConfig.builder()
                 .temperature(temperature)
-                .candidateCount(1)
-                .build();
-        
+                .candidateCount(1);
+
+        // Handle structured output for streaming
+        if (prompt.getResponseFormat() != null) {
+            if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_OBJECT) {
+                configBuilder.responseMimeType("application/json");
+            } else if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_SCHEMA) {
+                configBuilder.responseMimeType("application/json");
+                configBuilder.responseSchema(GeminiUtils.convertToGeminiSchema(prompt.getResponseFormat().getJsonSchema()));
+            }
+        }
+
+        GeminiGenerationConfig config = configBuilder.build();
+
         // Add tools if present
         List<GeminiTool> tools = null;
         if (prompt.getTools() != null && !prompt.getTools().isEmpty()) {
@@ -722,7 +733,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 tools = List.of(tool);
             }
         }
-        
+
         return GeminiChatRequest.builder()
                 .contents(contents)
                 .generationConfig(config)

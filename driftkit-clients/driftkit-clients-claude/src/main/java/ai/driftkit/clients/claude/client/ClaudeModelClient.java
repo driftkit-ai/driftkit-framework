@@ -2,6 +2,7 @@ package ai.driftkit.clients.claude.client;
 
 import ai.driftkit.clients.claude.domain.*;
 import ai.driftkit.clients.claude.domain.ClaudeMessageRequest.ToolChoice;
+import ai.driftkit.clients.claude.domain.ClaudeMessageRequest.OutputFormat;
 import ai.driftkit.clients.claude.utils.ClaudeUtils;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
@@ -11,6 +12,7 @@ import ai.driftkit.common.domain.client.ModelMessage;
 import ai.driftkit.common.domain.client.ModelTextRequest.ToolMode;
 import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
+import ai.driftkit.common.domain.client.ResponseFormat.ResponseType;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.tools.ToolCall;
@@ -20,6 +22,8 @@ import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+
+import java.util.stream.Collectors;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -164,13 +168,19 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .topP(getTopP())
                 .stopSequences(getStop())
                 .system(systemPrompt);
-        
+
+        // Handle structured output
+        if (prompt.getResponseFormat() != null && prompt.getResponseFormat().getType() != ResponseType.TEXT) {
+            OutputFormat outputFormat = convertToClaudeOutputFormat(prompt.getResponseFormat());
+            requestBuilder.outputFormat(outputFormat);
+        }
+
         // Handle tools/functions
         if (prompt.getToolMode() != ToolMode.none) {
             List<Tool> modelTools = CollectionUtils.isNotEmpty(prompt.getTools()) ? prompt.getTools() : getTools();
             if (CollectionUtils.isNotEmpty(modelTools)) {
                 requestBuilder.tools(ClaudeUtils.convertToClaudeTools(modelTools));
-                
+
                 // Set tool choice based on mode
                 if (prompt.getToolMode() == ToolMode.auto) {
                     requestBuilder.toolChoice(ToolChoice.builder()
@@ -333,6 +343,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .header("Accept", "text/event-stream")
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", "2023-06-01")
+                .header("anthropic-beta", "structured-outputs-2025-11-13")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .timeout(Duration.ofMinutes(5))
                 .build();
@@ -520,5 +531,123 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         }
         
         return builder.build();
+    }
+
+    /**
+     * Convert common ResponseFormat to Claude-specific OutputFormat
+     */
+    public static OutputFormat convertToClaudeOutputFormat(ResponseFormat responseFormat) {
+        if (responseFormat == null) {
+            return null;
+        }
+
+        // For JSON_OBJECT mode, just set type without schema
+        if (responseFormat.getType() == ResponseType.JSON_OBJECT) {
+            return new OutputFormat("json_object");
+        }
+
+        // For JSON_SCHEMA mode, convert the schema
+        if (responseFormat.getType() == ResponseType.JSON_SCHEMA && responseFormat.getJsonSchema() != null) {
+            ClaudeMessageRequest.JsonSchema claudeJsonSchema = convertToClaudeJsonSchema(responseFormat.getJsonSchema());
+            return OutputFormat.builder()
+                    .type("json_schema")
+                    .jsonSchema(claudeJsonSchema)
+                    .build();
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert common JsonSchema to Claude JsonSchema format
+     */
+    private static ClaudeMessageRequest.JsonSchema convertToClaudeJsonSchema(ResponseFormat.JsonSchema schema) {
+        if (schema == null) {
+            return null;
+        }
+
+        Map<String, ClaudeMessageRequest.Property> properties = schema.getProperties() != null
+                ? schema.getProperties().entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> convertSchemaProperty(entry.getValue())
+                ))
+                : null;
+
+        ClaudeMessageRequest.SchemaDefinition schemaDefinition =
+                new ClaudeMessageRequest.SchemaDefinition(
+                        schema.getType(),
+                        properties,
+                        properties != null ? new ArrayList<>(properties.keySet()) : null
+                );
+
+        if (schema.getAdditionalProperties() != null) {
+            schemaDefinition.setAdditionalProperties(schema.getAdditionalProperties());
+        }
+
+        ClaudeMessageRequest.JsonSchema result =
+                new ClaudeMessageRequest.JsonSchema(
+                        schema.getTitle() != null ? schema.getTitle() : "response",
+                        schemaDefinition
+                );
+
+        // Set strict mode if specified in schema, default to true for Claude
+        if (schema.getStrict() != null) {
+            result.setStrict(schema.getStrict());
+        } else {
+            result.setStrict(true); // Claude defaults to strict
+        }
+
+        return result;
+    }
+
+    /**
+     * Convert common SchemaProperty to Claude Property format
+     */
+    private static ClaudeMessageRequest.Property convertSchemaProperty(ResponseFormat.SchemaProperty property) {
+        if (property == null) {
+            return null;
+        }
+
+        Map<String, ClaudeMessageRequest.Property> nestedProperties = null;
+        if (property.getProperties() != null) {
+            nestedProperties = property.getProperties().entrySet().stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> convertSchemaProperty(entry.getValue())
+                    ));
+        }
+
+        ClaudeMessageRequest.Property items = null;
+        if (property.getItems() != null) {
+            items = convertSchemaProperty(property.getItems());
+        }
+
+        ClaudeMessageRequest.Property result = new ClaudeMessageRequest.Property(
+                property.getType(),
+                property.getDescription(),
+                property.getEnumValues()
+        );
+
+        if (nestedProperties != null) {
+            result.setProperties(nestedProperties);
+            result.setRequired(new ArrayList<>(nestedProperties.keySet()));
+        } else if (property.getRequired() != null) {
+            result.setRequired(property.getRequired());
+        }
+
+        if (items != null) {
+            result.setItems(items);
+        }
+
+        // For objects, always set additionalProperties to false if not explicitly set
+        if ("object".equals(property.getType())) {
+            result.setAdditionalProperties(property.getAdditionalProperties() != null ?
+                    property.getAdditionalProperties() : false);
+        } else if (property.getAdditionalProperties() != null) {
+            result.setAdditionalProperties(property.getAdditionalProperties());
+        }
+
+        return result;
     }
 }

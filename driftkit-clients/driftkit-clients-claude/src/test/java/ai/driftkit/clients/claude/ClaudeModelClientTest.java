@@ -192,9 +192,173 @@ public class ClaudeModelClientTest {
         ModelImageRequest request = ModelImageRequest.builder()
                 .prompt("A beautiful sunset")
                 .build();
-        
+
         assertThrows(UnsupportedCapabilityException.class, () -> {
             client.textToImage(request);
         });
+    }
+
+    @Test
+    void testStructuredOutputJsonSchema() {
+        // Test structured output with JSON schema
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("PersonInfo")
+                .type("object")
+                .properties(Map.of(
+                        "name", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("The person's full name")
+                                .build(),
+                        "age", ResponseFormat.SchemaProperty.builder()
+                                .type("integer")
+                                .description("The person's age in years")
+                                .build(),
+                        "email", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("The person's email address")
+                                .build()
+                ))
+                .required(List.of("name", "age", "email"))
+                .additionalProperties(false)
+                .strict(true)
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Extract the following information and return as structured JSON: " +
+                                "John Smith is a 32 year old software engineer. His email is john.smith@example.com")
+                ))
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        assertNotNull(response.getChoices());
+        assertFalse(response.getChoices().isEmpty());
+
+        String content = response.getChoices().get(0).getMessage().getContent();
+        assertNotNull(content);
+
+        // Verify JSON structure
+        assertTrue(content.contains("\"name\""));
+        assertTrue(content.contains("John Smith"));
+        assertTrue(content.contains("32"));
+        assertTrue(content.contains("john.smith@example.com"));
+    }
+
+    @Test
+    void testStructuredOutputWithNestedObjects() {
+        // Test structured output with nested objects
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("CompanyInfo")
+                .type("object")
+                .properties(Map.of(
+                        "company", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Company name")
+                                .build(),
+                        "address", ResponseFormat.SchemaProperty.builder()
+                                .type("object")
+                                .description("Company address")
+                                .properties(Map.of(
+                                        "street", ResponseFormat.SchemaProperty.builder()
+                                                .type("string")
+                                                .build(),
+                                        "city", ResponseFormat.SchemaProperty.builder()
+                                                .type("string")
+                                                .build(),
+                                        "country", ResponseFormat.SchemaProperty.builder()
+                                                .type("string")
+                                                .build()
+                                ))
+                                .build(),
+                        "employees", ResponseFormat.SchemaProperty.builder()
+                                .type("array")
+                                .description("List of employees")
+                                .items(ResponseFormat.SchemaProperty.builder()
+                                        .type("string")
+                                        .build())
+                                .build()
+                ))
+                .required(List.of("company", "address", "employees"))
+                .additionalProperties(false)
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Create a company profile for: Tech Corp located at 123 Main Street, San Francisco, USA. " +
+                                "Employees are: Alice, Bob, and Charlie")
+                ))
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        String content = response.getChoices().get(0).getMessage().getContent();
+
+        // Verify nested structure
+        assertTrue(content.contains("Tech Corp"));
+        assertTrue(content.contains("San Francisco"));
+        assertTrue(content.contains("Alice"));
+        assertTrue(content.contains("Bob"));
+    }
+
+    @Test
+    void testStructuredOutputWithEnums() {
+        // Test structured output with enum values
+        ResponseFormat.JsonSchema schema = ResponseFormat.JsonSchema.builder()
+                .title("StatusReport")
+                .type("object")
+                .properties(Map.of(
+                        "task", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Task description")
+                                .build(),
+                        "status", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .description("Current status")
+                                .enumValues(List.of("pending", "in_progress", "completed", "cancelled"))
+                                .build(),
+                        "priority", ResponseFormat.SchemaProperty.builder()
+                                .type("string")
+                                .enumValues(List.of("low", "medium", "high", "critical"))
+                                .build()
+                ))
+                .required(List.of("task", "status", "priority"))
+                .build();
+
+        ModelTextRequest request = ModelTextRequest.builder()
+                .messages(List.of(
+                        ModelContentMessage.create(Role.user,
+                                "Create a status report for: 'Fix login bug' which is being worked on and is high priority")
+                ))
+                .responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.ResponseType.JSON_SCHEMA)
+                        .jsonSchema(schema)
+                        .build())
+                .temperature(0.1)
+                .build();
+
+        ModelTextResponse response = client.textToText(request);
+
+        assertNotNull(response);
+        String content = response.getChoices().get(0).getMessage().getContent();
+
+        // Status should be one of the enum values
+        assertTrue(content.contains("in_progress") || content.contains("pending") ||
+                   content.contains("completed") || content.contains("cancelled"));
+        assertTrue(content.contains("high") || content.contains("critical"));
     }
 }
