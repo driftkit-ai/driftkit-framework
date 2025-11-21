@@ -270,7 +270,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 configBuilder.responseMimeType("application/json");
             } else if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_SCHEMA) {
                 configBuilder.responseMimeType("application/json");
-                configBuilder.responseSchema(GeminiUtils.convertToGeminiSchema(prompt.getResponseFormat().getJsonSchema()));
+                configBuilder.responseJsonSchema(GeminiUtils.convertToGeminiSchema(prompt.getResponseFormat().getJsonSchema()));
             }
         }
         
@@ -719,7 +719,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 configBuilder.responseMimeType("application/json");
             } else if (prompt.getResponseFormat().getType() == ResponseFormat.ResponseType.JSON_SCHEMA) {
                 configBuilder.responseMimeType("application/json");
-                configBuilder.responseSchema(GeminiUtils.convertToGeminiSchema(prompt.getResponseFormat().getJsonSchema()));
+                configBuilder.responseJsonSchema(GeminiUtils.convertToGeminiSchema(prompt.getResponseFormat().getJsonSchema()));
             }
         }
 

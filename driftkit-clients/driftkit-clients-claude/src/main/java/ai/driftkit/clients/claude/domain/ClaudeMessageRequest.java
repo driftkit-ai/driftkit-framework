@@ -81,31 +81,15 @@ public class ClaudeMessageRequest {
         @JsonProperty("type")
         private String type; // "json_schema"
 
-        @JsonProperty("json_schema")
-        private JsonSchema jsonSchema;
+        @JsonProperty("schema")
+        private SchemaDefinition schema;
 
         public OutputFormat(String type) {
             this.type = type;
         }
-    }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class JsonSchema {
-        @JsonProperty("name")
-        private String name;
-
-        @JsonProperty("strict")
-        private Boolean strict;
-
-        @JsonProperty("schema")
-        private SchemaDefinition schema;
-
-        public JsonSchema(String name, SchemaDefinition schema) {
-            this.name = name;
-            this.strict = true; // Always strict for Claude
+        public OutputFormat(String type, SchemaDefinition schema) {
+            this.type = type;
             this.schema = schema;
         }
     }

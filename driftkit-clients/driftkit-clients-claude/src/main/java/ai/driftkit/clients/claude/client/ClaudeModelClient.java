@@ -535,6 +535,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
 
     /**
      * Convert common ResponseFormat to Claude-specific OutputFormat
+     * Claude API expects: output_format: { type: "json_schema", schema: { ... } }
      */
     public static OutputFormat convertToClaudeOutputFormat(ResponseFormat responseFormat) {
         if (responseFormat == null) {
@@ -546,22 +547,20 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
             return new OutputFormat("json_object");
         }
 
-        // For JSON_SCHEMA mode, convert the schema
+        // For JSON_SCHEMA mode, convert the schema directly into output_format.schema
         if (responseFormat.getType() == ResponseType.JSON_SCHEMA && responseFormat.getJsonSchema() != null) {
-            ClaudeMessageRequest.JsonSchema claudeJsonSchema = convertToClaudeJsonSchema(responseFormat.getJsonSchema());
-            return OutputFormat.builder()
-                    .type("json_schema")
-                    .jsonSchema(claudeJsonSchema)
-                    .build();
+            ClaudeMessageRequest.SchemaDefinition schemaDefinition = convertToClaudeSchemaDefinition(responseFormat.getJsonSchema());
+            return new OutputFormat("json_schema", schemaDefinition);
         }
 
         return null;
     }
 
     /**
-     * Convert common JsonSchema to Claude JsonSchema format
+     * Convert common JsonSchema to Claude SchemaDefinition format
+     * Claude expects schema directly in output_format.schema without wrapper
      */
-    private static ClaudeMessageRequest.JsonSchema convertToClaudeJsonSchema(ResponseFormat.JsonSchema schema) {
+    private static ClaudeMessageRequest.SchemaDefinition convertToClaudeSchemaDefinition(ResponseFormat.JsonSchema schema) {
         if (schema == null) {
             return null;
         }
@@ -578,27 +577,16 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 new ClaudeMessageRequest.SchemaDefinition(
                         schema.getType(),
                         properties,
-                        properties != null ? new ArrayList<>(properties.keySet()) : null
+                        schema.getRequired() != null ? schema.getRequired() :
+                                (properties != null ? new ArrayList<>(properties.keySet()) : null)
                 );
 
-        if (schema.getAdditionalProperties() != null) {
-            schemaDefinition.setAdditionalProperties(schema.getAdditionalProperties());
-        }
+        // Set additionalProperties to false for strict schema compliance
+        schemaDefinition.setAdditionalProperties(
+                schema.getAdditionalProperties() != null ? schema.getAdditionalProperties() : false
+        );
 
-        ClaudeMessageRequest.JsonSchema result =
-                new ClaudeMessageRequest.JsonSchema(
-                        schema.getTitle() != null ? schema.getTitle() : "response",
-                        schemaDefinition
-                );
-
-        // Set strict mode if specified in schema, default to true for Claude
-        if (schema.getStrict() != null) {
-            result.setStrict(schema.getStrict());
-        } else {
-            result.setStrict(true); // Claude defaults to strict
-        }
-
-        return result;
+        return schemaDefinition;
     }
 
     /**

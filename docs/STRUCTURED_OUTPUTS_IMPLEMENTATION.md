@@ -53,7 +53,7 @@ graph TB
 
     OAI -->|JSON Schema format| OAIAPI
     CLA -->|output_format| CLAAPI
-    GEM -->|responseSchema| GEMAPI
+    GEM -->|responseJsonSchema| GEMAPI
 
     OAIAPI -->|Structured response| User
     CLAAPI -->|Structured response| User
@@ -77,9 +77,9 @@ sequenceDiagram
     alt OpenAI
         Conv->>API: response_format.json_schema
     else Claude
-        Conv->>API: output_format.json_schema
+        Conv->>API: output_format.schema
     else Gemini
-        Conv->>API: generationConfig.responseSchema
+        Conv->>API: generationConfig.responseJsonSchema
     end
 
     API->>MC: Structured JSON response
@@ -110,12 +110,6 @@ classDiagram
 
     class OutputFormat {
         +String type
-        +JsonSchema jsonSchema
-    }
-
-    class JsonSchema {
-        +String name
-        +Boolean strict
         +SchemaDefinition schema
     }
 
@@ -136,8 +130,7 @@ classDiagram
     }
 
     ClaudeMessageRequest --> OutputFormat
-    OutputFormat --> JsonSchema
-    JsonSchema --> SchemaDefinition
+    OutputFormat --> SchemaDefinition
     SchemaDefinition --> Property
     Property --> Property : nested
 ```
@@ -163,8 +156,8 @@ flowchart TD
     K --> M[Set required fields]
     L --> M
     M --> N[Set additionalProperties: false]
-    N --> O[Create JsonSchema with strict: true]
-    O --> P[Return OutputFormat]
+    N --> O[Create SchemaDefinition]
+    O --> P[Return OutputFormat with schema]
 
     D --> Q[Return simple OutputFormat]
 ```
@@ -233,7 +226,7 @@ gantt
 
 Gemini использует два параметра в `generationConfig`:
 - `responseMimeType`: `"application/json"`
-- `responseSchema`: JSON Schema объект
+- `responseJsonSchema`: JSON Schema объект
 
 ### Архитектура Gemini Structured Outputs
 
@@ -249,7 +242,7 @@ classDiagram
         +Double temperature
         +Integer maxOutputTokens
         +String responseMimeType
-        +GeminiSchema responseSchema
+        +GeminiSchema responseJsonSchema
     }
 
     class GeminiSchema {
@@ -545,15 +538,13 @@ ModelTextResponse geminiResponse = geminiClient.textToText(request);
 **Claude Format:**
 ```json
 {
-  "type": "json_schema",
-  "json_schema": {
-    "name": "UserProfile",
-    "strict": true,
+  "output_format": {
+    "type": "json_schema",
     "schema": {
       "type": "object",
       "properties": {
         "name": {"type": "string", "description": "User name"},
-        "age": {"type": "number", "description": "User age"},
+        "age": {"type": "integer", "description": "User age"},
         "email": {"type": "string", "description": "User email"}
       },
       "required": ["name", "age", "email"],
@@ -566,16 +557,18 @@ ModelTextResponse geminiResponse = geminiClient.textToText(request);
 **Gemini Format:**
 ```json
 {
-  "responseMimeType": "application/json",
-  "responseSchema": {
-    "type": "OBJECT",
-    "properties": {
-      "name": {"type": "STRING", "description": "User name"},
-      "age": {"type": "INTEGER", "description": "User age"},
-      "email": {"type": "STRING", "description": "User email"}
-    },
-    "required": ["name", "age", "email"],
-    "propertyOrdering": ["name", "age", "email"]
+  "generationConfig": {
+    "responseMimeType": "application/json",
+    "responseJsonSchema": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "description": "User name"},
+        "age": {"type": "integer", "description": "User age"},
+        "email": {"type": "string", "description": "User email"}
+      },
+      "required": ["name", "age", "email"],
+      "propertyOrdering": ["name", "age", "email"]
+    }
   }
 }
 ```

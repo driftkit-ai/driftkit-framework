@@ -209,28 +209,32 @@ public class GeminiUtils {
         return builder.build();
     }
     
+    /**
+     * Map JSON Schema types to Gemini API types (lowercase per Gemini API docs)
+     */
     private static String mapSchemaType(String type) {
         if (type == null) {
-            return "STRING";
+            return "string";
         }
 
+        // Gemini API uses lowercase type names
         switch (type.toLowerCase()) {
             case "string":
-                return "STRING";
+                return "string";
             case "number":
-                return "NUMBER";
+                return "number";
             case "integer":
-                return "INTEGER";
+                return "integer";
             case "boolean":
-                return "BOOLEAN";
+                return "boolean";
             case "array":
-                return "ARRAY";
+                return "array";
             case "object":
-                return "OBJECT";
+                return "object";
             case "null":
-                return "STRING"; // Gemini doesn't support null type directly, use STRING with nullable
+                return "string"; // Gemini doesn't support null type directly
             default:
-                return "STRING";
+                return "string";
         }
     }
 }

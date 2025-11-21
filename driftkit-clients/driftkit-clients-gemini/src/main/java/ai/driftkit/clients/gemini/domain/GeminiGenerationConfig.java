@@ -43,8 +43,8 @@ public class GeminiGenerationConfig {
     @JsonProperty("responseMimeType")
     private String responseMimeType; // text/plain, application/json, text/x.enum
     
-    @JsonProperty("responseSchema")
-    private GeminiSchema responseSchema; // JSON schema for structured output
+    @JsonProperty("responseJsonSchema")
+    private GeminiSchema responseJsonSchema; // JSON schema for structured output
     
     @JsonProperty("responseLogprobs")
     private Boolean responseLogprobs;
