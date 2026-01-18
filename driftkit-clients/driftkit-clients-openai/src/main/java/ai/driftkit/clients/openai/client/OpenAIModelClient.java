@@ -303,14 +303,16 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                             .map(this::toStreamingMessage)  // Use special converter for streaming
                             .toList()
                 );
-        
+
         // Only add topLogprobs if logprobs is enabled
         if (Boolean.TRUE.equals(logprobs)) {
             reqBuilder.topLogprobs(topLogprobs);
         }
         
         ChatCompletionRequest req = reqBuilder.build();
-        
+
+        setModelRelatedProps(prompt, model, req);
+
         // Prepare the HTTP request for SSE streaming
         String apiKey = config.getApiKey();
         String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse("https://api.openai.com");
@@ -479,35 +481,40 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                 .build();
 
         try {
-            if (model != null && (model.startsWith("o") || model.equals("gpt-5"))) {
-                req.setTemperature(null);
-                ReasoningEffort effort = prompt.getReasoningEffort();
-
-                if (effort == null) {
-                    effort = ReasoningEffort.medium;
-                }
-
-                switch (effort) {
-                    case dynamic:
-                        effort = ReasoningEffort.high;
-                        break;
-                    case none:
-                        effort = ReasoningEffort.minimal;
-                        break;
-                }
-
-                req.setReasoningEffort(effort.name());
-            }
-
-            if (BooleanUtils.isNotTrue(req.getLogprobs())) {
-                req.setTopLogprobs(null);
-            }
+            setModelRelatedProps(prompt, model, req);
 
             ChatCompletionResponse completion = client.createChatCompletion(req);
 
             return mapToModelTextResponse(completion);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void setModelRelatedProps(ModelTextRequest prompt, String model, ChatCompletionRequest req) {
+        if (model != null && (model.startsWith("o") || model.contains("gpt-5"))) {
+            req.setTemperature(null);
+            ReasoningEffort effort = prompt.getReasoningEffort();
+
+            if (effort == null) {
+                effort = ReasoningEffort.medium;
+            }
+
+            switch (effort) {
+                case dynamic:
+                    effort = ReasoningEffort.high;
+                    break;
+                case none:
+                    effort = ReasoningEffort.minimal;
+                    break;
+            }
+
+            req.setTemperature(null);
+            req.setReasoningEffort(effort.name());
+        }
+
+        if (BooleanUtils.isNotTrue(req.getLogprobs())) {
+            req.setTopLogprobs(null);
         }
     }
 

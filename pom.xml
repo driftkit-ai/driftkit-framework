@@ -6,7 +6,7 @@
 
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-parent</artifactId>
-    <version>0.8.5</version>
+    <version>0.8.7</version>
     <packaging>pom</packaging>
 
     <name>DriftKit Parent</name>

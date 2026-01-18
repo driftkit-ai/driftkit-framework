@@ -52,7 +52,16 @@ public class ClaudeMessageRequest {
     
     @JsonProperty("top_p")
     private Double topP;
-    
+
+    /**
+     * Structured output format configuration.
+     * Requires beta header: anthropic-beta: structured-outputs-2025-11-13
+     *
+     * @see ClaudeOutputFormat
+     */
+    @JsonProperty("output_format")
+    private ClaudeOutputFormat outputFormat;
+
     @Data
     @Builder
     @NoArgsConstructor

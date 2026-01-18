@@ -78,7 +78,7 @@ Zero-configuration Spring Boot integration:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
-    <version>0.8.5</version>
+    <version>0.8.7</version>
 </dependency>
 ```
 
@@ -712,7 +712,7 @@ The `driftkit-workflow-test-framework` provides comprehensive testing capabiliti
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-test-framework</artifactId>
-    <version>0.8.5</version>
+    <version>0.8.7</version>
     <scope>test</scope>
 </dependency>
 ```

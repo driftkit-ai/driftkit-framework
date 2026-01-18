@@ -52,6 +52,9 @@ public class ClaudeClientFactory {
         @Override
         public void apply(RequestTemplate template) {
             template.header("x-api-key", apiKey);
+            // Always include beta header for structured outputs support
+            // It has no effect on non-structured requests
+            template.header("anthropic-beta", "structured-outputs-2025-11-13");
         }
     }
 }

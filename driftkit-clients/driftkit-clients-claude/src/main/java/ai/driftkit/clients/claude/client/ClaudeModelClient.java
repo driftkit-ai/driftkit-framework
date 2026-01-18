@@ -2,6 +2,7 @@ package ai.driftkit.clients.claude.client;
 
 import ai.driftkit.clients.claude.domain.*;
 import ai.driftkit.clients.claude.domain.ClaudeMessageRequest.ToolChoice;
+import ai.driftkit.clients.claude.utils.ClaudeSchemaConverter;
 import ai.driftkit.clients.claude.utils.ClaudeUtils;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.common.domain.client.ModelClient.ModelClientInit;
@@ -164,22 +165,10 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .topP(getTopP())
                 .stopSequences(getStop())
                 .system(systemPrompt);
-        
-        // Handle tools/functions
-        if (prompt.getToolMode() != ToolMode.none) {
-            List<Tool> modelTools = CollectionUtils.isNotEmpty(prompt.getTools()) ? prompt.getTools() : getTools();
-            if (CollectionUtils.isNotEmpty(modelTools)) {
-                requestBuilder.tools(ClaudeUtils.convertToClaudeTools(modelTools));
-                
-                // Set tool choice based on mode
-                if (prompt.getToolMode() == ToolMode.auto) {
-                    requestBuilder.toolChoice(ToolChoice.builder()
-                            .type("auto")
-                            .build());
-                }
-            }
-        }
-        
+
+        // Apply structured outputs and tools configuration
+        applyStructuredOutputsAndTools(requestBuilder, prompt);
+
         ClaudeMessageRequest request = requestBuilder.build();
         
         try {
@@ -504,21 +493,57 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .messages(messages)
                 .maxTokens(MAX_TOKENS)
                 .temperature(Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()));
-        
+
         if (systemMessage != null) {
             builder.system(systemMessage);
         }
-        
-        // Add tools if present
-        if (prompt.getTools() != null && !prompt.getTools().isEmpty()) {
-            List<ClaudeTool> tools = ClaudeUtils.convertToClaudeTools(prompt.getTools());
-            builder.tools(tools);
-            
-            if (prompt.getToolMode() == ToolMode.auto) {
-                builder.toolChoice(ToolChoice.builder().type("auto").build());
+
+        // Apply structured outputs and tools configuration
+        applyStructuredOutputsAndTools(builder, prompt);
+
+        return builder.build();
+    }
+
+    /**
+     * Applies structured outputs and tools configuration to the request builder.
+     * Extracted to avoid code duplication between processPrompt and buildClaudeRequest.
+     *
+     * @param builder Request builder to configure
+     * @param prompt  Source prompt with format and tools settings
+     */
+    private void applyStructuredOutputsAndTools(
+            ClaudeMessageRequest.ClaudeMessageRequestBuilder builder,
+            ModelTextRequest prompt) {
+
+        // Handle structured outputs (JSON schema)
+        boolean strictMode = false;
+        if (prompt.getResponseFormat() != null) {
+            ClaudeOutputFormat outputFormat = ClaudeSchemaConverter.convert(prompt.getResponseFormat());
+            if (outputFormat != null) {
+                builder.outputFormat(outputFormat);
+                log.debug("Structured output enabled with schema type: {}", outputFormat.getType());
+            }
+            // Check if strict mode should be enabled for tools
+            if (prompt.getResponseFormat().getJsonSchema() != null &&
+                Boolean.TRUE.equals(prompt.getResponseFormat().getJsonSchema().getStrict())) {
+                strictMode = true;
             }
         }
-        
-        return builder.build();
+
+        // Handle tools/functions
+        List<Tool> modelTools = prompt.getTools();
+        if (modelTools == null || modelTools.isEmpty()) {
+            modelTools = getTools();
+        }
+
+        if (CollectionUtils.isNotEmpty(modelTools) && prompt.getToolMode() != ToolMode.none) {
+            builder.tools(ClaudeUtils.convertToClaudeTools(modelTools, strictMode));
+
+            if (prompt.getToolMode() == ToolMode.auto) {
+                builder.toolChoice(ToolChoice.builder()
+                        .type("auto")
+                        .build());
+            }
+        }
     }
 }

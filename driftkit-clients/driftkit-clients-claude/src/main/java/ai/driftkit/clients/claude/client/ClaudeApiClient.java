@@ -11,7 +11,8 @@ public interface ClaudeApiClient {
     @Headers({
         "Content-Type: application/json",
         "Accept: application/json",
-        "anthropic-version: 2023-06-01"
+        "anthropic-version: 2023-06-01",
+        "anthropic-beta: structured-outputs-2025-11-13"
     })
     ClaudeMessageResponse createMessage(ClaudeMessageRequest request);
     
