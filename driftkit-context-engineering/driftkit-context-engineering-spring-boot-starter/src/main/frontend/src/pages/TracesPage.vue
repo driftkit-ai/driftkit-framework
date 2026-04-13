@@ -77,19 +77,23 @@
             </div>
 
             <!-- Message Details Expansion -->
-            <div v-if="expandedMessageDetails.includes(groupKey)" class="expansion-panel">
+            <div v-if="expandedMessageDetails.includes(groupKey)" class="message-detail-panel">
+              <div class="trace-detail-header">
+                <Tag value="Message" severity="warn" />
+                <span class="text-sm text-muted">{{ groupKey.substring(0, 20) }}...</span>
+              </div>
               <div class="three-col">
-                <div>
-                  <h6 class="text-sm">Input</h6>
+                <div class="trace-section">
+                  <h6 class="section-label">Input</h6>
                   <pre class="code-block" v-html="highlightVariables(messageTasksByContextId[groupKey]?.message || contextTraces[0]?.promptTemplate || '')"></pre>
                 </div>
-                <div>
-                  <h6 class="text-sm">Variables</h6>
+                <div class="trace-section">
+                  <h6 class="section-label">Variables</h6>
                   <pre class="code-block">{{ JSON.stringify(contextTraces[0]?.variables || {}, null, 2) }}</pre>
                 </div>
-                <div>
-                  <h6 class="text-sm">Result</h6>
-                  <pre class="code-block">{{ messageTasksByContextId[groupKey]?.result || contextTraces[contextTraces.length-1]?.response || '' }}</pre>
+                <div class="trace-section">
+                  <h6 class="section-label">Result</h6>
+                  <pre class="code-block response-block">{{ messageTasksByContextId[groupKey]?.result || contextTraces[contextTraces.length-1]?.response || '' }}</pre>
                 </div>
               </div>
             </div>
@@ -319,6 +323,7 @@ onMounted(() => {
 .header-chat { background: var(--p-blue-50); }
 .header-context { background: var(--p-surface-50); }
 .expansion-panel { padding: 0.75rem; border-top: 1px solid var(--p-surface-border); background: var(--p-surface-50); }
+.message-detail-panel { margin: 0.5rem; padding: 1rem; border: 2px solid var(--p-orange-200); border-radius: 8px; background: var(--p-orange-50); }
 .trace-detail-panel { margin: 0.5rem; padding: 1rem; border: 2px solid var(--p-blue-200); border-radius: 8px; background: var(--p-blue-50); }
 .trace-detail-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--p-blue-200); }
 .trace-section { margin-bottom: 0.5rem; }
