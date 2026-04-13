@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 @RequestMapping(path = "/data/v1.0/admin/parse/")
 public class ParserController {
 
-    @Autowired
+    @Autowired(required = false)
     private ParserService parserService;
 
     @Operation(summary = "Upload a file")

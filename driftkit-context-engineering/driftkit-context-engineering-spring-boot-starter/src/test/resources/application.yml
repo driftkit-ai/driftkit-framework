@@ -2,21 +2,30 @@ server:
   port: 8085
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   data:
     mongodb:
-      uri: mongodb://localhost:27017/driftkit
-      database: driftkit
+      uri: mongodb://localhost:27017/driftkit-dev
+      database: driftkit-dev
 
 driftkit:
-  etl:
-    vault:
-      - apiKey: ${DEEPSEEK_API_KEY:}
-        model: deepseek-chat
-        provider: deepseek
-      - apiKey: ${OPENAI_API_KEY:}
-        model: gpt-4o-mini
-        provider: openai
-  prompt-service:
-    type: mongodb
-  regression:
-    cron: "0 0 3 * * ?"
+  vault:
+    - name: openai
+      type: openai
+      api-key: ${DEEPSEEK_API_KEY:sk-placeholder}
+      base-url: https://api.deepseek.com
+      model: deepseek-chat
+
+  promptService:
+    name: mongodb
+
+  workflow:
+    tracing:
+      enabled: true
+      trace-threads: 2
+
+  chat-store:
+    mongodb:
+      enabled: true
+      collection: chat_messages
