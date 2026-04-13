@@ -64,6 +64,26 @@
         </div>
       </div>
 
+      <!-- Variable Schema Editor -->
+      <div v-if="promptForm.variables.length > 0" class="field mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="field-label m-0">Variable Schema</label>
+          <ToggleButton :modelValue="showSchema" @update:modelValue="showSchema = $event" onLabel="Hide Schema" offLabel="Edit Schema" />
+        </div>
+        <div v-if="showSchema" class="schema-grid">
+          <div v-for="variable in promptForm.variables" :key="'schema-'+variable" class="schema-row">
+            <span class="schema-name">{{ variable }}</span>
+            <Select :modelValue="getSchemaField(variable, 'type')" @update:modelValue="setSchemaField(variable, 'type', $event)" :options="['string','number','json','text']" placeholder="Type" class="schema-field" />
+            <div class="d-flex align-items-center gap-1">
+              <Checkbox :binary="true" :modelValue="getSchemaField(variable, 'required')" @update:modelValue="setSchemaField(variable, 'required', $event)" :inputId="'req-'+variable" />
+              <label :for="'req-'+variable" class="text-xs">Req</label>
+            </div>
+            <InputText :modelValue="getSchemaField(variable, 'defaultValue')" @update:modelValue="setSchemaField(variable, 'defaultValue', $event)" placeholder="Default" class="schema-field" />
+            <InputText :modelValue="getSchemaField(variable, 'description')" @update:modelValue="setSchemaField(variable, 'description', $event)" placeholder="Description" class="schema-field" />
+          </div>
+        </div>
+      </div>
+
       <!-- Settings Row -->
       <div class="settings-grid mb-3">
         <div class="field">
@@ -123,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
 import Select from 'primevue/select';
@@ -162,6 +182,25 @@ const workflowOptions = computed(() => [
 ]);
 
 const languageOptions = ['GENERAL', 'SPANISH', 'ENGLISH'];
+
+// Variable Schema editor
+const showSchema = ref(false);
+
+const getSchemaField = (variable: string, field: string): any => {
+  const schemas = props.promptForm.variableSchemas || [];
+  const schema = schemas.find((s: any) => s.name === variable);
+  return schema ? schema[field] : (field === 'required' ? false : '');
+};
+
+const setSchemaField = (variable: string, field: string, value: any) => {
+  if (!props.promptForm.variableSchemas) props.promptForm.variableSchemas = [];
+  let schema = props.promptForm.variableSchemas.find((s: any) => s.name === variable);
+  if (!schema) {
+    schema = { name: variable, type: 'string', required: false, defaultValue: '', description: '', example: '' };
+    props.promptForm.variableSchemas.push(schema);
+  }
+  schema[field] = value;
+};
 </script>
 
 <style scoped>
@@ -174,6 +213,11 @@ const languageOptions = ['GENERAL', 'SPANISH', 'ENGLISH'];
 .preview-box { min-height: 200px; max-height: 400px; overflow: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.875rem; padding: 0.75rem; border: 1px solid var(--p-surface-border); border-radius: 6px; background: var(--p-surface-50); cursor: pointer; transition: background 0.15s; }
 .preview-box:hover { background: var(--p-surface-100); }
 .font-mono { font-family: monospace; }
+.schema-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+.schema-row { display: flex; align-items: center; gap: 0.5rem; }
+.schema-name { font-weight: 600; font-size: 0.85rem; min-width: 100px; font-family: monospace; }
+.schema-field { min-width: 100px; flex: 1; }
+.text-xs { font-size: 0.75rem; }
 .d-flex { display: flex; }
 .flex-wrap { flex-wrap: wrap; }
 .justify-content-between { justify-content: space-between; }

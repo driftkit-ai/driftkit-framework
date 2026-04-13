@@ -2,7 +2,7 @@ import { createRouter, createWebHistory, type RouteLocationNormalizedLoaded } fr
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import LoginPage from '@/pages/LoginPage.vue';
 
-// New PrimeVue pages
+// All pages
 import DashboardPage from '@/pages/DashboardPage.vue';
 import PromptsPage from '@/pages/PromptsPage.vue';
 import TracesPage from '@/pages/TracesPage.vue';
@@ -11,12 +11,12 @@ import EvaluationRunsPage from '@/pages/EvaluationRunsPage.vue';
 import ChatPage from '@/pages/ChatPage.vue';
 import PipelinesPage from '@/pages/PipelinesPage.vue';
 import PlaygroundPage from '@/pages/PlaygroundPage.vue';
+import IndexesPage from '@/pages/IndexesPage.vue';
+import DictionariesPage from '@/pages/DictionariesPage.vue';
+import ChecklistsPage from '@/pages/ChecklistsPage.vue';
 
-// Existing views (will be replaced with PrimeVue pages later)
+// Legacy view still used directly
 import RunResultsView from '@/views/RunResultsView.vue';
-import IndexesView from '@/views/IndexesView.vue';
-import DictionariesView from '@/views/DictionariesView.vue';
-import ChecklistsView from '@/views/ChecklistsView.vue';
 
 const routes = [
   {
@@ -43,9 +43,9 @@ const routes = [
       { path: 'pipelines', name: 'Pipelines', component: PipelinesPage },
       { path: 'playground', name: 'Playground', component: PlaygroundPage },
       { path: 'chat', name: 'Chat', component: ChatPage },
-      { path: 'indexes', name: 'Indexes', component: IndexesView },
-      { path: 'dictionaries', name: 'Dictionaries', component: DictionariesView },
-      { path: 'checklists', name: 'Checklists', component: ChecklistsView },
+      { path: 'indexes', name: 'Indexes', component: IndexesPage },
+      { path: 'dictionaries', name: 'Dictionaries', component: DictionariesPage },
+      { path: 'checklists', name: 'Checklists', component: ChecklistsPage },
     ],
   },
 ];
