@@ -72,7 +72,7 @@ public class MongodbPromptService implements PromptServiceBase {
     }
 
     @Override
-    public Prompt savePrompt(Prompt prompt) {
+    public synchronized Prompt savePrompt(Prompt prompt) {
         Optional<Prompt> currentPromptOpt = getCurrentPrompt(prompt.getMethod(), prompt.getLanguage());
 
         if (currentPromptOpt.isEmpty() || prompt.getId() == null) {

@@ -2,6 +2,8 @@ package ai.driftkit.context.core.service;
 
 import ai.driftkit.common.domain.Language;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Thread-local environment context for prompt resolution.
  * When set, PromptServiceBase resolves prompts for the specified environment
@@ -22,13 +24,13 @@ public class PromptEnvironmentResolver {
     }
 
     private static final ThreadLocal<String> CURRENT_ENVIRONMENT = new ThreadLocal<>();
-    private static volatile VersionResolver resolver;
+    private static final AtomicReference<VersionResolver> resolver = new AtomicReference<>();
 
     /**
      * Register the version resolver (called once at app startup).
      */
     public static void setResolver(VersionResolver r) {
-        resolver = r;
+        resolver.set(r);
     }
 
     /**
@@ -51,8 +53,9 @@ public class PromptEnvironmentResolver {
      */
     public static Integer resolveVersion(String method, Language language) {
         String env = CURRENT_ENVIRONMENT.get();
-        if (env == null || resolver == null) return null;
-        return resolver.resolve(method, language, env);
+        VersionResolver r = resolver.get();
+        if (env == null || r == null) return null;
+        return r.resolve(method, language, env);
     }
 
     public static void clear() {

@@ -151,8 +151,8 @@ const {
 // Lifecycle actions
 const publishPrompt = async () => {
   if (!promptForm.value.method) return;
+  if (!confirm(`Publish "${promptForm.value.method}" to production? This will replace the current version.`)) return;
   try {
-    // First save as current state, then publish
     await savePromptOnly();
     await axios.post(`/data/v1.0/admin/prompt/${encodeURIComponent(promptForm.value.method)}/publish`, null, {
       params: { language: promptForm.value.language },

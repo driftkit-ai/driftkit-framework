@@ -177,14 +177,14 @@ const processInput = () => {
     axios.post('/data/v1.0/admin/parse/file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((res) => { const data = res.data; delete data.input; parseResponse.value = data; })
-      .catch(() => { parseResponse.value = { error: 'Error parsing file.' }; });
+      .catch((err) => { console.error('Parse file error:', err); parseResponse.value = { error: err.response?.data?.message || 'Error parsing file.' }; });
   } else {
     axios.post('/data/v1.0/admin/parse/youtube', {
       videoId: youtubeVideoId.value,
       metadata: parseMetadata.value,
       languages: youtubeInputLang.value ? [youtubeInputLang.value] : [],
     }).then((res) => { parseResponse.value = res.data; })
-      .catch(() => { parseResponse.value = { error: 'Error parsing YouTube video.' }; });
+      .catch((err) => { console.error('Parse YouTube error:', err); parseResponse.value = { error: err.response?.data?.message || 'Error parsing YouTube video.' }; });
   }
 };
 
@@ -229,7 +229,7 @@ const submitIndex = () => {
     formData.append('index', selectedIndexId.value);
     axios.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       .then((res) => { indexResponse.value = res.data; if (res.data?.taskId) indexTaskId.value = res.data.taskId; })
-      .catch(() => { indexResponse.value = { error: 'Error indexing file.' }; });
+      .catch((err) => { console.error('Index file error:', err); indexResponse.value = { error: err.response?.data?.message || 'Error indexing file.' }; });
   } else {
     const data: any = { index: selectedIndexId.value };
     if (indexMode.value === 'text') {
@@ -243,7 +243,7 @@ const submitIndex = () => {
     }
     axios.post(url, data)
       .then((res) => { indexResponse.value = res.data; if (res.data?.taskId) indexTaskId.value = res.data.taskId; })
-      .catch(() => { indexResponse.value = { error: 'Error indexing.' }; });
+      .catch((err) => { console.error('Index error:', err); indexResponse.value = { error: err.response?.data?.message || 'Error indexing.' }; });
   }
 };
 

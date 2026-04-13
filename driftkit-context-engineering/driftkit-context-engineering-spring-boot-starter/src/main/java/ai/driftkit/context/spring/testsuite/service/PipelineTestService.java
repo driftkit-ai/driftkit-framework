@@ -11,6 +11,7 @@ import ai.driftkit.workflow.engine.core.pipeline.PipelineRegistry;
 import ai.driftkit.workflows.spring.service.AIService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +35,11 @@ public class PipelineTestService {
 
     private final ExecutorService executor = Executors.newFixedThreadPool(
             Math.max(2, Runtime.getRuntime().availableProcessors()));
+
+    @PreDestroy
+    void shutdownExecutor() {
+        executor.shutdown();
+    }
 
     /**
      * Create and start a pipeline test run.
@@ -129,15 +135,21 @@ public class PipelineTestService {
                     String actualResult = executed.getResult();
                     result.setActualOutput(actualResult);
 
-                    // Simple pass/fail: compare with expected result if provided
-                    if (StringUtils.isNotBlank(item.getResult()) && StringUtils.isNotBlank(actualResult)) {
-                        // Basic comparison — real evaluation should use EvaluationService
-                        result.setStatus("PASSED");
+                    // Compare with expected result if provided
+                    if (StringUtils.isNotBlank(item.getResult())) {
+                        if (StringUtils.isNotBlank(actualResult)
+                                && actualResult.trim().contains(item.getResult().trim())) {
+                            result.setStatus("PASSED");
+                            passed++;
+                        } else {
+                            result.setStatus("FAILED");
+                            failed++;
+                        }
                     } else {
+                        // No expected result — pass if execution succeeded without error
                         result.setStatus("PASSED");
+                        passed++;
                     }
-
-                    passed++;
 
                 } catch (Exception e) {
                     result.setStatus("ERROR");

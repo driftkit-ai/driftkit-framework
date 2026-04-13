@@ -91,15 +91,22 @@ public class RegressionDetectionService {
     }
 
     private PipelineTestRun waitForCompletion(String runId, long timeoutMs) {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            PipelineTestRun run = runRepository.findById(runId).orElse(null);
-            if (run != null && (run.getStatus() == PipelineTestRun.RunStatus.COMPLETED
-                             || run.getStatus() == PipelineTestRun.RunStatus.FAILED)) {
-                return run;
-            }
-            try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        try {
+            return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                while (true) {
+                    PipelineTestRun run = runRepository.findById(runId).orElse(null);
+                    if (run != null && (run.getStatus() == PipelineTestRun.RunStatus.COMPLETED
+                                     || run.getStatus() == PipelineTestRun.RunStatus.FAILED)) {
+                        return run;
+                    }
+                    try { Thread.sleep(5000); } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt(); return null;
+                    }
+                }
+            }).get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.warn("Timeout waiting for pipeline test run {}", runId);
+            return null;
         }
-        return null;
     }
 }

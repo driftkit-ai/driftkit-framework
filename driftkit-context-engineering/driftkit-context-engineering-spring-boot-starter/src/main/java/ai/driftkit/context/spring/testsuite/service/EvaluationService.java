@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
@@ -40,6 +42,11 @@ public class EvaluationService {
     private ExecutorService testExecutor = Executors.newFixedThreadPool(
             Math.max(2, Runtime.getRuntime().availableProcessors())
     );
+
+    @PreDestroy
+    void shutdownExecutor() {
+        testExecutor.shutdown();
+    }
 
     private final EvaluationRepository evaluationRepository;
     private final EvaluationResultRepository resultRepository;

@@ -100,7 +100,13 @@ const executePanel = async (panel: 'A' | 'B') => {
 
   try {
     let vars = {};
-    try { vars = JSON.parse(variablesJson.value); } catch {}
+    try { vars = JSON.parse(variablesJson.value); } catch {
+      if (variablesJson.value.trim() && variablesJson.value.trim() !== '{}') {
+        p.result = 'Error: Invalid JSON in variables field';
+        loading.value = false;
+        return;
+      }
+    }
 
     const start = Date.now();
     const res = await axios.post('/data/v1.0/admin/llm/prompt/message/sync', {

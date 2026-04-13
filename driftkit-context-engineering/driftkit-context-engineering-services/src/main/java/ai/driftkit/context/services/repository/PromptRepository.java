@@ -22,4 +22,8 @@ public interface PromptRepository extends MongoRepository<Prompt, String> {
     List<Prompt> findByMethodAndState(String method, Prompt.State state);
 
     Optional<Prompt> findByMethodAndLanguageAndState(String method, Language language, Prompt.State state);
+
+    List<Prompt> findByMethodStartingWith(String prefix);
+
+    Optional<Prompt> findByMethodAndLanguageAndVersion(String method, Language language, int version);
 }
