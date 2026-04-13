@@ -58,8 +58,26 @@
                     <div v-if="msg.showLogprobs" class="section-content" v-html="displayTokenProbabilities(msg)"></div>
                   </div>
 
+                  <!-- Prompt result object (prompt + testResult) -->
+                  <div v-if="isPromptResultObject(msg.message)" class="prompt-result">
+                    <div v-if="parsePromptResult(msg.message).prompt" class="collapsible-section">
+                      <div class="section-header">
+                        <span>Prompt</span>
+                        <Button icon="pi pi-copy" size="small" severity="secondary" text @click="copyToClipboard(parsePromptResult(msg.message).prompt)" />
+                      </div>
+                      <div class="section-content" v-html="formatMessage(String(parsePromptResult(msg.message).prompt))"></div>
+                    </div>
+                    <div v-if="parsePromptResult(msg.message).testResult" class="collapsible-section mt-2">
+                      <div class="section-header">
+                        <span>Test Result</span>
+                        <Button icon="pi pi-copy" size="small" severity="secondary" text @click="copyToClipboard(JSON.stringify(parsePromptResult(msg.message).testResult))" />
+                      </div>
+                      <div class="section-content" v-html="formatMessage(JSON.stringify(parsePromptResult(msg.message).testResult, null, 2))"></div>
+                    </div>
+                  </div>
+
                   <!-- Thoughts toggle -->
-                  <div v-if="msg.message && msg.message.includes('<thoughts')" class="collapsible-section">
+                  <div v-else-if="msg.message && msg.message.includes('<thoughts')" class="collapsible-section">
                     <div class="section-header" @click="msg.showThoughts = !msg.showThoughts">
                       <span>Model thoughts</span>
                       <i :class="msg.showThoughts ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" />
@@ -245,6 +263,26 @@ const isJSON = (text: string): boolean => {
     try { JSON.parse(t); return true; } catch { return false; }
   }
   return false;
+};
+
+const isPromptResultObject = (text: string | any): boolean => {
+  if (!text) return false;
+  if (typeof text === 'object') return text.prompt !== undefined || text.testResult !== undefined;
+  if (typeof text === 'string') {
+    try {
+      const obj = JSON.parse(text.trim());
+      return obj && (obj.prompt !== undefined || obj.testResult !== undefined);
+    } catch { return false; }
+  }
+  return false;
+};
+
+const parsePromptResult = (text: string | any): any => {
+  if (typeof text === 'object') return text;
+  if (typeof text === 'string') {
+    try { return JSON.parse(text.trim()); } catch { return { prompt: '', testResult: '' }; }
+  }
+  return { prompt: '', testResult: '' };
 };
 
 const formatMessage = (text: string): string => {
