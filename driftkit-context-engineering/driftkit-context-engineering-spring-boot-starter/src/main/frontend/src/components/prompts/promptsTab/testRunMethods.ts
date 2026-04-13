@@ -196,8 +196,8 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
     // Initial fetch
     fetchRunStatus();
 
-    // Set up interval (every 3 seconds)
-    statusPollingInterval = window.setInterval(fetchRunStatus, 3000);
+    const TEST_RUN_POLL_INTERVAL_MS = 3000;
+    statusPollingInterval = window.setInterval(fetchRunStatus, TEST_RUN_POLL_INTERVAL_MS);
   };
 
   // Navigate to test results view

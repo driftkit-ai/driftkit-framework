@@ -246,7 +246,7 @@ const pollMessage = (msg: Message) => {
         scrollToBottom();
       }
     });
-  }, 1000);
+  }, 1000); // MESSAGE_POLL_INTERVAL_MS
 };
 
 // --- Formatting ---

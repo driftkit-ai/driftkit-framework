@@ -22,6 +22,9 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class RegressionDetectionService {
 
+    private static final long REGRESSION_TEST_TIMEOUT_MS = 300_000; // 5 minutes
+    private static final long POLL_INTERVAL_MS = 5_000; // 5 seconds
+
     private final PipelineTestService pipelineTestService;
     private final PipelineTestRunRepository runRepository;
 
@@ -66,7 +69,7 @@ public class RegressionDetectionService {
                 // and compare newRun.passedCases vs lastRun.passedCases.
 
                 // Simple synchronous check (wait up to 5 minutes)
-                PipelineTestRun completed = waitForCompletion(newRun.getId(), 300_000);
+                PipelineTestRun completed = waitForCompletion(newRun.getId(), REGRESSION_TEST_TIMEOUT_MS);
                 if (completed != null && lastRun.getTotalCases() > 0) {
                     double oldRate = (double) lastRun.getPassedCases() / lastRun.getTotalCases() * 100;
                     double newRate = completed.getTotalCases() > 0
@@ -101,7 +104,7 @@ public class RegressionDetectionService {
                                      || run.getStatus() == PipelineTestRun.RunStatus.FAILED)) {
                         return run;
                     }
-                    try { Thread.sleep(5000); } catch (InterruptedException e) {
+                    try { Thread.sleep(POLL_INTERVAL_MS); } catch (InterruptedException e) {
                         Thread.currentThread().interrupt(); return null;
                     }
                 }
