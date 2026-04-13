@@ -81,6 +81,18 @@ public interface PromptServiceBase {
             return Optional.of(overridden);
         }
 
+        // Check for environment-specific version
+        Integer envVersion = PromptEnvironmentResolver.resolveVersion(method, language);
+        if (envVersion != null) {
+            List<Prompt> allVersions = getPromptsByMethods(List.of(method));
+            Optional<Prompt> envPrompt = allVersions.stream()
+                    .filter(p -> p.getVersion() == envVersion && p.getLanguage() == language)
+                    .findFirst();
+            if (envPrompt.isPresent()) {
+                return envPrompt;
+            }
+        }
+
         List<Prompt> prompts = getCurrentPromptsForMethodStateAndLanguage(List.of(method), language);
 
         if (prompts.isEmpty()) {
