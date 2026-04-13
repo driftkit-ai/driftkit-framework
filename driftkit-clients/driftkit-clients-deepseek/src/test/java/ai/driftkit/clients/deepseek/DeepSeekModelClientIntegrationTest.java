@@ -123,14 +123,18 @@ public class DeepSeekModelClientIntegrationTest {
         assertNotNull("Usage should not be null", usage2);
 
         System.out.println("Request 2 - prompt tokens: " + usage2.getPromptTokens());
-        if (usage2.getCacheUsage() != null) {
-            CacheUsage cache = usage2.getCacheUsage();
-            System.out.println("Request 2 - cache hit: " + cache.getCacheHitTokens()
-                    + " miss: " + cache.getCacheMissTokens()
-                    + " ratio: " + String.format("%.2f", cache.getHitRatio()));
-        } else {
-            System.out.println("Request 2 - no cache usage (caching may take a few seconds to warm up)");
-        }
+        assertNotNull("Second request should report cache usage", usage2.getCacheUsage());
+        CacheUsage cache = usage2.getCacheUsage();
+        System.out.println("Request 2 - cache hit: " + cache.getCacheHitTokens()
+                + " miss: " + cache.getCacheMissTokens()
+                + " ratio: " + String.format("%.2f", cache.getHitRatio()));
+
+        // DeepSeek prefix caching: second identical request must have cache hits
+        int hitTokens = cache.getCacheHitTokens() != null ? cache.getCacheHitTokens() : 0;
+        int missTokens = cache.getCacheMissTokens() != null ? cache.getCacheMissTokens() : 0;
+        assertTrue("Second request should have cache hits", hitTokens > 0);
+        assertTrue("Cache hit ratio should be > 0", cache.getHitRatio() > 0);
+        System.out.println("Cache validation passed: hit=" + hitTokens + " miss=" + missTokens);
     }
 
     // ---- Thinking / Reasoning Mode ----
