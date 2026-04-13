@@ -70,10 +70,22 @@ public class LoopAgent implements Agent {
         String currentResult = input;
         int iteration = 0;
         
+        boolean isNamedPipeline = !"LoopAgent".equals(getName());
+
         while (iteration < maxIterations) {
             iteration++;
             log.debug("LoopAgent '{}' - iteration {}/{}", getName(), iteration, maxIterations);
-            
+
+            // Inject hierarchical trace context for named pipelines
+            if (isNamedPipeline) {
+                if (worker instanceof LLMAgent llmWorker) {
+                    llmWorker.setWorkflowContext(getName(), "worker-iter-" + iteration);
+                }
+                if (evaluator instanceof LLMAgent llmEval) {
+                    llmEval.setWorkflowContext(getName(), "evaluator-iter-" + iteration);
+                }
+            }
+
             try {
                 // Execute worker agent
                 String workerResult;
@@ -82,10 +94,10 @@ public class LoopAgent implements Agent {
                 } else {
                     workerResult = worker.execute(currentResult);
                 }
-                
+
                 // Evaluate the result
                 EvaluationResult evaluationResult;
-                
+
                 // If evaluator is an LLMAgent, use structured output
                 if (evaluator instanceof LLMAgent) {
                     LLMAgent llmEvaluator = (LLMAgent) evaluator;

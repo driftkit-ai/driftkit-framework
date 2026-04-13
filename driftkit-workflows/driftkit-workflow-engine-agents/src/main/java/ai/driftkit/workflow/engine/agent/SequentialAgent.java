@@ -92,11 +92,18 @@ public class SequentialAgent implements Agent {
         
         String result = input;
         
+        boolean isNamedPipeline = !"SequentialAgent".equals(getName());
+
         for (int i = 0; i < agents.size(); i++) {
             Agent agent = agents.get(i);
-            log.debug("SequentialAgent '{}' - executing step {}/{}: {}", 
+            log.debug("SequentialAgent '{}' - executing step {}/{}: {}",
                      getName(), i + 1, agents.size(), agent.getName());
-            
+
+            // Inject hierarchical trace context for named pipelines
+            if (isNamedPipeline && agent instanceof LLMAgent llmAgent) {
+                llmAgent.setWorkflowContext(getName(), "step-" + i + "-" + agent.getName());
+            }
+
             try {
                 if (variables != null) {
                     result = agent.execute(result, variables);

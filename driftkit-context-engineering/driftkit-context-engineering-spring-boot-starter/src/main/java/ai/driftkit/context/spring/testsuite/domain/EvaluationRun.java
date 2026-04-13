@@ -35,6 +35,9 @@ public class EvaluationRun {
     private String workflow;     // Workflow ID for more advanced processing
     private Double temperature;
     
+    // Linked prompt version (for lifecycle integration)
+    private String linkedPromptId;
+
     // Run status
     private RunStatus status;
     private Long startedAt;

@@ -4,6 +4,8 @@ import ai.driftkit.common.domain.CreatePromptRequest;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.context.spring.testsuite.domain.PromptMethodConfig;
+import ai.driftkit.context.spring.testsuite.repository.PromptMethodConfigRepository;
 import ai.driftkit.common.domain.RestResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.BooleanUtils;
@@ -20,6 +22,9 @@ public class PromptRestController {
 
     @Autowired
     private PromptService promptService;
+
+    @Autowired(required = false)
+    private PromptMethodConfigRepository promptMethodConfigRepository;
 
     @PostMapping("/create-if-not-exists")
     public @ResponseBody RestResponse<Prompt> createIfNotExists(
@@ -129,5 +134,157 @@ public class PromptRestController {
                 .sorted((a, b) -> Integer.compare(b.getVersion(), a.getVersion()))
                 .toList();
         return new RestResponse<>(true, sorted);
+    }
+
+    // --- Lifecycle Endpoints ---
+
+    @PostMapping("/{method}/publish")
+    public @ResponseBody RestResponse<Prompt> publish(
+            @PathVariable String method,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        Prompt draft = findPromptByMethodLanguageAndState(method, language, Prompt.State.DRAFT);
+        if (draft == null) {
+            return new RestResponse<>(false, null, "No DRAFT prompt found for " + method + " / " + language);
+        }
+
+        // Mark old CURRENT as REPLACED
+        promptService.getPromptsByMethodsAndState(List.of(method), Prompt.State.CURRENT).stream()
+                .filter(p -> p.getLanguage() == language)
+                .forEach(p -> {
+                    p.setState(Prompt.State.REPLACED);
+                    promptService.savePrompt(p);
+                });
+
+        draft.setState(Prompt.State.CURRENT);
+        draft.setUpdatedTime(System.currentTimeMillis());
+        Prompt saved = promptService.savePrompt(draft);
+        return new RestResponse<>(true, saved);
+    }
+
+    @PostMapping("/{method}/submit-for-testing")
+    public @ResponseBody RestResponse<Prompt> submitForTesting(
+            @PathVariable String method,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        Prompt draft = findPromptByMethodLanguageAndState(method, language, Prompt.State.DRAFT);
+        if (draft == null) {
+            return new RestResponse<>(false, null, "No DRAFT prompt found for " + method + " / " + language);
+        }
+
+        draft.setState(Prompt.State.AUTO_TESTING);
+        draft.setUpdatedTime(System.currentTimeMillis());
+        Prompt saved = promptService.savePrompt(draft);
+        return new RestResponse<>(true, saved);
+    }
+
+    @PostMapping("/{method}/approve")
+    public @ResponseBody RestResponse<Prompt> approve(
+            @PathVariable String method,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        Prompt testing = findPromptByMethodLanguageAndState(method, language, Prompt.State.MANUAL_TESTING);
+        if (testing == null) {
+            return new RestResponse<>(false, null, "No MANUAL_TESTING prompt found for " + method + " / " + language);
+        }
+
+        // Mark old CURRENT as REPLACED
+        promptService.getPromptsByMethodsAndState(List.of(method), Prompt.State.CURRENT).stream()
+                .filter(p -> p.getLanguage() == language)
+                .forEach(p -> {
+                    p.setState(Prompt.State.REPLACED);
+                    promptService.savePrompt(p);
+                });
+
+        testing.setState(Prompt.State.CURRENT);
+        testing.setApprovedTime(System.currentTimeMillis());
+        testing.setUpdatedTime(System.currentTimeMillis());
+        Prompt saved = promptService.savePrompt(testing);
+        return new RestResponse<>(true, saved);
+    }
+
+    @PostMapping("/{method}/reject")
+    public @ResponseBody RestResponse<Prompt> reject(
+            @PathVariable String method,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        Prompt testing = findPromptByMethodLanguageAndState(method, language, Prompt.State.MANUAL_TESTING);
+        if (testing == null) {
+            testing = findPromptByMethodLanguageAndState(method, language, Prompt.State.AUTO_TESTING);
+        }
+        if (testing == null) {
+            return new RestResponse<>(false, null, "No testing prompt found for " + method + " / " + language);
+        }
+
+        testing.setState(Prompt.State.DRAFT);
+        testing.setUpdatedTime(System.currentTimeMillis());
+        Prompt saved = promptService.savePrompt(testing);
+        return new RestResponse<>(true, saved);
+    }
+
+    @PostMapping("/{method}/restore")
+    public @ResponseBody RestResponse<Prompt> restore(
+            @PathVariable String method,
+            @RequestParam int version,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        List<Prompt> all = promptService.getPromptsByMethods(List.of(method));
+        Prompt source = all.stream()
+                .filter(p -> p.getVersion() == version && p.getLanguage() == language)
+                .findFirst()
+                .orElse(null);
+
+        if (source == null) {
+            return new RestResponse<>(false, null, "Version " + version + " not found for " + method);
+        }
+
+        // Create new DRAFT from old version
+        Prompt restored = new Prompt();
+        restored.setMethod(source.getMethod());
+        restored.setMessage(source.getMessage());
+        restored.setSystemMessage(source.getSystemMessage());
+        restored.setState(Prompt.State.DRAFT);
+        restored.setModelId(source.getModelId());
+        restored.setWorkflow(source.getWorkflow());
+        restored.setLanguage(source.getLanguage());
+        restored.setTemperature(source.getTemperature());
+        restored.setJsonRequest(source.isJsonRequest());
+        restored.setJsonResponse(source.isJsonResponse());
+        restored.setResponseFormat(source.getResponseFormat());
+
+        Prompt saved = promptService.savePrompt(restored);
+        return new RestResponse<>(true, saved);
+    }
+
+    // --- Config Endpoints ---
+
+    @GetMapping("/config/{method}")
+    public @ResponseBody RestResponse<PromptMethodConfig> getConfig(@PathVariable String method) {
+        if (promptMethodConfigRepository == null) {
+            return new RestResponse<>(false, null, "Config repository not available");
+        }
+        PromptMethodConfig config = promptMethodConfigRepository.findById(method)
+                .orElse(PromptMethodConfig.builder().method(method).build());
+        return new RestResponse<>(true, config);
+    }
+
+    @PutMapping("/config/{method}")
+    public @ResponseBody RestResponse<PromptMethodConfig> saveConfig(
+            @PathVariable String method,
+            @RequestBody PromptMethodConfig config
+    ) {
+        if (promptMethodConfigRepository == null) {
+            return new RestResponse<>(false, null, "Config repository not available");
+        }
+        config.setMethod(method);
+        PromptMethodConfig saved = promptMethodConfigRepository.save(config);
+        return new RestResponse<>(true, saved);
+    }
+
+    private Prompt findPromptByMethodLanguageAndState(String method, Language language, Prompt.State state) {
+        return promptService.getPromptsByMethodsAndState(List.of(method), state).stream()
+                .filter(p -> p.getLanguage() == language)
+                .findFirst()
+                .orElse(null);
     }
 }

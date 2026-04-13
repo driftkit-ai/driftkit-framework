@@ -77,10 +77,19 @@ public class LLMAgent implements Agent {
     // Custom properties to attach to saved messages (e.g. persona name)
     private final Map<String, String> messageProperties;
 
-    // Workflow context fields for tracing
-    private final String workflowId;
-    private final String workflowType;
-    private final String workflowStep;
+    // Workflow context fields for tracing (mutable for hierarchical agent context injection)
+    private String workflowId;
+    private String workflowType;
+    private String workflowStep;
+
+    /**
+     * Set workflow context for hierarchical tracing.
+     * Called by SequentialAgent/LoopAgent to link sub-agent traces to parent pipeline.
+     */
+    public void setWorkflowContext(String workflowId, String workflowStep) {
+        this.workflowId = workflowId;
+        this.workflowStep = workflowStep;
+    }
 
     // Default temperature for structured extraction
     private static final double STRUCTURED_EXTRACTION_TEMPERATURE = 0.1;

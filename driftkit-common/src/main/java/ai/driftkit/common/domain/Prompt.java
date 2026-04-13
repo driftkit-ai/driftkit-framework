@@ -69,9 +69,9 @@ public class Prompt {
     }
 
     public enum State {
-        MODERATION,
-        MANUAL_TESTING,
+        DRAFT,
         AUTO_TESTING,
+        MANUAL_TESTING,
         CURRENT,
         REPLACED
     }
