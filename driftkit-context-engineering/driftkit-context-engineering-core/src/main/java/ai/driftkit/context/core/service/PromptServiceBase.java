@@ -32,6 +32,30 @@ public interface PromptServiceBase {
     }
 
     default Prompt getCurrentPromptOrThrow(String method, Language language) {
+        // Check for prompt override (pipeline testing)
+        String override = PromptOverrideContext.getOverride(method);
+        if (override != null) {
+            Prompt overridden = new Prompt();
+            overridden.setMethod(method);
+            overridden.setMessage(override);
+            overridden.setLanguage(language);
+            overridden.setState(Prompt.State.CURRENT);
+            return overridden;
+        }
+
+        // Check for environment-specific version
+        Integer envVersion = PromptEnvironmentResolver.resolveVersion(method, language);
+        if (envVersion != null) {
+            List<Prompt> allVersions = getPromptsByMethods(List.of(method));
+            Optional<Prompt> envPrompt = allVersions.stream()
+                    .filter(p -> p.getVersion() == envVersion && p.getLanguage() == language)
+                    .findFirst();
+            if (envPrompt.isPresent()) {
+                return envPrompt.get();
+            }
+            // Fall through to CURRENT if env version not found
+        }
+
         List<Prompt> prompts = getCurrentPromptsForMethodStateAndLanguage(List.of(method), language);
 
         if (prompts.isEmpty()) {
@@ -46,6 +70,17 @@ public interface PromptServiceBase {
     }
 
     default Optional<Prompt> getCurrentPrompt(String method, Language language) {
+        // Check for prompt override (pipeline testing)
+        String override = PromptOverrideContext.getOverride(method);
+        if (override != null) {
+            Prompt overridden = new Prompt();
+            overridden.setMethod(method);
+            overridden.setMessage(override);
+            overridden.setLanguage(language);
+            overridden.setState(Prompt.State.CURRENT);
+            return Optional.of(overridden);
+        }
+
         List<Prompt> prompts = getCurrentPromptsForMethodStateAndLanguage(List.of(method), language);
 
         if (prompts.isEmpty()) {
