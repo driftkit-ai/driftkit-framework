@@ -16,7 +16,6 @@ export default defineConfig({
       '/data': {
         target: 'http://localhost:8085',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/data/, ''),
         secure: false,
       },
     },
