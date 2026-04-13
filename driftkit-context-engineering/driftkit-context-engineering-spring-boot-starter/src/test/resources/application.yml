@@ -1,0 +1,22 @@
+server:
+  port: 8085
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/driftkit
+      database: driftkit
+
+driftkit:
+  etl:
+    vault:
+      - apiKey: ${DEEPSEEK_API_KEY:}
+        model: deepseek-chat
+        provider: deepseek
+      - apiKey: ${OPENAI_API_KEY:}
+        model: gpt-4o-mini
+        provider: openai
+  prompt-service:
+    type: mongodb
+  regression:
+    cron: "0 0 3 * * ?"
