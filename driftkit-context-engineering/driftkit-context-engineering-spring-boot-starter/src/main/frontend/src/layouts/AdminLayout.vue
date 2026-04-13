@@ -138,7 +138,7 @@ const { logout } = useAuth();
 const route = useRoute();
 const sidebarCollapsed = ref(false);
 
-const menuItems = [
+const allMenuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: 'pi pi-chart-bar' },
   { path: '/prompts', label: 'Prompts', icon: 'pi pi-file-edit' },
   { path: '/traces', label: 'Traces', icon: 'pi pi-list' },
@@ -147,10 +147,23 @@ const menuItems = [
   { path: '/pipelines', label: 'Pipelines', icon: 'pi pi-sitemap' },
   { path: '/playground', label: 'Playground', icon: 'pi pi-sliders-h' },
   { path: '/chat', label: 'Chat', icon: 'pi pi-comments' },
-  { path: '/indexes', label: 'Indexes', icon: 'pi pi-search' },
-  { path: '/dictionaries', label: 'Dictionaries', icon: 'pi pi-book' },
-  { path: '/checklists', label: 'Checklists', icon: 'pi pi-check-circle' },
+  { path: '/indexes', label: 'Indexes', icon: 'pi pi-search', probe: '/data/v1.0/admin/index/list' },
+  { path: '/dictionaries', label: 'Dictionaries', icon: 'pi pi-book', probe: '/data/v1.0/admin/dictionary/' },
+  { path: '/checklists', label: 'Checklists', icon: 'pi pi-check-circle', probe: '/data/v1.0/admin/checklist/' },
 ];
+
+// Check which optional pages are available
+const menuItems = ref(allMenuItems.filter(i => !i.probe));
+
+onMounted(async () => {
+  fetchIndexesList();
+  for (const item of allMenuItems.filter(i => i.probe)) {
+    try {
+      await axios.get(item.probe);
+      menuItems.value.push(item);
+    } catch { /* endpoint not available — hide from sidebar */ }
+  }
+});
 
 const isActive = (path: string) => route.path.startsWith(path);
 
