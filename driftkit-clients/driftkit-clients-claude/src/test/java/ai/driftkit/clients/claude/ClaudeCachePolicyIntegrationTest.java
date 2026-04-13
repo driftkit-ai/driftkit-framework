@@ -75,12 +75,14 @@ class ClaudeCachePolicyIntegrationTest {
         assertNotNull(usage1);
 
         System.out.println("Request 1 (AUTO cache, large system): prompt=" + usage1.getPromptTokens());
-        if (usage1.getCacheUsage() != null) {
-            System.out.println("  Cache write=" + usage1.getCacheUsage().getCacheWriteTokens()
-                    + " hit=" + usage1.getCacheUsage().getCacheHitTokens());
-        }
-        // Note: cache_write may be 0 if prompt is below Claude's minimum cache threshold
-        // The test verifies no API error occurs and cache metrics are returned
+        assertNotNull(usage1.getCacheUsage(), "Cache usage should be reported when cache_control is set");
+        System.out.println("  Cache write=" + usage1.getCacheUsage().getCacheWriteTokens()
+                + " hit=" + usage1.getCacheUsage().getCacheHitTokens());
+        // First request: either writes to cache OR hits existing cache (from previous test run)
+        int write1 = usage1.getCacheUsage().getCacheWriteTokens() != null ? usage1.getCacheUsage().getCacheWriteTokens() : 0;
+        int hit1 = usage1.getCacheUsage().getCacheHitTokens() != null ? usage1.getCacheUsage().getCacheHitTokens() : 0;
+        assertTrue(write1 > 0 || hit1 > 0,
+                "First request with 7600+ token system should either write to or hit cache");
 
         // Second identical request — should get cache hit
         ModelTextRequest request2 = ModelTextRequest.builder()
@@ -106,13 +108,11 @@ class ClaudeCachePolicyIntegrationTest {
             System.out.println("  Cache hit=" + cache.getCacheHitTokens()
                     + " write=" + cache.getCacheWriteTokens()
                     + " ratio=" + String.format("%.2f", cache.getHitRatio()));
-            // Cache hit should be present for second identical request
-            // Note: Claude cache may not always hit immediately depending on server-side caching
-            if (cache.getCacheHitTokens() != null && cache.getCacheHitTokens() > 0) {
-                System.out.println("  Cache hit confirmed!");
-            } else {
-                System.out.println("  Cache miss on second request (may need more time to warm up)");
-            }
+            // Second identical request should hit cache (written by first request or earlier run)
+            int hit2 = cache.getCacheHitTokens() != null ? cache.getCacheHitTokens() : 0;
+            int write2 = cache.getCacheWriteTokens() != null ? cache.getCacheWriteTokens() : 0;
+            assertTrue(hit2 > 0 || write2 > 0,
+                    "Second request should have cache interaction (hit or write)");
         }
     }
 
