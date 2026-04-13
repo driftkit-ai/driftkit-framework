@@ -168,7 +168,7 @@ onMounted(async () => {
 const isActive = (path: string) => route.path.startsWith(path);
 
 const currentPageTitle = computed(() => {
-  const item = menuItems.find((i) => isActive(i.path));
+  const item = menuItems.value.find((i) => isActive(i.path));
   return item?.label || 'DriftKit';
 });
 
