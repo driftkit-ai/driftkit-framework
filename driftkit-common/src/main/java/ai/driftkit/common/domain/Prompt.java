@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -15,6 +16,7 @@ import java.util.Map;
  * Unified Prompt domain object used across all DriftKit modules.
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(Include.NON_NULL)
@@ -28,8 +30,10 @@ public class Prompt {
     private String systemMessage;
     private State state;
     private String modelId;
+    @Builder.Default
     private ResolveStrategy resolveStrategy = ResolveStrategy.LAST_VERSION;
     private String workflow;
+    @Builder.Default
     private Language language = Language.GENERAL;
     private Double temperature;
     private boolean jsonRequest;
