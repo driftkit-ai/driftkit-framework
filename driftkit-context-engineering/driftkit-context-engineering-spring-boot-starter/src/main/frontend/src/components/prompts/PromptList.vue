@@ -64,10 +64,15 @@
           </template>
         </Column>
         <Column field="language" header="Language" style="width: 100px" />
-        <Column field="state" header="State" style="width: 100px">
+        <Column field="state" header="State" style="width: 130px">
           <template #body="{ data }">
             <Tag v-if="data._isFolder" value="Folder" severity="secondary" />
-            <Tag v-else :value="data.state" :severity="data.state === 'CURRENT' ? 'success' : 'secondary'" />
+            <Tag v-else :value="data.state" :severity="stateSeverity(data.state)" />
+          </template>
+        </Column>
+        <Column field="version" header="Ver" style="width: 60px">
+          <template #body="{ data }">
+            <span v-if="!data._isFolder && data.version">v{{ data.version }}</span>
           </template>
         </Column>
         <Column header="Created" style="width: 160px">
@@ -155,6 +160,17 @@ const tableData = computed(() => {
   }
   return rows;
 });
+
+const stateSeverity = (state: string) => {
+  switch (state) {
+    case 'CURRENT': return 'success';
+    case 'DRAFT': return 'secondary';
+    case 'AUTO_TESTING': return 'info';
+    case 'MANUAL_TESTING': return 'warn';
+    case 'REPLACED': return 'contrast';
+    default: return 'secondary';
+  }
+};
 
 const rowClass = (data: any) => {
   if (data._isFolder) return 'cursor-pointer folder-row';

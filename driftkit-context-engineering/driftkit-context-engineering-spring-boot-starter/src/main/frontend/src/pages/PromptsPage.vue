@@ -40,9 +40,14 @@
       @update:saveForAllLanguages="saveForAllLanguages = $event"
       @execute="executePrompt"
       @save="savePromptOnly"
+      @publish="publishPrompt"
+      @submit-for-testing="submitForTesting"
       @open-test-runs="openTestRunsModal"
       @load-random="loadRandomTaskVariables"
     />
+
+    <!-- Version History -->
+    <VersionHistory :method="promptForm.method" :language="promptForm.language" @restored="fetchPrompts" />
 
     <!-- Response Display -->
     <PromptResponse
@@ -84,11 +89,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 import PromptList from '@/components/prompts/PromptList.vue';
 import PromptEditor from '@/components/prompts/PromptEditor.vue';
 import PromptResponse from '@/components/prompts/PromptResponse.vue';
+import VersionHistory from '@/components/prompts/VersionHistory.vue';
 import TestRunDialog from '@/components/prompts/TestRunDialog.vue';
 import { usePromptsState, useTestRunState } from '@/components/prompts/promptsTab/state';
 import { usePromptsComputed, useTestRunComputed } from '@/components/prompts/promptsTab/computed';
@@ -140,6 +147,34 @@ const {
   openTestRunsModal, closeTestRunsModal, loadTestSetEvaluations,
   createTestRun, viewTestResults, cleanupPolling,
 } = testRunMethods;
+
+// Lifecycle actions
+const publishPrompt = async () => {
+  if (!promptForm.value.method) return;
+  try {
+    // First save as current state, then publish
+    await savePromptOnly();
+    await axios.post(`/data/v1.0/admin/prompt/${encodeURIComponent(promptForm.value.method)}/publish`, null, {
+      params: { language: promptForm.value.language },
+    });
+    fetchPrompts();
+  } catch (e: any) {
+    alert('Error publishing: ' + (e.response?.data?.message || e.message));
+  }
+};
+
+const submitForTesting = async () => {
+  if (!promptForm.value.method) return;
+  try {
+    await savePromptOnly();
+    await axios.post(`/data/v1.0/admin/prompt/${encodeURIComponent(promptForm.value.method)}/submit-for-testing`, null, {
+      params: { language: promptForm.value.language },
+    });
+    fetchPrompts();
+  } catch (e: any) {
+    alert('Error submitting for testing: ' + (e.response?.data?.message || e.message));
+  }
+};
 
 onMounted(() => {
   fetchPrompts();

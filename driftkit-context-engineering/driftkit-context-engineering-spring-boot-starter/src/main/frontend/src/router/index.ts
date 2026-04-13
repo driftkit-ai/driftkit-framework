@@ -9,6 +9,7 @@ import TracesPage from '@/pages/TracesPage.vue';
 import TestSetsPage from '@/pages/TestSetsPage.vue';
 import EvaluationRunsPage from '@/pages/EvaluationRunsPage.vue';
 import ChatPage from '@/pages/ChatPage.vue';
+import PipelinesPage from '@/pages/PipelinesPage.vue';
 
 // Existing views (will be replaced with PrimeVue pages later)
 import RunResultsView from '@/views/RunResultsView.vue';
@@ -38,6 +39,7 @@ const routes = [
         component: RunResultsView,
         props: (route: RouteLocationNormalizedLoaded) => ({ runId: route.query.runId }),
       },
+      { path: 'pipelines', name: 'Pipelines', component: PipelinesPage },
       { path: 'chat', name: 'Chat', component: ChatPage },
       { path: 'indexes', name: 'Indexes', component: IndexesView },
       { path: 'dictionaries', name: 'Dictionaries', component: DictionariesView },

@@ -111,10 +111,12 @@
       </div>
 
       <!-- Actions -->
-      <div class="d-flex gap-2">
-        <Button label="Execute Prompt" icon="pi pi-play" @click="$emit('execute')" />
-        <Button label="Save Prompt" icon="pi pi-save" severity="success" @click="$emit('save')" />
-        <Button label="Run With Test Set" icon="pi pi-cog" severity="info" @click="$emit('open-test-runs')" />
+      <div class="d-flex flex-wrap gap-2">
+        <Button label="Execute" icon="pi pi-play" @click="$emit('execute')" />
+        <Button label="Save Draft" icon="pi pi-save" severity="secondary" @click="$emit('save')" />
+        <Button label="Publish Directly" icon="pi pi-check" severity="success" @click="$emit('publish')" />
+        <Button label="Submit for Testing" icon="pi pi-flask" severity="info" @click="$emit('submit-for-testing')" />
+        <Button label="Run With Test Set" icon="pi pi-cog" severity="secondary" outlined @click="$emit('open-test-runs')" />
       </div>
     </div>
   </div>
@@ -142,7 +144,7 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'update:promptForm', 'update:showPreview', 'update:savePrompt', 'update:saveForAllLanguages',
-  'execute', 'save', 'open-test-runs', 'load-random',
+  'execute', 'save', 'publish', 'submit-for-testing', 'open-test-runs', 'load-random',
 ]);
 
 const updateField = (field: string, value: any) => {
