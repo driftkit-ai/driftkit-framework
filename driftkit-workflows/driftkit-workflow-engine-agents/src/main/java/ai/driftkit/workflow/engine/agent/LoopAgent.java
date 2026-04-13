@@ -259,11 +259,11 @@ public class LoopAgent implements Agent {
                     .name(getName())
                     .description(getDescription())
                     .type(PipelineDefinition.PipelineType.LOOP_AGENT)
-                    .steps(java.util.List.of(
+                    .steps(List.of(
                             PipelineStep.builder().stepId("worker").agentName(worker.getName()).order(0).type(PipelineStep.StepType.LOOP_WORKER).build(),
                             PipelineStep.builder().stepId("evaluator").agentName(evaluator.getName()).order(1).type(PipelineStep.StepType.LOOP_EVALUATOR).build()
                     ))
-                    .config(java.util.Map.of("maxIterations", maxIterations, "stopCondition", stopCondition.name()))
+                    .config(Map.of("maxIterations", maxIterations, "stopCondition", stopCondition.name()))
                     .build());
         } catch (Exception e) {
             log.warn("Failed to register LoopAgent '{}' in pipeline registry", getName(), e);

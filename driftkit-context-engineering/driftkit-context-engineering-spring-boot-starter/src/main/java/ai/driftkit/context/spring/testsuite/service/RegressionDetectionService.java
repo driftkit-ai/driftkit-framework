@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Scheduled service that runs regression tests on all registered pipelines
@@ -92,7 +94,7 @@ public class RegressionDetectionService {
 
     private PipelineTestRun waitForCompletion(String runId, long timeoutMs) {
         try {
-            return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            return CompletableFuture.supplyAsync(() -> {
                 while (true) {
                     PipelineTestRun run = runRepository.findById(runId).orElse(null);
                     if (run != null && (run.getStatus() == PipelineTestRun.RunStatus.COMPLETED
@@ -103,7 +105,7 @@ public class RegressionDetectionService {
                         Thread.currentThread().interrupt(); return null;
                     }
                 }
-            }).get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            }).get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             log.warn("Timeout waiting for pipeline test run {}", runId);
             return null;

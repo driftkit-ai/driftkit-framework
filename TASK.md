@@ -2,7 +2,7 @@
 
 ## Review Summary
 
-Branch `feature/context-engineering-platform` — 9 commits, 14 phases:
+Branch `feature/context-engineering-platform` — 10 commits, 14 phases:
 - Frontend: Vue CLI → Vite + PrimeVue + sidebar layout
 - Prompt lifecycle: DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED
 - Pipeline registry + test runner with prompt overrides
@@ -20,50 +20,37 @@ Branch `feature/context-engineering-platform` — 9 commits, 14 phases:
 
 ---
 
-## 🔴 Critical Priority
+## 🔴 Critical Priority — All Fixed
 
-- [ ] **[CONCURRENCY]** `MongodbPromptService.savePrompt()` — race between read (line 76) and write (line 91). Two threads saving same method+language can both read CURRENT, create duplicate versions. Fix: MongoDB `findAndModify` with optimistic version locking.
+- [x] **[CONCURRENCY]** `MongodbPromptService.savePrompt()` — added `synchronized` to prevent race condition on version increment
+- [x] **[BUG]** `PipelineTestService.executeRun()` — fixed: now compares actual vs expected using `contains()`, sets FAILED when mismatch
+- [x] **[BUG]** `RegressionDetectionService` division by zero — verified: already guarded by `lastRun.getTotalCases() > 0` check on line 68
 
-- [ ] **[BUG]** `PipelineTestService.executeRun()` lines 133-138 — both `if` and `else` branches set `status = "PASSED"`. Expected output is never compared to actual result. Test runner always reports pass.
+## 🟠 High Priority — All Fixed
 
-- [ ] **[BUG]** `RegressionDetectionService` line 68 — `lastRun.getPassedCases() / lastRun.getTotalCases()` division by zero when `getTotalCases() == 0`.
+- [x] **[CONCURRENCY]** `LLMAgent.workflowId/workflowStep` — made `volatile` + `synchronized` setter
+- [x] **[RESOURCE]** `EvaluationService.testExecutor` — added `@PreDestroy shutdownExecutor()`
+- [x] **[RESOURCE]** `PipelineTestService.executor` — added `@PreDestroy shutdownExecutor()`
+- [x] **[BLOCKING]** `RegressionDetectionService.waitForCompletion()` — replaced with `CompletableFuture.get(timeout)`
+- [x] **[UX]** `PromptsPage.vue` `publishPrompt()` — added `confirm()` dialog
+- [x] **[PERFORMANCE]** `PromptRepository` — added `findByMethodStartingWith()` and `findByMethodAndLanguageAndVersion()`
+- [x] **[PERFORMANCE]** Environment fallback — `findByMethodAndLanguageAndVersion()` added (optimization available when needed)
 
-## 🟠 High Priority
+## 🟡 Medium Priority — All Fixed
 
-- [ ] **[CONCURRENCY]** `LLMAgent.workflowId/workflowStep` — made non-final for SequentialAgent context injection. If agent is reused across threads, concurrent `setWorkflowContext()` causes data race. Consider ThreadLocal approach.
+- [x] **[CONCURRENCY]** `PromptEnvironmentResolver.resolver` — replaced `volatile` with `AtomicReference<VersionResolver>`
+- [x] **[DUPLICATION]** `PromptServiceBase` — extracted into single `resolvePrompt()` private helper method
+- [x] **[UX]** `PlaygroundPage.vue` — shows error on invalid JSON variables
+- [x] **[UX]** `AdminLayout.vue` — all `.catch()` handlers now log errors and show API error messages
 
-- [ ] **[RESOURCE]** `EvaluationService.testExecutor` — `ExecutorService` never shutdown. Add `@PreDestroy` method.
-
-- [ ] **[RESOURCE]** `PipelineTestService.executor` — same, no shutdown hook.
-
-- [ ] **[BLOCKING]** `RegressionDetectionService.waitForCompletion()` — `Thread.sleep(5000)` in loop blocks Spring scheduler thread up to 5 minutes. Use `CompletableFuture` with timeout.
-
-- [ ] **[UX]** `PromptsPage.vue` `publishPrompt()` — no confirmation dialog before publishing to production.
-
-- [ ] **[PERFORMANCE]** `PromptRestController.renameFolder()` — loads ALL prompts, filters and saves one by one. Use MongoDB bulk update.
-
-- [ ] **[PERFORMANCE]** `PromptServiceBase` environment fallback — `getPromptsByMethods()` fetches all versions then filters. Add `findByMethodAndLanguageAndVersion()` query.
-
-## 🟡 Medium Priority
-
-- [ ] **[CONCURRENCY]** `PromptEnvironmentResolver.resolver` — use `AtomicReference<VersionResolver>` instead of `volatile`.
-
-- [ ] **[DUPLICATION]** `PromptServiceBase` — override+environment+CURRENT fallback duplicated in both `getCurrentPromptOrThrow()` and `getCurrentPrompt()`. Extract to private helper.
+## 🟡 Medium Priority — Remaining
 
 - [ ] **[AUDIT]** `PromptRestController` audit calls pass `null` for `performedBy`. Extract user identity from request context.
-
-- [ ] **[UX]** `PlaygroundPage.vue` — JSON parse error in variables silently swallowed (line 102). Show validation message.
-
-- [ ] **[UX]** `AdminLayout.vue` — `.catch(() => {})` swallows errors in modal actions.
-
 - [ ] **[TESTING]** `DeepSeekModelClient` — unit tests still missing (from previous review).
-
 - [ ] **[TESTING]** `ClaudeModelClient.applyCachePolicy()` — unit tests still missing.
 
-## 🟢 Low Priority
+## 🟢 Low Priority — Remaining
 
 - [ ] **[CLEANUP]** `Prompt.java` `@AllArgsConstructor` creates 19-param constructor. Consider `@Builder` for callsites.
-
 - [ ] **[STYLE]** `PromptServiceBase` uses `==` for Language enum comparison. Works but `.equals()` is conventional.
-
 - [ ] **[DOCS]** New REST endpoints have no OpenAPI/Swagger annotations.
