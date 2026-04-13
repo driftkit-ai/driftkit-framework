@@ -6,18 +6,13 @@ export function usePromptMethods(state: PromptsState, emit: any) {
   // Fetch all prompts
   const fetchPrompts = () => {
     state.loading.value = true;
-    console.log('⏳ Starting fetchPrompts()');
 
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
     axios.get('/data/v1.0/admin/prompt/', {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
     }).then(response => {
-      console.log('✅ Prompts API response:', response.data);
-
       if (response.data && response.data.data) {
-        // Check what came from the API
         const apiData = response.data.data;
-        console.log('📊 API data type:', typeof apiData, 'isArray:', Array.isArray(apiData), 'length:', apiData.length);
 
         if (Array.isArray(apiData)) {
           if (apiData.length > 0) {
@@ -29,62 +24,50 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
             // Set to the ref
             state.prompts.value = promptsArray;
-
-            console.log('🔄 Sorted prompts successfully, first prompt:', promptsArray[0]);
-            console.log('✅ prompts.value after assignment:', state.prompts.value);
-            console.log('✅ prompts.value.length:', state.prompts.value.length);
           } else {
-            console.warn('⚠️ API returned empty array for prompts');
+            console.warn('API returned empty array for prompts');
             state.prompts.value = [];
           }
         } else {
-          console.error('❌ API data is not an array:', apiData);
+          console.error('API data is not an array:', apiData);
           state.prompts.value = [];
         }
       } else {
-        console.error('❌ Unexpected response format:', response.data);
+        console.error('Unexpected response format:', response.data);
         state.prompts.value = [];
       }
-
-      // Log the final state of prompts
-      console.log('🔍 Final prompts.value:', state.prompts.value);
-      console.log('📏 Final prompts length:', state.prompts.value.length);
     }).catch(error => {
-      console.error('❌ Error fetching prompts:', error);
+      console.error('Error fetching prompts:', error);
       state.prompts.value = [];
     }).finally(() => {
       state.loading.value = false;
-      console.log('✅ fetchPrompts() completed, loading:', state.loading.value);
     });
   };
 
   // Fetch available workflows
   const fetchWorkflows = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
     axios.get('/data/v1.0/admin/workflows', {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
     }).then(response => {
-      console.log('✅ Workflows API response:', response.data);
       if (response.data && response.data.data) {
         state.workflows.value = response.data.data;
       } else if (Array.isArray(response.data)) {
         state.workflows.value = response.data;
       } else {
-        console.warn('⚠️ Unexpected workflows response format:', response.data);
+        console.warn('Unexpected workflows response format:', response.data);
         state.workflows.value = [];
       }
     }).catch(error => {
-      console.error('❌ Error fetching workflows:', error);
+      console.error('Error fetching workflows:', error);
       state.workflows.value = [];
     });
   };
 
   // Select a prompt by ID
   const selectPrompt = (id: string) => {
-    console.log(`🔍 Selecting prompt with ID: "${id}"`);
-
     if (!id) {
-      console.warn('⚠️ Cannot select prompt: Empty ID provided');
+      console.warn('Cannot select prompt: Empty ID provided');
       return;
     }
 
@@ -95,13 +78,10 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
     // Find the prompt in the array
     const selectedPrompt = state.prompts.value.find(p => p.id === id);
-    console.log(`🔍 Found prompt for ID "${id}":`, selectedPrompt);
 
     if (selectedPrompt) {
-      console.log(`✅ Updating prompt form with data for "${selectedPrompt.method}"`);
-
       // Update form fields
-      state.promptForm.value.promptId = selectedPrompt.method;
+      state.promptForm.value.method = selectedPrompt.method;
       state.promptForm.value.message = selectedPrompt.message;
       state.promptForm.value.systemMessage = selectedPrompt.systemMessage || '';
       state.promptForm.value.workflow = selectedPrompt.workflow || '';
@@ -111,7 +91,6 @@ export function usePromptMethods(state: PromptsState, emit: any) {
       // Convert language to uppercase to ensure correct selection in dropdown
       const promptLanguage = selectedPrompt.language || 'GENERAL';
       state.promptForm.value.language = promptLanguage.toUpperCase();
-      console.log(`🌐 Setting language: "${promptLanguage}" → "${state.promptForm.value.language}"`);
 
       state.promptForm.value.jsonRequest = selectedPrompt.jsonRequest || false;
       state.promptForm.value.jsonResponse = selectedPrompt.jsonResponse || false;
@@ -134,10 +113,8 @@ export function usePromptMethods(state: PromptsState, emit: any) {
         state.promptForm.value.variableValues[variable] = '';
       });
 
-      console.log(`📝 Updated form with ${state.promptForm.value.variables.length} variables`);
     } else {
-      console.error(`❌ Cannot find prompt with ID "${id}" in prompts array`);
-      console.log('Available prompt IDs:', state.prompts.value.map(p => p.id));
+      console.error(`Cannot find prompt with ID "${id}" in prompts array`);
     }
   };
 
@@ -160,7 +137,6 @@ export function usePromptMethods(state: PromptsState, emit: any) {
     state.selectedPrompts.value = [];
     state.expandedMethods.value = [];
 
-    console.log(`📁 Navigating to folder: "${state.currentFolder.value}"`);
   };
 
   // Go to root folder
@@ -172,7 +148,6 @@ export function usePromptMethods(state: PromptsState, emit: any) {
     state.selectedPrompts.value = [];
     state.expandedMethods.value = [];
 
-    console.log('📁 Navigating to root folder');
   };
 
   // Format timestamp to readable date/time
@@ -210,7 +185,7 @@ export function usePromptMethods(state: PromptsState, emit: any) {
     if (confirm(`Are you sure you want to delete prompt "${prompt.method}"?`)) {
       state.loading.value = true;
 
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.delete(`/data/v1.0/admin/prompt/${prompt.id}`, {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(() => {
@@ -229,7 +204,7 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
     if (confirm(`Are you sure you want to delete ${state.selectedPrompts.value.length} selected prompts?`)) {
       state.loading.value = true;
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
 
       // Delete prompts one by one
       const deletePromises = state.selectedPrompts.value.map(id => {
@@ -254,7 +229,7 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
   // Execute a prompt
   const executePrompt = () => {
-    if (!state.promptForm.value.promptId) {
+    if (!state.promptForm.value.method) {
       alert('Please enter a prompt ID.');
       return;
     }
@@ -265,12 +240,11 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
     // Ensure language is in uppercase
     const language = (state.promptForm.value.language || 'GENERAL').toUpperCase();
-    console.log(`🌐 Using language for execution: "${language}" (from "${state.promptForm.value.language}")`);
 
     const requestData: any = {
       promptIds: [
         {
-          promptId: state.promptForm.value.promptId,
+          promptId: state.promptForm.value.method,
           prompt: state.promptForm.value.message,
           temperature: state.promptForm.value.temperature !== null ? state.promptForm.value.temperature : undefined
         }
@@ -289,13 +263,10 @@ export function usePromptMethods(state: PromptsState, emit: any) {
       requestData.modelId = state.promptForm.value.modelId;
     }
 
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
     axios.post('/data/v1.0/admin/llm/prompt/message/sync', requestData, {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
     }).then(resp => {
-      // Backend returns RestResponse<MessageTask> with nested data structure
-      console.log('API Response:', resp.data);
-
       // Extract data from the nested structure
       if (resp.data && resp.data.data) {
         // Format the result text if it's JSON
@@ -371,22 +342,21 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
   // Save prompt without executing
   const savePromptOnly = async () => {
-    if (!state.promptForm.value.promptId) {
+    if (!state.promptForm.value.method) {
       alert('Please enter a prompt ID.');
       return;
     }
 
     state.loading.value = true;
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     try {
       // Ensure the language is in uppercase
       const currentLanguage = (state.promptForm.value.language || 'GENERAL').toUpperCase();
-      console.log(`🌐 Using language for saving: "${currentLanguage}" (from "${state.promptForm.value.language}")`);
 
       // Create base request data without language field
       const baseRequestData = {
-        method: state.promptForm.value.promptId, // Backend expects 'method', not 'promptId'
+        method: state.promptForm.value.method, // Backend expects 'method', not 'promptId'
         message: state.promptForm.value.message,
         systemMessage: state.promptForm.value.systemMessage || '',
         state: 'CURRENT', // Set state explicitly
@@ -402,14 +372,10 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
       if (state.saveForAllLanguages.value) {
         // If saving for all languages, we need to find existing languages for this method
-        // First, get existing prompts for this method
-        console.log('Saving prompt for all existing languages...');
-        const existingPrompts = state.prompts.value.filter(p => p.method === state.promptForm.value.promptId);
-        console.log('Found existing prompts:', existingPrompts);
+        const existingPrompts = state.prompts.value.filter(p => p.method === state.promptForm.value.method);
 
         // Get unique languages and ensure they're all uppercase
         const languages = [...new Set(existingPrompts.map(p => (p.language || 'GENERAL').toUpperCase()))];
-        console.log('Found languages (converted to uppercase):', languages);
 
         if (languages.length === 0) {
           // If no existing languages, just save with the current language
@@ -457,16 +423,16 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
   // Load random task variables
   const loadRandomTaskVariables = () => {
-    if (!state.promptForm.value.promptId || state.promptForm.value.variables.length === 0) {
+    if (!state.promptForm.value.method || state.promptForm.value.variables.length === 0) {
       return;
     }
 
     state.loadingRandomTask.value = true;
 
     // Get current prompt ID using method from the form
-    const promptMethod = state.promptForm.value.promptId;
+    const promptMethod = state.promptForm.value.method;
 
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     // First get the traces to find messageIds/contextIds that used this prompt
     axios.get(`/data/v1.0/analytics/traces?promptId=${encodeURIComponent(promptMethod)}&size=100`, {
@@ -482,7 +448,6 @@ export function usePromptMethods(state: PromptsState, emit: any) {
         )];
 
         if (contextIds.length === 0) {
-          console.log('No tasks found using this prompt');
           state.loadingRandomTask.value = false;
           return;
         }
@@ -504,18 +469,13 @@ export function usePromptMethods(state: PromptsState, emit: any) {
 
         // Check if task has variables
         if (task.variables) {
-          console.log('Found task variables:', task.variables);
-
           // Populate form variables from task
           state.promptForm.value.variables.forEach(variable => {
             if (task.variables[variable] !== undefined) {
               state.promptForm.value.variableValues[variable] = task.variables[variable];
             }
           });
-
-          console.log('Variables loaded from random task');
         } else {
-          console.log('Task has no variables:', task);
           alert('The selected task does not have any variables');
         }
       } else {

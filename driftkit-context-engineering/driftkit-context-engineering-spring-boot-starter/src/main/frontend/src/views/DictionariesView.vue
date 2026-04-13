@@ -231,7 +231,7 @@ export default defineComponent({
         alert('ID and Name are required.');
         return;
       }
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.post('/data/v1.0/admin/dictionary/text', dictionaryForm.value, {
         headers: {
           ...(creds ? { Authorization: 'Basic ' + creds } : {}),
@@ -247,7 +247,7 @@ export default defineComponent({
     };
 
     const fetchDictionaries = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/dictionary/', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) },
       }).then(res => {
@@ -259,7 +259,7 @@ export default defineComponent({
     };
 
     const fetchDictionaryGroups = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/dictionary/group/', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) },
       }).then(res => {
@@ -304,7 +304,7 @@ export default defineComponent({
         alert('ID and Name are required.');
         return;
       }
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.post('/data/v1.0/admin/dictionary/group/', dictionaryGroupForm.value, {
         headers: {
           ...(creds ? { Authorization: 'Basic ' + creds } : {}),
@@ -321,7 +321,7 @@ export default defineComponent({
 
     const deleteDictionaryGroup = (group: DictionaryGroup) => {
       if (confirm(`Are you sure you want to delete group "${group.name}"?`)) {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         axios.delete(`/data/v1.0/admin/dictionary/group/${group.id}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) },
         }).then(() => {

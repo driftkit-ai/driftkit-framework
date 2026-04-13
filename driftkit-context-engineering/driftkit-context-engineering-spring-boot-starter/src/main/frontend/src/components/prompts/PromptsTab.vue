@@ -34,28 +34,10 @@
       
       <div v-else-if="!prompts.length" class="alert alert-info my-4">
         <p class="mb-0">No prompts found. Create a new prompt using the editor below.</p>
-        <div class="mt-2 small text-muted">
-          <strong>Debug Info:</strong>
-          <ul>
-            <li>Loading state: {{ loading }}</li>
-            <li>Prompts array type: {{ typeof prompts }}</li>
-            <li>Prompts length: {{ prompts.length || 0 }}</li>
-            <li>First prompt (if any): {{ prompts.length > 0 ? JSON.stringify(prompts[0]).substring(0, 100) + '...' : 'None' }}</li>
-          </ul>
-        </div>
       </div>
       
       <div v-else-if="Object.keys(groupedPrompts).length === 0" class="alert alert-info my-4">
         <p class="mb-0">No prompts match the current filter or folder. Try a different search or folder.</p>
-        <div class="mt-2 small text-muted">
-          <strong>Debug Info:</strong>
-          <ul>
-            <li>Filtered prompts count: {{ filteredPrompts.length }}</li>
-            <li>Current folder: "{{ currentFolder }}"</li>
-            <li>Search query: "{{ searchQuery }}"</li>
-            <li>First prompt (if any): {{ prompts[0] ? JSON.stringify(prompts[0]).substring(0, 100) + '...' : 'None' }}</li>
-          </ul>
-        </div>
       </div>
       
       <table v-else class="table table-bordered">

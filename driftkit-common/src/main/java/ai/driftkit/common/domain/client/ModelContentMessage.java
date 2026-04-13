@@ -55,11 +55,13 @@ public class ModelContentMessage {
         private MessageType type;
         private ModelContentElement.ImageData image;
         private String text;
+        private CacheControl cacheControl;
 
         public static ModelContentElement create(byte[] image, String mimeType) {
             return new ModelContentElement(
                     MessageType.image,
                     new ModelContentElement.ImageData(image, mimeType),
+                    null,
                     null
             );
         }
@@ -68,7 +70,17 @@ public class ModelContentMessage {
             return new ModelContentElement(
                     MessageType.text,
                     null,
-                    str
+                    str,
+                    null
+            );
+        }
+
+        public static ModelContentElement createCached(String str, CacheControl cacheControl) {
+            return new ModelContentElement(
+                    MessageType.text,
+                    null,
+                    str,
+                    cacheControl
             );
         }
 

@@ -1,5 +1,6 @@
 package ai.driftkit.common.domain;
 
+import ai.driftkit.common.domain.client.CacheUsage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,17 +16,20 @@ import lombok.NoArgsConstructor;
 public class ModelTrace {
     // Request execution time
     private long executionTimeMs;
-    
+
     // Error information
     private boolean hasError;
     private String errorMessage;
-    
+
     // Token counts
     private int promptTokens;
     private int completionTokens;
-    
+
     // Model information
     private String model;
     private Double temperature;
     private String responseFormat;
+
+    // Cache metrics
+    private CacheUsage cacheUsage;
 }

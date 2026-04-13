@@ -259,7 +259,7 @@ export default defineComponent({
     const chatMessages = ref<HTMLElement | null>(null);
 
     const fetchChats = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/llm/chats', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -274,7 +274,7 @@ export default defineComponent({
     };
 
     const fetchMessages = (chatId: string) => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get(`/data/v1.0/admin/llm/chat/${chatId}`, {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) },
         params: { skip: 0, limit: 50 }
@@ -296,7 +296,7 @@ export default defineComponent({
     };
 
     const fetchImageTask = (imageTaskId: string) => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get(`/data/v1.0/admin/llm/image/${imageTaskId}`, {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -309,7 +309,7 @@ export default defineComponent({
     const createChat = () => {
       const chatName = prompt("Введите название нового чата:");
       if (!chatName) return;
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.post('/data/v1.0/admin/llm/chat', { name: chatName }, {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -326,7 +326,7 @@ export default defineComponent({
         alert('Message cannot be empty');
         return;
       }
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       const payload = {
         chatId: selectedChatId.value,
         message: chatMessage.value,
@@ -376,7 +376,7 @@ export default defineComponent({
     };
 
     const pollMessage = (message: Message) => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       const interval = setInterval(() => {
         axios.get(`/data/v1.0/admin/llm/message/${message.messageId}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -784,7 +784,7 @@ export default defineComponent({
     };
 
     const fetchWorkflows = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/workflows', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -797,7 +797,7 @@ export default defineComponent({
     onMounted(() => {
       fetchChats();
       fetchWorkflows();
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       if (creds) {
         axios.get('/data/v1.0/admin/llm/languages', {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }

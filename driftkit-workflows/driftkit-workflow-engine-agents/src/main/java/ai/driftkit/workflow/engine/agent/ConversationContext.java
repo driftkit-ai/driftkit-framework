@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -91,18 +92,34 @@ public class ConversationContext {
     }
     
     /**
+     * Set custom properties to attach to all saved AI messages (e.g. persona name).
+     * Properties are merged when saving to ChatStore.
+     */
+    public void setMessageProperties(Map<String, String> properties) {
+        this.messageProperties = properties;
+    }
+
+    private Map<String, String> messageProperties;
+
+    /**
      * Add assistant message to context
      */
     public void addAssistantMessage(String content) {
         log.debug("Adding assistant message: {}", content);
-        
+
         // Always add to current messages
         ModelMessage modelMessage = ModelMessage.assistant(content);
         messages.add(modelMessage);
-        
+
         // Save to history if in history mode
         if (historyMode && chatStore != null) {
-            chatStore.add(chatId, content, MessageType.AI);
+            if (messageProperties != null && !messageProperties.isEmpty()) {
+                Map<String, String> properties = new HashMap<>(messageProperties);
+                properties.put(ChatMessage.PROPERTY_MESSAGE, content);
+                chatStore.add(chatId, properties, MessageType.AI);
+            } else {
+                chatStore.add(chatId, content, MessageType.AI);
+            }
         }
     }
     

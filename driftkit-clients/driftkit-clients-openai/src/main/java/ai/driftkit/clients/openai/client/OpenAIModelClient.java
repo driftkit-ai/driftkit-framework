@@ -75,7 +75,9 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         this.config = config;
         this.client = OpenAIClientFactory.createClient(
                 config.getApiKey(),
-                Optional.ofNullable(config.getBaseUrl()).orElse("https://api.openai.com")
+                Optional.ofNullable(config.getBaseUrl()).orElse("https://api.openai.com"),
+                config.getConnectTimeout(),
+                config.getReadTimeout()
         );
         this.setTemperature(config.getTemperature());
         this.setModel(config.getModel());
@@ -613,16 +615,40 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                         .collect(Collectors.toList())
                 : null;
 
+        Usage mappedUsage = null;
+        if (usage != null) {
+            CacheUsage cacheUsage = null;
+            if (usage.getPromptTokensDetails() != null
+                    && usage.getPromptTokensDetails().getCachedTokens() != null
+                    && usage.getPromptTokensDetails().getCachedTokens() > 0) {
+                int cached = usage.getPromptTokensDetails().getCachedTokens();
+                int total = usage.getPromptTokens() != null ? usage.getPromptTokens() : 0;
+                cacheUsage = CacheUsage.builder()
+                        .cacheHitTokens(cached)
+                        .cacheMissTokens(total - cached)
+                        .build();
+            }
+
+            Integer reasoningTokens = null;
+            if (usage.getCompletionTokensDetails() != null) {
+                reasoningTokens = usage.getCompletionTokensDetails().getReasoningTokens();
+            }
+
+            mappedUsage = Usage.builder()
+                    .promptTokens(usage.getPromptTokens())
+                    .completionTokens(usage.getCompletionTokens())
+                    .totalTokens(usage.getTotalTokens())
+                    .cacheUsage(cacheUsage)
+                    .reasoningTokens(reasoningTokens)
+                    .build();
+        }
+
         return ModelTextResponse.builder()
                 .id(completion.getId())
                 .method(completion.getObject())
                 .createdTime(completion.getCreated())
                 .model(completion.getModel())
-                .usage(usage == null ? null : new Usage(
-                        usage.getPromptTokens(),
-                        usage.getCompletionTokens(),
-                        usage.getTotalTokens()
-                ))
+                .usage(mappedUsage)
                 .choices(choices)
                 .build();
     }
@@ -698,6 +724,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
         return ModelMessage.builder()
                 .role(Role.valueOf(message.getRole()))
                 .content(content)
+                .reasoningContent(message.getReasoningContent())
                 .toolCalls(toolCalls)
                 .build();
     }

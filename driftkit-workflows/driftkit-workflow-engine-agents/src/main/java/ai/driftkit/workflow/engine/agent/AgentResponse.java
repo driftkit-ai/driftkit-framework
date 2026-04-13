@@ -1,28 +1,43 @@
 package ai.driftkit.workflow.engine.agent;
 
+import ai.driftkit.common.domain.client.CacheUsage;
 import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement;
+import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.common.tools.ToolCall;
 import lombok.Builder;
 import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 
 /**
  * Unified response wrapper for LLMAgent operations.
- * Supports text, images, tool calls, and structured data.
+ * Supports text, images, tool calls, structured data, reasoning and cache metrics.
  */
 @Data
 @Builder
 public class AgentResponse<T> {
-    
+
     // Response content
     private final String text;
     private final List<ModelContentElement.ImageData> images;
     private final T structuredData;
     private final List<ToolCall> toolCalls;
     private final List<ToolExecutionResult> toolResults;
-    
+
+    /** Chain-of-thought reasoning content (DeepSeek, Claude extended thinking). */
+    private final String reasoningContent;
+
+    /** Unified cache usage metrics from the provider response. */
+    private final CacheUsage cacheUsage;
+
+    /** Reasoning tokens consumed (from completion_tokens_details). */
+    private final Integer reasoningTokens;
+
+    /** Raw provider response for advanced introspection. */
+    private final ModelTextResponse rawResponse;
+
     // Response type
     private final ResponseType type;
     
@@ -54,6 +69,16 @@ public class AgentResponse<T> {
     
     public boolean hasToolResults() {
         return CollectionUtils.isNotEmpty(toolResults);
+    }
+
+    public boolean hasReasoning() {
+        return StringUtils.isNotBlank(reasoningContent);
+    }
+
+    public boolean hasCacheHit() {
+        return cacheUsage != null
+                && cacheUsage.getCacheHitTokens() != null
+                && cacheUsage.getCacheHitTokens() > 0;
     }
     
     // Factory methods

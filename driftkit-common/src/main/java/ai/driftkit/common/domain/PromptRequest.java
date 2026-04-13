@@ -68,7 +68,19 @@ public class PromptRequest {
     @AllArgsConstructor
     public static class PromptIdRequest {
         private String promptId;
+        private String method;
         private String prompt;
         private Double temperature;
+
+        public PromptIdRequest(String promptId, String prompt, Double temperature) {
+            this.promptId = promptId;
+            this.prompt = prompt;
+            this.temperature = temperature;
+        }
+
+        /** Returns method with fallback to promptId for backward compatibility. */
+        public String getResolvedMethod() {
+            return method != null ? method : promptId;
+        }
     }
 }

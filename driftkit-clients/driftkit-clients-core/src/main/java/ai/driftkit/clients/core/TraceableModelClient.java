@@ -184,6 +184,9 @@ public class TraceableModelClient<T> extends ModelClient<T> {
             if (usage.getCompletionTokens() != null) {
                 trace.setCompletionTokens(usage.getCompletionTokens());
             }
+            if (usage.getCacheUsage() != null) {
+                trace.setCacheUsage(usage.getCacheUsage());
+            }
         } else {
             String responseContent = response.getResponse();
             if (StringUtils.isNotBlank(responseContent)) {

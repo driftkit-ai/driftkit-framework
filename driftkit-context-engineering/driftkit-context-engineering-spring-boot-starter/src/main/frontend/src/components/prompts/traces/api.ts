@@ -36,7 +36,7 @@ export const fetchTraces = (p?: unknown) => {
     }
 
     tracesLoading.value = true;
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     const params: any = {
         page,
@@ -65,11 +65,6 @@ export const fetchTraces = (p?: unknown) => {
             tracesPage.value = response.data;
         }
 
-        // Log to check if we have chatId in traces
-        console.log("Traces received: ", tracesPage.value.content.length);
-        const tracesWithChatId = tracesPage.value.content.filter(trace => trace.chatId).length;
-        console.log("Traces with chatId: ", tracesWithChatId);
-
         fetchMessageTasks();
     }).catch(error => {
         console.error('Error fetching traces:', error);
@@ -80,7 +75,7 @@ export const fetchTraces = (p?: unknown) => {
 
 // Fetch available prompt methods
 export const fetchAvailablePromptMethods = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/analytics/prompt-methods', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -99,7 +94,7 @@ export const fetchPromptMetrics = () => {
     }
 
     promptMetricsLoading.value = true;
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/analytics/metrics/prompt', {
         params: {
@@ -137,7 +132,7 @@ export const fetchMessageTasks = () => {
         return;
     }
 
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/analytics/message-tasks', {
         params: { contextIds: allIds.join(',') },
@@ -162,13 +157,12 @@ export const fetchMessageTasks = () => {
 
 // Fetch all prompts to build the promptId to method map
 export const fetchPromptsForMapping = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/admin/prompt/', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
     }).then(response => {
         const promptsData = response.data.data || [];
-        console.log('Fetched prompts for mapping:', promptsData);
 
         // Build the map of promptId to method
         promptsData.forEach((prompt: { id: string; method: string }) => {
@@ -177,7 +171,6 @@ export const fetchPromptsForMapping = () => {
             }
         });
 
-        console.log('Built promptId to method map:', promptIdToMethodMap.value);
     }).catch(error => {
         console.error('Error fetching prompts for mapping:', error);
     });
@@ -188,7 +181,7 @@ export const searchByMessageId = () => {
     if (!searchMessageId.value || searchMessageId.value.trim() === '') return;
     
     tracesLoading.value = true;
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get(`/data/v1.0/analytics/traces/${searchMessageId.value}`, {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -229,7 +222,7 @@ export const searchByMessageId = () => {
 
 // Fetch available test sets
 export const fetchAvailableTestSets = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/admin/test-sets', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -265,7 +258,7 @@ export const addToTestSet = async (
 
         try {
             addingToTestSet.value = true;
-            const creds = localStorage.getItem('credentials');
+            const creds = sessionStorage.getItem('credentials');
 
             const response = await axios.post('/data/v1.0/admin/test-sets', {
                 name: newTestSetName,
@@ -285,7 +278,7 @@ export const addToTestSet = async (
 
     // Add items to the test set
     try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
 
         await axios.post('/data/v1.0/admin/test-sets/add-items', {
             messageTaskIds: selectedMessageTasks,

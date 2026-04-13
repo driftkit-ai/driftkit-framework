@@ -217,7 +217,7 @@ export default defineComponent({
     
     const loadPromptIds = async () => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get('/data/v1.0/admin/llm/checklists/prompt-ids', {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -234,7 +234,7 @@ export default defineComponent({
       loading.value = true;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get('/data/v1.0/admin/llm/checklists/search', {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) },
           params: {
@@ -281,7 +281,7 @@ export default defineComponent({
       if (!editingItem.value) return;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.post(`/data/v1.0/admin/llm/checklists/${editingItem.value.id}`, 
           editingItem.value, 
           {
@@ -326,7 +326,7 @@ export default defineComponent({
       if (!deleteItem.value) return;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.delete(`/data/v1.0/admin/llm/checklists/${deleteItem.value.id}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });

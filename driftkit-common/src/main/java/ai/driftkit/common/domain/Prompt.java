@@ -22,6 +22,7 @@ public class Prompt {
 
     private String id;
     private String method;
+    private int version;
     private String message;
     private String systemMessage;
     private State state;

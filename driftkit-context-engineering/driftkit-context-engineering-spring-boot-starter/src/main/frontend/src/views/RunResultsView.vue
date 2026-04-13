@@ -326,7 +326,7 @@ export default defineComponent({
       if (!runId.value) return;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get(`/data/v1.0/admin/runs/${runId.value}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -347,7 +347,7 @@ export default defineComponent({
     // Load test set details
     const loadTestSet = async (testSetId: string) => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get(`/data/v1.0/admin/test-sets/${testSetId}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -365,7 +365,7 @@ export default defineComponent({
     // Load test set items
     const loadTestSetItems = async (testSetId: string) => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         // Fix: Adjusted response format based on the API
         const response = await axios.get(`/data/v1.0/admin/test-sets/${testSetId}/items`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -391,7 +391,7 @@ export default defineComponent({
     // Load evaluations
     const loadEvaluations = async (testSetId: string) => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get(`/data/v1.0/admin/test-sets/${testSetId}/evaluations`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -413,7 +413,7 @@ export default defineComponent({
       loading.value = true;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get(`/data/v1.0/admin/test-sets/runs/${runId.value}/results`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -535,7 +535,7 @@ export default defineComponent({
       if (!run.value || !testSet.value) return;
       
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.post(`/data/v1.0/admin/test-sets/${testSet.value.id}/quick-run`, {}, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -582,7 +582,7 @@ export default defineComponent({
           return;
         }
         
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.post(
           `/data/v1.0/admin/evaluation-results/${result.id}/manual-review`, 
           { passed: isPassed, feedback: feedback },

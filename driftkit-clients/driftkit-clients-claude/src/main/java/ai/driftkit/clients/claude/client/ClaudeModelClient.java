@@ -21,6 +21,7 @@ import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -54,7 +55,9 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         this.config = config;
         this.client = ClaudeClientFactory.createClient(
                 config.getApiKey(),
-                config.getBaseUrl()
+                config.getBaseUrl(),
+                config.getConnectTimeout(),
+                config.getReadTimeout()
         );
         this.setTemperature(config.getTemperature());
         this.setModel(config.getModel());
@@ -122,26 +125,30 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 systemPrompt = systemBuilder.toString();
                 continue;
             }
-            
+
             // Convert content elements to Claude content blocks
             List<ClaudeContent> contents = new ArrayList<>();
-            
+
             for (ModelContentElement element : message.getContent()) {
                 switch (element.getType()) {
                     case text:
-                        contents.add(ClaudeContent.text(element.getText()));
+                        ClaudeContent textContent = ClaudeContent.text(element.getText());
+                        applyCacheControlFromElement(textContent, element);
+                        contents.add(textContent);
                         break;
                     case image:
                         if (element.getImage() != null) {
-                            contents.add(ClaudeContent.image(
+                            ClaudeContent imgContent = ClaudeContent.image(
                                     ClaudeUtils.bytesToBase64(element.getImage().getImage()),
                                     element.getImage().getMimeType()
-                            ));
+                            );
+                            applyCacheControlFromElement(imgContent, element);
+                            contents.add(imgContent);
                         }
                         break;
                 }
             }
-            
+
             messages.add(ClaudeMessage.contentMessage(role, contents));
         }
         
@@ -170,6 +177,9 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         applyStructuredOutputsAndTools(requestBuilder, prompt);
 
         ClaudeMessageRequest request = requestBuilder.build();
+
+        // Apply cache policy
+        applyCachePolicy(request, prompt.getCachePolicy());
         
         try {
             ClaudeMessageResponse response = client.createMessage(request);
@@ -236,16 +246,27 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .finishReason(response.getStopReason())
                 .build();
         
-        // Map usage
+        // Map usage with cache metrics
         Usage usage = null;
         if (response.getUsage() != null) {
-            int totalTokens = (response.getUsage().getInputTokens() != null ? response.getUsage().getInputTokens() : 0) +
-                             (response.getUsage().getOutputTokens() != null ? response.getUsage().getOutputTokens() : 0);
-            usage = new Usage(
-                    response.getUsage().getInputTokens(),
-                    response.getUsage().getOutputTokens(),
-                    totalTokens
-            );
+            ClaudeUsage cu = response.getUsage();
+            int totalTokens = (cu.getInputTokens() != null ? cu.getInputTokens() : 0) +
+                             (cu.getOutputTokens() != null ? cu.getOutputTokens() : 0);
+
+            CacheUsage cacheUsage = null;
+            if (cu.getCacheReadInputTokens() != null || cu.getCacheCreationInputTokens() != null) {
+                cacheUsage = CacheUsage.builder()
+                        .cacheHitTokens(cu.getCacheReadInputTokens())
+                        .cacheWriteTokens(cu.getCacheCreationInputTokens())
+                        .build();
+            }
+
+            usage = Usage.builder()
+                    .promptTokens(cu.getInputTokens())
+                    .completionTokens(cu.getOutputTokens())
+                    .totalTokens(totalTokens)
+                    .cacheUsage(cacheUsage)
+                    .build();
         }
         
         return ModelTextResponse.builder()
@@ -501,7 +522,12 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         // Apply structured outputs and tools configuration
         applyStructuredOutputsAndTools(builder, prompt);
 
-        return builder.build();
+        ClaudeMessageRequest request = builder.build();
+
+        // Apply cache policy for streaming requests too
+        applyCachePolicy(request, prompt.getCachePolicy());
+
+        return request;
     }
 
     /**
@@ -545,5 +571,67 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                         .build());
             }
         }
+    }
+
+    /**
+     * Applies cache policy to a built ClaudeMessageRequest.
+     * <ul>
+     *   <li>MANUAL: relies on CacheControl markers already set on content elements</li>
+     *   <li>AUTO: auto-places cache_control breakpoints on system message and large text blocks</li>
+     *   <li>NONE: no caching hints</li>
+     * </ul>
+     */
+    private void applyCachePolicy(ClaudeMessageRequest request, CachePolicy cachePolicy) {
+        if (cachePolicy == null || cachePolicy == CachePolicy.NONE) {
+            return;
+        }
+
+        if (cachePolicy == CachePolicy.AUTO) {
+            // Auto-cache system prompt if large enough (>= 1024 tokens ~ 4 chars/token heuristic)
+            if (request.getSystem() instanceof String systemText
+                    && StringUtils.isNotBlank(systemText)
+                    && estimateTokenCount(systemText) >= 1024) {
+                request.setSystemWithCache(systemText);
+            }
+
+            // Auto-cache the last large text block in messages (independent of system cache)
+            List<ClaudeMessage> messages = request.getMessages();
+            if (messages != null) {
+                for (int i = messages.size() - 1; i >= 0; i--) {
+                    List<ClaudeContent> contents = messages.get(i).getContent();
+                    if (contents == null) continue;
+                    for (int j = contents.size() - 1; j >= 0; j--) {
+                        ClaudeContent content = contents.get(j);
+                        if ("text".equals(content.getType())
+                                && content.getCacheControl() == null
+                                && content.getText() != null
+                                && estimateTokenCount(content.getText()) >= 1024) {
+                            content.setCacheControl(java.util.Map.of("type", "ephemeral"));
+                            return; // One message breakpoint is enough — Claude caches everything up to it
+                        }
+                    }
+                }
+            }
+        }
+        // MANUAL: cache_control markers are already applied via applyCacheControlFromElement
+    }
+
+    /**
+     * Copies CacheControl from a unified ModelContentElement to a Claude-specific content block.
+     * Only EPHEMERAL type maps to Claude's cache_control; AUTO is ignored since Claude
+     * requires explicit breakpoints (unlike OpenAI/DeepSeek which cache automatically).
+     */
+    private void applyCacheControlFromElement(ClaudeContent claudeContent, ModelContentElement element) {
+        if (element.getCacheControl() != null
+                && element.getCacheControl().getType() == CacheControl.CacheType.EPHEMERAL) {
+            claudeContent.setCacheControl(java.util.Map.of("type", "ephemeral"));
+        }
+    }
+
+    /**
+     * Rough token count estimate: ~4 characters per token.
+     */
+    private static int estimateTokenCount(String text) {
+        return text != null ? text.length() / 4 : 0;
     }
 }

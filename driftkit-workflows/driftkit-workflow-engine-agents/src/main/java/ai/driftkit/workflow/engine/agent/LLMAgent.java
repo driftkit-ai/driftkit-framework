@@ -3,6 +3,7 @@ package ai.driftkit.workflow.engine.agent;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.chat.ChatMessage;
 import ai.driftkit.common.domain.client.*;
+import ai.driftkit.common.domain.client.CachePolicy;
 import ai.driftkit.common.domain.client.ModelImageRequest;
 import ai.driftkit.common.domain.client.ModelImageResponse;
 import ai.driftkit.common.domain.client.ModelContentMessage;
@@ -59,6 +60,7 @@ public class LLMAgent implements Agent {
     private final String model;
     private final String imageModel;
     private final ReasoningEffort reasoningEffort;
+    private final CachePolicy cachePolicy;
 
     // Unique agent identifier
     private final String agentId;
@@ -72,6 +74,9 @@ public class LLMAgent implements Agent {
     // Tracing support
     private final RequestTracingProvider tracingProvider;
     
+    // Custom properties to attach to saved messages (e.g. persona name)
+    private final Map<String, String> messageProperties;
+
     // Workflow context fields for tracing
     private final String workflowId;
     private final String workflowType;
@@ -84,8 +89,9 @@ public class LLMAgent implements Agent {
     protected LLMAgent(ModelClient modelClient, String name, String description, String systemMessage,
                        Double temperature, Integer maxTokens, String model, String imageModel, String agentId,
                        ChatStore chatStore, String chatId, PromptService promptService, ToolRegistry toolRegistry,
-                       RequestTracingProvider tracingProvider, String workflowId, String workflowType, 
-                       String workflowStep, boolean autoExecuteTools, ReasoningEffort reasoningEffort) {
+                       RequestTracingProvider tracingProvider, String workflowId, String workflowType,
+                       String workflowStep, boolean autoExecuteTools, ReasoningEffort reasoningEffort,
+                       Map<String, String> messageProperties, CachePolicy cachePolicy) {
         this.modelClient = modelClient;
         this.name = name;
         this.description = description;
@@ -94,6 +100,7 @@ public class LLMAgent implements Agent {
         this.maxTokens = maxTokens;
         this.model = model;
         this.reasoningEffort = reasoningEffort;
+        this.cachePolicy = cachePolicy;
         this.imageModel = imageModel;
         this.agentId = agentId != null ? agentId : AIUtils.generateId();
         this.chatStore = chatStore;
@@ -104,6 +111,7 @@ public class LLMAgent implements Agent {
         this.workflowId = workflowId;
         this.workflowType = workflowType;
         this.workflowStep = workflowStep;
+        this.messageProperties = messageProperties;
     }
     
     /**
@@ -131,7 +139,7 @@ public class LLMAgent implements Agent {
             String processedMessage = processMessageWithVariables(message, variables);
 
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -147,41 +155,55 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .messages(messages)
                 .build();
-            
+
             // Execute request
             ModelTextResponse response = modelClient.textToText(request);
-            
+
             // Save assistant response
             String responseText = extractResponseText(response);
             if (StringUtils.isNotBlank(responseText)) {
                 context.addAssistantMessage(responseText);
             }
-            
+
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("TEXT");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("TEXT", variables, null, request.getMessages()));
             }
-            
+
+            // Extract reasoning and cache info
+            String reasoning = extractReasoningContent(response);
+            CacheUsage cacheUsage = response != null && response.getUsage() != null
+                    ? response.getUsage().getCacheUsage() : null;
+            Integer reasoningTokens = response != null && response.getUsage() != null
+                    ? response.getUsage().getReasoningTokens() : null;
+
             // Check if response contains images
             List<ModelContentElement.ImageData> images = extractImages(response);
             if (CollectionUtils.isNotEmpty(images)) {
-                return AgentResponse.multimodal(responseText, images);
+                return AgentResponse.<String>builder()
+                        .text(responseText)
+                        .images(images)
+                        .type(AgentResponse.ResponseType.MULTIMODAL)
+                        .reasoningContent(reasoning)
+                        .cacheUsage(cacheUsage)
+                        .reasoningTokens(reasoningTokens)
+                        .rawResponse(response)
+                        .build();
             }
-            
-            return AgentResponse.text(responseText);
+
+            return AgentResponse.<String>builder()
+                    .text(responseText)
+                    .type(AgentResponse.ResponseType.TEXT)
+                    .reasoningContent(reasoning)
+                    .cacheUsage(cacheUsage)
+                    .reasoningTokens(reasoningTokens)
+                    .rawResponse(response)
+                    .build();
             
         } catch (Exception e) {
             log.error("Error in executeText", e);
@@ -205,7 +227,7 @@ public class LLMAgent implements Agent {
             String processedMessage = processMessageWithVariables(message, variables);
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -224,6 +246,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(null))
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .tools(tools.length > 0 ? Arrays.asList(tools) : null)
                 .build();
             
@@ -233,17 +256,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("TOOL_CALLS");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("TOOL_CALLS", variables, null, request.getMessages()));
             }
             
             // Extract tool calls
@@ -272,7 +286,7 @@ public class LLMAgent implements Agent {
             String processedMessage = processMessageWithVariables(message, variables);
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -291,6 +305,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(null))
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .tools(tools.length > 0 ? Arrays.asList(tools) : null)
                 .build();
             
@@ -300,17 +315,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("TOOLS_EXEC");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("TOOLS_EXEC", variables, null, request.getMessages()));
             }
             
             // Check for tool calls
@@ -352,7 +358,7 @@ public class LLMAgent implements Agent {
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -370,6 +376,7 @@ public class LLMAgent implements Agent {
                 .messages(messages)
                 .responseFormat(responseFormat)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .build();
             
             // Execute request
@@ -378,16 +385,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("STRUCTURED");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("STRUCTURED", null, null, request.getMessages()));
             }
             
             // Extract and parse response
@@ -446,7 +445,7 @@ public class LLMAgent implements Agent {
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message - prefer prompt's system message
             String promptSystemMessage = prompt.getSystemMessage();
@@ -467,6 +466,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(prompt))
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .responseFormat(responseFormat)
                 .build();
             
@@ -476,18 +476,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("STRUCTURED_PROMPT");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .promptId(promptId)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("STRUCTURED_PROMPT", variables, promptId, request.getMessages()));
             }
             
             // Extract and parse response
@@ -558,7 +548,7 @@ public class LLMAgent implements Agent {
             }
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message - prefer prompt's system message
             if (StringUtils.isNotBlank(promptSystemMessage)) {
@@ -577,6 +567,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(prompt))
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .build();
             
             // Execute request
@@ -585,18 +576,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("PROMPT");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .promptId(promptId)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceTextRequest(request, response, traceContext);
+                provider.traceTextRequest(request, response,
+                    buildTraceContext("PROMPT", variables, promptId, request.getMessages()));
             }
             
             // Extract response
@@ -651,17 +632,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("IMAGE_GEN");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceImageRequest(request, response, traceContext);
+                provider.traceImageRequest(request, response,
+                    buildTraceContext("IMAGE_GEN", variables, null, null));
             }
             
             // Extract first image
@@ -725,7 +697,7 @@ public class LLMAgent implements Agent {
                 .build();
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -747,6 +719,7 @@ public class LLMAgent implements Agent {
                 .temperature(getTemperature(null))
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .build();
             
             // Execute request
@@ -755,17 +728,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("IMAGE");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .variables(variables)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceImageToTextRequest(request, response, traceContext);
+                provider.traceImageToTextRequest(request, response,
+                    buildTraceContext("IMAGE", variables, null, request.getMessages()));
             }
             
             // Extract response
@@ -849,7 +813,7 @@ public class LLMAgent implements Agent {
                 .build();
 
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
 
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -871,6 +835,7 @@ public class LLMAgent implements Agent {
                 .temperature(STRUCTURED_EXTRACTION_TEMPERATURE)
                 .messages(messages)
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .responseFormat(responseFormat)
                 .build();
 
@@ -880,16 +845,8 @@ public class LLMAgent implements Agent {
             // Trace if provider is available
             RequestTracingProvider provider = getTracingProvider();
             if (provider != null) {
-                String contextType = buildContextType("MEDIA_STRUCTURED");
-                RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                    .contextId(agentId)
-                    .contextType(contextType)
-                    .chatId(chatId)
-                    .workflowId(workflowId)
-                    .workflowType(workflowType)
-                    .workflowStep(workflowStep)
-                    .build();
-                provider.traceImageToTextRequest(request, response, traceContext);
+                provider.traceImageToTextRequest(request, response,
+                    buildTraceContext("MEDIA_STRUCTURED", null, null, request.getMessages()));
             }
 
             // Extract and parse response
@@ -990,6 +947,42 @@ public class LLMAgent implements Agent {
     /**
      * Clear conversation history
      */
+    /**
+     * Create ConversationContext with message properties if set.
+     */
+    private ConversationContext createConversationContext() {
+        ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+        if (messageProperties != null && !messageProperties.isEmpty()) {
+            context.setMessageProperties(messageProperties);
+        }
+        return context;
+    }
+
+    /**
+     * Build a RequestContext for tracing with all available metadata.
+     * Centralizes trace context creation to ensure no data is lost.
+     */
+    private RequestTracingProvider.RequestContext buildTraceContext(
+            String contextTypeSuffix,
+            Map<String, Object> variables,
+            String promptId,
+            List<ModelContentMessage> messages) {
+        return RequestTracingProvider.RequestContext.builder()
+            .contextId(agentId)
+            .contextType(buildContextType(contextTypeSuffix))
+            .promptId(promptId)
+            .variables(variables)
+            .chatId(chatId)
+            .workflowId(workflowId)
+            .workflowType(workflowType)
+            .workflowStep(workflowStep)
+            .purpose(workflowType)
+            .systemMessage(systemMessage)
+            .messageProperties(messageProperties)
+            .messages(messages)
+            .build();
+    }
+
     public void clearHistory() {
         if (chatStore != null) {
             chatStore.deleteAll(chatId);
@@ -1060,7 +1053,7 @@ public class LLMAgent implements Agent {
             String processedMessage = processMessageWithVariables(input, variables);
             
             // Create conversation context with token limit
-            ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+            ConversationContext context = createConversationContext();
             
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
@@ -1076,6 +1069,7 @@ public class LLMAgent implements Agent {
                 .model(getEffectiveModel())
                 .temperature(getTemperature(null))
                 .reasoningEffort(reasoningEffort)
+                .cachePolicy(cachePolicy)
                 .messages(messages)
                 .build();
 
@@ -1111,16 +1105,6 @@ public class LLMAgent implements Agent {
                     // Trace if provider is available
                     RequestTracingProvider provider = getTracingProvider();
                     if (provider != null) {
-                        String contextType = buildContextType("STREAM");
-                        RequestTracingProvider.RequestContext traceContext = RequestTracingProvider.RequestContext.builder()
-                            .contextId(agentId)
-                            .contextType(contextType)
-                            .variables(variables)
-                            .chatId(chatId)
-                            .workflowId(workflowId)
-                            .workflowType(workflowType)
-                            .workflowStep(workflowStep)
-                            .build();
                         // Create a synthetic response for tracing
                         ModelTextResponse syntheticResponse = ModelTextResponse.builder()
                             .choices(Collections.singletonList(
@@ -1132,7 +1116,8 @@ public class LLMAgent implements Agent {
                                     .build()
                             ))
                             .build();
-                        provider.traceTextRequest(request, syntheticResponse, traceContext);
+                        provider.traceTextRequest(request, syntheticResponse,
+                            buildTraceContext("STREAM", variables, null, request.getMessages()));
                     }
                     
                     callback.onComplete();
@@ -1263,6 +1248,17 @@ public class LLMAgent implements Agent {
         return content;
     }
     
+    private String extractReasoningContent(ModelTextResponse response) {
+        if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
+            return null;
+        }
+        ResponseMessage first = response.getChoices().getFirst();
+        if (first.getMessage() != null) {
+            return first.getMessage().getReasoningContent();
+        }
+        return null;
+    }
+
     private String extractResponseText(ModelTextResponse response) {
         if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
             return "";
@@ -1346,6 +1342,8 @@ public class LLMAgent implements Agent {
         private String workflowStep;
         private boolean autoExecuteTools = true;
         private ReasoningEffort reasoningEffort;
+        private CachePolicy cachePolicy;
+        private Map<String, String> messageProperties;
 
         private List<ToolInfo> pendingTools = new ArrayList<>();
         
@@ -1448,7 +1446,17 @@ public class LLMAgent implements Agent {
             this.workflowStep = workflowStep;
             return this;
         }
-        
+
+        public CustomLLMAgentBuilder messageProperties(Map<String, String> messageProperties) {
+            this.messageProperties = messageProperties;
+            return this;
+        }
+
+        public CustomLLMAgentBuilder cachePolicy(CachePolicy cachePolicy) {
+            this.cachePolicy = cachePolicy;
+            return this;
+        }
+
         /**
          * Add a tool to the agent
          */
@@ -1483,8 +1491,8 @@ public class LLMAgent implements Agent {
             return new LLMAgent(modelClient, name, description, systemMessage,
                     temperature, maxTokens, model, imageModel, agentId,
                     chatStore, chatId, promptService, toolRegistry,
-                    tracingProvider, workflowId, workflowType, workflowStep, 
-                    autoExecuteTools, reasoningEffort);
+                    tracingProvider, workflowId, workflowType, workflowStep,
+                    autoExecuteTools, reasoningEffort, messageProperties, cachePolicy);
         }
     }
 }

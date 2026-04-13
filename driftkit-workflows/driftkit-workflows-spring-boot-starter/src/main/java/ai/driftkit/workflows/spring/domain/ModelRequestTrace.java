@@ -9,6 +9,7 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -25,8 +26,10 @@ public class ModelRequestTrace {
     private RequestType requestType;
     private long timestamp;
     private String promptTemplate;
+    private String systemMessage;
     private String promptId;
     private Map<String, String> variables;
+    private List<TraceMessage> messages;
     private String modelId;
     private String responseId;
     private String response;
@@ -35,6 +38,7 @@ public class ModelRequestTrace {
     private WorkflowInfo workflowInfo;
     private String purpose;
     private String chatId;
+    private Map<String, String> messageProperties;
     
     @SneakyThrows
     public static ModelRequestTrace fromTextResponse(
@@ -67,16 +71,23 @@ public class ModelRequestTrace {
         if (response != null) {
             trace.setResponseId(response.getId());
             trace.setResponse(response.getResponse());
-            
+
             if (response.getTrace() != null) {
                 trace.setTrace(response.getTrace());
-                
+
                 if (response.getTrace().isHasError()) {
                     trace.setErrorMessage(response.getTrace().getErrorMessage());
                 }
+
+                // Ensure cache usage is populated (fallback if TraceableModelClient wasn't used)
+                if (response.getTrace().getCacheUsage() == null
+                        && response.getUsage() != null
+                        && response.getUsage().getCacheUsage() != null) {
+                    response.getTrace().setCacheUsage(response.getUsage().getCacheUsage());
+                }
             }
         }
-        
+
         return trace;
     }
     
@@ -142,5 +153,19 @@ public class ModelRequestTrace {
         private String workflowId;
         private String workflowType;
         private String workflowStep;
+    }
+
+    /**
+     * Lightweight representation of a message in the conversation context.
+     * Stores role and text content without binary image data to keep traces manageable.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TraceMessage {
+        private String role;      // system, user, assistant
+        private String content;   // text content of the message
+        private boolean hasImage; // true if message contained image data (not stored)
     }
 }

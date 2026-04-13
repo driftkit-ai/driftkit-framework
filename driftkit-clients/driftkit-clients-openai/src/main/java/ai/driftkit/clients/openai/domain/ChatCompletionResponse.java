@@ -1,6 +1,6 @@
 package ai.driftkit.clients.openai.domain;
 
-import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
@@ -8,13 +8,43 @@ import lombok.Data;
 import java.util.List;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ChatCompletionResponse {
     private String id;
     private String object;
     private Long created;
     private String model;
     private List<Choice> choices;
-    private Usage usage;
+    private OpenAIUsage usage;
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class OpenAIUsage {
+        @JsonProperty("prompt_tokens")
+        private Integer promptTokens;
+        @JsonProperty("completion_tokens")
+        private Integer completionTokens;
+        @JsonProperty("total_tokens")
+        private Integer totalTokens;
+        @JsonProperty("prompt_tokens_details")
+        private PromptTokensDetails promptTokensDetails;
+        @JsonProperty("completion_tokens_details")
+        private CompletionTokensDetails completionTokensDetails;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PromptTokensDetails {
+        @JsonProperty("cached_tokens")
+        private Integer cachedTokens;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CompletionTokensDetails {
+        @JsonProperty("reasoning_tokens")
+        private Integer reasoningTokens;
+    }
 
     @Data
     public static class Choice {
@@ -53,6 +83,8 @@ public class ChatCompletionResponse {
     public static class Message {
         private String role;
         private String content;
+        @JsonProperty("reasoning_content")
+        private String reasoningContent;
         @JsonProperty("tool_calls")
         private List<ToolCall> toolCalls;
     }

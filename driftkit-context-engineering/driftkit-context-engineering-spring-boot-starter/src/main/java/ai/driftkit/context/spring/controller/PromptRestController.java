@@ -1,6 +1,7 @@
 package ai.driftkit.context.spring.controller;
 
 import ai.driftkit.common.domain.CreatePromptRequest;
+import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.common.domain.RestResponse;
@@ -105,10 +106,28 @@ public class PromptRestController {
         String[] promptIds = ids.split(",");
         List<String> idList = List.of(promptIds);
         List<Prompt> prompts = promptService.getPromptsByIds(idList);
-        
+
         return new RestResponse<>(
                 true,
                 prompts
         );
+    }
+
+    @GetMapping("/{method}/versions")
+    public @ResponseBody RestResponse<List<Prompt>> getVersions(
+            @PathVariable String method,
+            @RequestParam(required = false) Language language
+    ) {
+        List<Prompt> all = promptService.getPromptsByMethods(List.of(method));
+        List<Prompt> filtered = all;
+        if (language != null) {
+            filtered = all.stream()
+                    .filter(p -> p.getLanguage() == language)
+                    .toList();
+        }
+        List<Prompt> sorted = filtered.stream()
+                .sorted((a, b) -> Integer.compare(b.getVersion(), a.getVersion()))
+                .toList();
+        return new RestResponse<>(true, sorted);
     }
 }

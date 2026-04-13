@@ -2,18 +2,21 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import axios, { InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+import PrimeVue from 'primevue/config';
+import Aura from '@primeuix/themes/aura';
+import 'primeicons/primeicons.css';
+// Keep Bootstrap temporarily during incremental migration
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './assets/css/formatting.css';
 
-axios.defaults.baseURL = process.env.VUE_APP_API_BASE_URL;
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
 
 axios.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    console.log('Interceptor config:', config);
     if (!config) {
       config = {} as InternalAxiosRequestConfig;
     }
-    const credentials = localStorage.getItem('credentials');
+    const credentials = sessionStorage.getItem('credentials');
     if (credentials) {
       if (!config.headers) {
         config.headers = new AxiosHeaders();
@@ -25,6 +28,16 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-createApp(App)
-  .use(router)
-  .mount('#app');
+const app = createApp(App);
+
+app.use(PrimeVue, {
+  theme: {
+    preset: Aura,
+    options: {
+      darkModeSelector: '.dark-mode',
+    },
+  },
+});
+
+app.use(router);
+app.mount('#app');

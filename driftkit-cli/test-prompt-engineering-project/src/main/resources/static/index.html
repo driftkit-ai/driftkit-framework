@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>test-prompt-engineering-project - Chat Interface</title>
+    <link rel="stylesheet" href="/chat.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>test-prompt-engineering-project Chat</h1>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="messages">
+            <div class="message system">
+                <p>Welcome! Start a conversation by typing below.</p>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="current-step" id="currentStep" style="display: none;">
+                <span class="step-label">Current Step:</span>
+                <span class="step-name"></span>
+            </div>
+            <form id="chatForm" class="chat-form">
+                <input type="text" id="messageInput" placeholder="Type your message..." autocomplete="off" disabled>
+                <button type="submit" id="sendButton" disabled>Send</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Review Panel (for human reviewers) -->
+    <div class="review-panel" id="reviewPanel" style="display: none;">
+        <h2>Review Queue</h2>
+        <div class="review-items" id="reviewItems"></div>
+    </div>
+    
+    <script src="/chat.js"></script>
+</body>
+</html>

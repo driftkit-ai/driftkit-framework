@@ -3,7 +3,7 @@ import { TestSet, Folder, TestSetItem, Evaluation, Run, RunResult, NewTestSet, N
 
 // Helper function to get credentials
 const getCredentials = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
     return creds ? { Authorization: 'Basic ' + creds } : {};
 };
 

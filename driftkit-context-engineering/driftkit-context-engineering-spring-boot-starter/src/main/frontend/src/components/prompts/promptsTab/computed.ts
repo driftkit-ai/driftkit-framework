@@ -5,14 +5,9 @@ import { highlightVariables, formatJSON, isJSON } from '../../../utils/formattin
 export function usePromptsComputed(state: PromptsState) {
   // Filter prompts based on current folder and search query
   const filteredPrompts = computed(() => {
-    console.log('📋 Computing filteredPrompts with prompts:', state.prompts.value);
-
     if (!state.prompts.value || state.prompts.value.length === 0) {
-      console.log('❗ No prompts available - empty array or undefined');
       return [];
     }
-
-    console.log('📊 Working with prompts array, length:', state.prompts.value.length);
 
     // Helper function to check if a prompt should be included based on the folder structure
     const shouldIncludePromptInFolder = (promptMethod: string) => {
@@ -44,63 +39,52 @@ export function usePromptsComputed(state: PromptsState) {
     if (!state.searchQuery.value) {
       const filtered = state.prompts.value.filter(p => {
         if (!p || !p.method) {
-          console.warn('⚠️ Invalid prompt object found:', p);
+          console.warn('Invalid prompt object found:', p);
           return false;
         }
 
-        const result = shouldIncludePromptInFolder(p.method);
-        console.log(`🗃️ Folder filter for "${p.method}" = ${result}`);
-        return result;
+        return shouldIncludePromptInFolder(p.method);
       });
 
-      console.log('🔢 Filtered prompts (no search):', filtered.length, filtered);
       return filtered;
     }
 
     const query = state.searchQuery.value.toLowerCase();
     const filtered = state.prompts.value.filter(p => {
       if (!p || !p.method || !p.message) {
-        console.warn('⚠️ Invalid prompt object found:', p);
+        console.warn('Invalid prompt object found:', p);
         return false;
       }
 
       const methodMatch = p.method.toLowerCase().includes(query);
       const messageMatch = p.message.toLowerCase().includes(query);
-      console.log(`🔍 Search filter: "${p.method}" matches "${query}" = ${methodMatch || messageMatch}`);
 
       return (methodMatch || messageMatch) && shouldIncludePromptInFolder(p.method);
     });
 
-    console.log('🔢 Filtered prompts (with search):', filtered.length, filtered);
     return filtered;
   });
 
   // Group prompts by method
   const groupedPrompts = computed(() => {
-    console.log('🔄 Computing groupedPrompts with filteredPrompts:', filteredPrompts.value);
-
     const groupedByMethod: Record<string, { currentPrompt: any, otherPrompts: any[] }> = {};
 
     if (!filteredPrompts.value || filteredPrompts.value.length === 0) {
-      console.log('⚠️ No filtered prompts to group');
-      return groupedByMethod;  // Return empty object
+      return groupedByMethod;
     }
 
     // Process all prompts to find folders
     const methods = new Set<string>();
     const folders = new Set<string>();
 
-    console.log('🚀 Start processing filteredPrompts:', filteredPrompts.value.length);
-
     // First pass: identify all folders and methods in the current context
     filteredPrompts.value.forEach((prompt, index) => {
       try {
         if (!prompt || !prompt.method) {
-          console.warn(`⚠️ Invalid prompt at index ${index}:`, prompt);
+          console.warn(`Invalid prompt at index ${index}:`, prompt);
           return;
         }
 
-        console.log(`📝 Processing prompt ${index}:`, prompt.method);
         let displayMethod = prompt.method;
 
         // Handle folder structure
@@ -108,10 +92,8 @@ export function usePromptsComputed(state: PromptsState) {
           // We're in a folder, so we need to get relative path
           if (prompt.method.startsWith(state.currentFolder.value + '/')) {
             displayMethod = prompt.method.substring(state.currentFolder.value.length + 1);
-            console.log(`📁 In folder "${state.currentFolder.value}", relative method: "${displayMethod}"`);
           } else {
             // If not starting with the current folder path, skip this prompt
-            console.log(`⏭️ Skipping prompt not in current folder: "${prompt.method}"`);
             return;
           }
         }
@@ -120,21 +102,12 @@ export function usePromptsComputed(state: PromptsState) {
         if (displayMethod.includes('/')) {
           const folderName = displayMethod.split('/')[0];
           folders.add(folderName);
-          console.log(`📂 Added subfolder: "${folderName}" from method "${displayMethod}"`);
         } else {
           methods.add(displayMethod);
-          console.log(`📄 Added method: "${displayMethod}"`);
         }
       } catch (error) {
-        console.error('❌ Error processing prompt:', prompt, error);
+        console.error('Error processing prompt:', prompt, error);
       }
-    });
-
-    console.log('📊 Methods and folders parsed:', {
-      methods: Array.from(methods),
-      folders: Array.from(folders),
-      methodCount: methods.size,
-      folderCount: folders.size
     });
 
     // Create folder entries
@@ -153,16 +126,14 @@ export function usePromptsComputed(state: PromptsState) {
           },
           otherPrompts: []
         };
-        console.log(`📁 Created folder entry for "${folder}", path: "${folderPath}"`);
       } catch (error) {
-        console.error('❌ Error creating folder entry:', folder, error);
+        console.error('Error creating folder entry:', folder, error);
       }
     });
 
     // Process regular prompts
     methods.forEach(method => {
       try {
-        console.log(`🔍 Processing method: "${method}"`);
         const fullMethodPath = state.currentFolder.value ? `${state.currentFolder.value}/${method}` : method;
 
         const promptsForMethod = filteredPrompts.value
@@ -171,7 +142,7 @@ export function usePromptsComputed(state: PromptsState) {
               // Direct match for the full method path
               return p.method === fullMethodPath;
             } catch (e) {
-              console.error('❌ Error filtering prompt by method:', p, e);
+              console.error('Error filtering prompt by method:', p, e);
               return false;
             }
           })
@@ -179,12 +150,10 @@ export function usePromptsComputed(state: PromptsState) {
             try {
               return (b.updatedTime || 0) - (a.updatedTime || 0);
             } catch (e) {
-              console.error('❌ Error sorting prompts:', a, b, e);
+              console.error('Error sorting prompts:', a, b, e);
               return 0;
             }
           });
-
-        console.log(`📊 Prompts for method "${method}" (full path: "${fullMethodPath}"):`, promptsForMethod.length);
 
         if (promptsForMethod.length > 0) {
           const [currentPrompt, ...otherPrompts] = promptsForMethod;
@@ -192,16 +161,12 @@ export function usePromptsComputed(state: PromptsState) {
             currentPrompt,
             otherPrompts
           };
-          console.log(`✅ Added group for method "${method}" with ${otherPrompts.length + 1} prompts`);
-        } else {
-          console.warn(`⚠️ No prompts found for method "${method}"`);
         }
       } catch (error) {
-        console.error('❌ Error processing method:', method, error);
+        console.error('Error processing method:', method, error);
       }
     });
 
-    console.log('🏁 Final grouped prompts:', Object.keys(groupedByMethod).length, groupedByMethod);
     return groupedByMethod;
   });
 
@@ -224,8 +189,6 @@ export function usePromptsComputed(state: PromptsState) {
         })
         .filter(prompt => prompt && prompt.id)
         .map(prompt => prompt.id);
-
-      console.log('Selectable prompts:', selectablePrompts);
 
       return selectablePrompts.length > 0 &&
         selectablePrompts.every(id => state.selectedPrompts.value.includes(id));

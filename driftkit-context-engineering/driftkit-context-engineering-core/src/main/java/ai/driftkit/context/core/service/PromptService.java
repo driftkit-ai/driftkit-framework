@@ -90,6 +90,7 @@ public class PromptService implements PromptServiceBase {
         Prompt toSave = new Prompt(
                 UUID.randomUUID().toString(),
                 method,
+                0, // version — will be set by savePrompt()
                 prompt,
                 systemMessage,
                 State.CURRENT,
@@ -161,12 +162,12 @@ public class PromptService implements PromptServiceBase {
     public MessageTask getTaskFromPromptRequest(PromptRequest request) {
         Map<String, PromptIdRequest> ids2req = request.getPromptIds()
                 .stream()
-                .collect(Collectors.toMap(PromptIdRequest::getPromptId, e -> e));
-                
+                .collect(Collectors.toMap(PromptIdRequest::getResolvedMethod, e -> e));
+
         // Check that each PromptIdRequest has the required parameters
         for (PromptIdRequest promptIdRequest : request.getPromptIds()) {
-            if (StringUtils.isBlank(promptIdRequest.getPromptId())) {
-                throw new IllegalArgumentException("promptId cannot be null or empty in PromptIdRequest");
+            if (StringUtils.isBlank(promptIdRequest.getResolvedMethod())) {
+                throw new IllegalArgumentException("method (or promptId) cannot be null or empty in PromptIdRequest");
             }
         }
 
@@ -211,6 +212,7 @@ public class PromptService implements PromptServiceBase {
                     prompt = new Prompt(
                             UUID.randomUUID().toString(),
                             method,
+                            0, // version — will be set by savePrompt()
                             promptIdRequest.getPrompt(),
                             null, // systemMessage
                             State.CURRENT,

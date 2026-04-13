@@ -370,7 +370,7 @@ export default defineComponent({
     
     const fetchMetrics = () => {
       dashboardLoading.value = true;
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       
       let startDateStr, endDateStr;
       

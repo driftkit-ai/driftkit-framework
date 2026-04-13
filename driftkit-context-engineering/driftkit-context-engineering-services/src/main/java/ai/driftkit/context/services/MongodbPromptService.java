@@ -85,10 +85,16 @@ public class MongodbPromptService implements PromptServiceBase {
 
             if (prompt.getMessage().equals(currentPrompt.getMessage())) {
                 prompt.setId(currentPrompt.getId());
+                prompt.setVersion(currentPrompt.getVersion());
             } else {
                 currentPrompt.setState(State.REPLACED);
                 getPromptRepository().save(currentPrompt);
+                prompt.setVersion(currentPrompt.getVersion() + 1);
             }
+        } else {
+            // First version for this method+language
+            int maxVersion = getMaxVersion(prompt.getMethod(), prompt.getLanguage());
+            prompt.setVersion(maxVersion + 1);
         }
 
         if (prompt.getState() == null) {
@@ -102,9 +108,35 @@ public class MongodbPromptService implements PromptServiceBase {
 
     @Override
     public Prompt deletePrompt(String id) {
-        Optional<Prompt> prompt = getPromptById(id);
-        getPromptRepository().deleteById(id);
-        return prompt.orElse(null);
+        Optional<Prompt> promptOpt = getPromptById(id);
+        if (promptOpt.isPresent()) {
+            Prompt deleted = promptOpt.get();
+            getPromptRepository().deleteById(id);
+
+            // If we deleted a CURRENT version, promote the latest REPLACED
+            if (deleted.getState() == State.CURRENT) {
+                List<Prompt> replaced = getPromptRepository()
+                        .findByMethodAndState(deleted.getMethod(), State.REPLACED);
+                replaced.stream()
+                        .filter(p -> p.getLanguage() == deleted.getLanguage())
+                        .max((a, b) -> Long.compare(a.getUpdatedTime(), b.getUpdatedTime()))
+                        .ifPresent(latest -> {
+                            latest.setState(State.CURRENT);
+                            getPromptRepository().save(latest);
+                        });
+            }
+            return deleted;
+        }
+        return null;
+    }
+
+    private int getMaxVersion(String method, Language language) {
+        List<Prompt> all = getPromptRepository().findByMethod(method);
+        return all.stream()
+                .filter(p -> p.getLanguage() == language)
+                .mapToInt(Prompt::getVersion)
+                .max()
+                .orElse(0);
     }
 
     @Override

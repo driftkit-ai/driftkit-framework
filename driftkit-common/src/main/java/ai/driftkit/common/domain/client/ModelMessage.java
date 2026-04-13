@@ -12,6 +12,7 @@ public class ModelMessage {
     private Role role;
     private String content;
     private List<ToolCall> toolCalls;
+    private String reasoningContent;
 
     // Helper factory methods
     public static ModelMessage user(String content) {
