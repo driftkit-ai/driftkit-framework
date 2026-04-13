@@ -14,6 +14,7 @@ driftkit:
     - name: deepseek
       api-key: ${DEEPSEEK_API_KEY:sk-placeholder}
       model: deepseek-chat
+      tracing: true
 
   promptService:
     name: mongodb
