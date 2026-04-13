@@ -76,6 +76,60 @@
         </div>
       </div>
     </div>
+
+    <!-- Dataset Sweep Mode -->
+    <div class="card mb-4">
+      <div class="card-content p-4">
+        <h5 class="m-0 font-semibold mb-3">Dataset Sweep</h5>
+        <p class="text-sm text-muted mb-3">Run a prompt against all items in a test set and aggregate results.</p>
+        <div class="d-flex gap-2 align-items-end">
+          <div class="field" style="flex:1">
+            <label class="text-sm">Prompt Method</label>
+            <InputText v-model="sweepPromptMethod" class="w-full" placeholder="e.g. reports/monthly" />
+          </div>
+          <div class="field" style="flex:1">
+            <label class="text-sm">Test Set ID</label>
+            <InputText v-model="sweepTestSetId" class="w-full" placeholder="Test set ID" />
+          </div>
+          <div class="field" style="flex:1">
+            <label class="text-sm">Model</label>
+            <InputText v-model="sweepModelId" class="w-full" placeholder="gpt-4o" />
+          </div>
+          <Button label="Run Sweep" icon="pi pi-play" @click="runSweep" :loading="sweepLoading" />
+        </div>
+        <div v-if="sweepResult" class="mt-3">
+          <Tag :value="`${sweepResult.passedCases}/${sweepResult.totalCases} passed`" :severity="sweepResult.failedCases > 0 ? 'danger' : 'success'" />
+          <span class="text-sm text-muted ms-2">Avg latency: {{ sweepResult.avgLatencyMs?.toFixed(0) }}ms</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Playground -->
+    <div class="card mb-4">
+      <div class="card-content p-4">
+        <h5 class="m-0 font-semibold mb-3">Pipeline Playground</h5>
+        <p class="text-sm text-muted mb-3">Test a pipeline with prompt overrides — see if your changes break the pipeline.</p>
+        <div class="d-flex gap-2 align-items-end">
+          <div class="field" style="flex:1">
+            <label class="text-sm">Pipeline ID</label>
+            <InputText v-model="pipelineId" class="w-full" placeholder="e.g. content-moderation" />
+          </div>
+          <div class="field" style="flex:1">
+            <label class="text-sm">Test Set ID</label>
+            <InputText v-model="pipelineTestSetId" class="w-full" placeholder="Dataset to test against" />
+          </div>
+          <Button label="Run Pipeline Test" icon="pi pi-cog" severity="info" @click="runPipelineTest" :loading="pipelineTestLoading" />
+        </div>
+        <div class="mt-2">
+          <label class="text-sm">Prompt Overrides (JSON: {"method": "new text"})</label>
+          <Textarea v-model="pipelineOverridesJson" rows="2" class="w-full font-mono" placeholder='{"classifier": "You are a strict classifier..."}' />
+        </div>
+        <div v-if="pipelineTestResult" class="mt-3">
+          <Tag :value="pipelineTestResult.status" :severity="pipelineTestResult.status === 'COMPLETED' ? 'success' : 'danger'" />
+          <span class="text-sm text-muted ms-2">{{ pipelineTestResult.passedCases }}/{{ pipelineTestResult.totalCases }} passed</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -86,6 +140,7 @@ import Textarea from 'primevue/textarea';
 import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
+import Tag from 'primevue/tag';
 
 const panelA = reactive({ systemMessage: '', message: '', modelId: '', temperature: 0.7, result: '', tokens: 0, latency: 0 });
 const panelB = reactive({ systemMessage: '', message: '', modelId: '', temperature: 0.7, result: '', tokens: 0, latency: 0 });
@@ -132,6 +187,80 @@ const executePanel = async (panel: 'A' | 'B') => {
 const executeBoth = () => {
   executePanel('A');
   executePanel('B');
+};
+
+// --- Dataset Sweep ---
+const sweepPromptMethod = ref('');
+const sweepTestSetId = ref('');
+const sweepModelId = ref('');
+const sweepLoading = ref(false);
+const sweepResult = ref<any>(null);
+
+const runSweep = async () => {
+  if (!sweepPromptMethod.value || !sweepTestSetId.value) return;
+  sweepLoading.value = true;
+  sweepResult.value = null;
+  try {
+    const res = await axios.post('/data/v1.0/admin/pipeline-tests/run', {
+      pipelineId: sweepPromptMethod.value,
+      datasetId: sweepTestSetId.value,
+      promptOverrides: {},
+    });
+    // Poll for completion
+    const runId = res.data.data?.id;
+    if (runId) {
+      const poll = setInterval(async () => {
+        const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
+        const run = r.data.data;
+        if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
+          sweepResult.value = run;
+          sweepLoading.value = false;
+          clearInterval(poll);
+        }
+      }, 2000);
+    }
+  } catch (e: any) {
+    sweepResult.value = { status: 'ERROR', passedCases: 0, totalCases: 0, failedCases: 0 };
+    sweepLoading.value = false;
+  }
+};
+
+// --- Pipeline Playground ---
+const pipelineId = ref('');
+const pipelineTestSetId = ref('');
+const pipelineOverridesJson = ref('{}');
+const pipelineTestLoading = ref(false);
+const pipelineTestResult = ref<any>(null);
+
+const runPipelineTest = async () => {
+  if (!pipelineId.value || !pipelineTestSetId.value) return;
+  pipelineTestLoading.value = true;
+  pipelineTestResult.value = null;
+  try {
+    let overrides = {};
+    try { overrides = JSON.parse(pipelineOverridesJson.value); } catch {}
+
+    const res = await axios.post('/data/v1.0/admin/pipeline-tests/run', {
+      pipelineId: pipelineId.value,
+      datasetId: pipelineTestSetId.value,
+      promptOverrides: overrides,
+    });
+    const runId = res.data.data?.id;
+    if (runId) {
+      const poll = setInterval(async () => {
+        const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
+        const run = r.data.data;
+        if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
+          pipelineTestResult.value = run;
+          pipelineTestLoading.value = false;
+          clearInterval(poll);
+        }
+      }, 2000);
+    }
+  } catch (e: any) {
+    pipelineTestResult.value = { status: 'ERROR', passedCases: 0, totalCases: 0 };
+    pipelineTestLoading.value = false;
+  }
 };
 </script>
 

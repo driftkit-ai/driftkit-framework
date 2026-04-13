@@ -41,6 +41,11 @@
         <ProgressSpinner v-if="dashboardLoading" style="width: 20px; height: 20px" class="metric-spinner" />
       </div>
       <div class="metric-card">
+        <div class="metric-label">Est. Cost (USD)</div>
+        <div class="metric-value">${{ estimatedCost }}</div>
+        <ProgressSpinner v-if="dashboardLoading" style="width: 20px; height: 20px" class="metric-spinner" />
+      </div>
+      <div class="metric-card">
         <div class="metric-label">Median Latency (ms)</div>
         <div class="metric-value">{{ metrics.latencyPercentiles?.p50 || 0 }}</div>
         <ProgressSpinner v-if="dashboardLoading" style="width: 20px; height: 20px" class="metric-spinner" />
@@ -185,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useDashboardMetrics } from '@/composables/useDashboardMetrics';
 import SelectButton from 'primevue/selectbutton';
 import DatePicker from 'primevue/datepicker';
@@ -223,6 +228,14 @@ const timeRangeOptions = [
   { label: '7 Days', value: '7days' },
   { label: '30 Days', value: '30days' },
 ];
+
+// Estimated cost from token counts (rough estimate: $2.50/1M input, $10/1M output for GPT-4o)
+const estimatedCost = computed(() => {
+  const input = metrics.value?.totalPromptTokens || 0;
+  const output = metrics.value?.totalCompletionTokens || 0;
+  const cost = (input / 1_000_000) * 2.5 + (output / 1_000_000) * 10;
+  return cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2);
+});
 
 // DatePicker needs Date objects, composable uses ISO strings
 const startDate = ref(new Date());
@@ -271,7 +284,7 @@ onMounted(() => {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1rem;
 }
 

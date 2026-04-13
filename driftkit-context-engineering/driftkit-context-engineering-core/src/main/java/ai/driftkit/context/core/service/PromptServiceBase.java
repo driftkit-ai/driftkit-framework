@@ -64,7 +64,7 @@ public interface PromptServiceBase {
         if (envVersion != null) {
             List<Prompt> allVersions = getPromptsByMethods(List.of(method));
             Optional<Prompt> envPrompt = allVersions.stream()
-                    .filter(p -> p.getVersion() == envVersion && p.getLanguage() == language)
+                    .filter(p -> p.getVersion() == envVersion && language.equals(p.getLanguage()))
                     .findFirst();
             if (envPrompt.isPresent()) {
                 return envPrompt;

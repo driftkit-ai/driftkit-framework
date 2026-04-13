@@ -390,14 +390,30 @@ public class PromptRestController {
 
     private Prompt findPromptByMethodLanguageAndState(String method, Language language, Prompt.State state) {
         return promptService.getPromptsByMethodsAndState(List.of(method), state).stream()
-                .filter(p -> p.getLanguage() == language)
+                .filter(p -> language.equals(p.getLanguage()))
                 .findFirst()
                 .orElse(null);
     }
 
     private void audit(String method, Language language, PromptAudit.Action action, int version) {
         if (auditService != null) {
-            auditService.record(method, language, 0, version, action, null, null, null);
+            String user = extractUser();
+            auditService.record(method, language, 0, version, action, user, null, null);
         }
+    }
+
+    @Autowired
+    private jakarta.servlet.http.HttpServletRequest request;
+
+    private String extractUser() {
+        // Try Basic auth header (base64 decoded username)
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            try {
+                String decoded = new String(java.util.Base64.getDecoder().decode(authHeader.substring(6)));
+                return decoded.contains(":") ? decoded.substring(0, decoded.indexOf(":")) : decoded;
+            } catch (Exception e) { /* ignore */ }
+        }
+        return request.getRemoteUser();
     }
 }
