@@ -145,6 +145,7 @@ const menuItems = [
   { path: '/test-sets', label: 'Test Sets', icon: 'pi pi-check-square' },
   { path: '/evaluation-runs', label: 'Eval Runs', icon: 'pi pi-play' },
   { path: '/pipelines', label: 'Pipelines', icon: 'pi pi-sitemap' },
+  { path: '/playground', label: 'Playground', icon: 'pi pi-sliders-h' },
   { path: '/chat', label: 'Chat', icon: 'pi pi-comments' },
   { path: '/indexes', label: 'Indexes', icon: 'pi pi-search' },
   { path: '/dictionaries', label: 'Dictionaries', icon: 'pi pi-book' },

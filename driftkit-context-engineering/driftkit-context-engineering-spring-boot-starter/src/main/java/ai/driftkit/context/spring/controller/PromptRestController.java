@@ -4,7 +4,9 @@ import ai.driftkit.common.domain.CreatePromptRequest;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.context.spring.testsuite.domain.PromptEnvironment;
 import ai.driftkit.context.spring.testsuite.domain.PromptMethodConfig;
+import ai.driftkit.context.spring.testsuite.repository.PromptEnvironmentRepository;
 import ai.driftkit.context.spring.testsuite.repository.PromptMethodConfigRepository;
 import ai.driftkit.common.domain.RestResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,9 @@ public class PromptRestController {
 
     @Autowired(required = false)
     private PromptMethodConfigRepository promptMethodConfigRepository;
+
+    @Autowired(required = false)
+    private PromptEnvironmentRepository promptEnvironmentRepository;
 
     @PostMapping("/create-if-not-exists")
     public @ResponseBody RestResponse<Prompt> createIfNotExists(
@@ -278,6 +283,40 @@ public class PromptRestController {
         }
         config.setMethod(method);
         PromptMethodConfig saved = promptMethodConfigRepository.save(config);
+        return new RestResponse<>(true, saved);
+    }
+
+    // --- Environment Endpoints ---
+
+    @GetMapping("/{method}/environments")
+    public @ResponseBody RestResponse<List<PromptEnvironment>> getEnvironments(@PathVariable String method) {
+        if (promptEnvironmentRepository == null) {
+            return new RestResponse<>(false, null, "Environment repository not available");
+        }
+        return new RestResponse<>(true, promptEnvironmentRepository.findByMethod(method));
+    }
+
+    @PostMapping("/{method}/promote")
+    public @ResponseBody RestResponse<PromptEnvironment> promote(
+            @PathVariable String method,
+            @RequestParam int version,
+            @RequestParam String environment,
+            @RequestParam(required = false, defaultValue = "GENERAL") Language language
+    ) {
+        if (promptEnvironmentRepository == null) {
+            return new RestResponse<>(false, null, "Environment repository not available");
+        }
+        PromptEnvironment env = promptEnvironmentRepository
+                .findByMethodAndLanguageAndEnvironment(method, language, environment)
+                .orElse(new PromptEnvironment());
+
+        env.setMethod(method);
+        env.setLanguage(language);
+        env.setEnvironment(environment);
+        env.setVersion(version);
+        env.setUpdatedAt(System.currentTimeMillis());
+
+        PromptEnvironment saved = promptEnvironmentRepository.save(env);
         return new RestResponse<>(true, saved);
     }
 
