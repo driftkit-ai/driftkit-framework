@@ -11,10 +11,8 @@ spring:
 
 driftkit:
   vault:
-    - name: openai
-      type: openai
+    - name: deepseek
       api-key: ${DEEPSEEK_API_KEY:sk-placeholder}
-      base-url: https://api.deepseek.com
       model: deepseek-chat
 
   promptService:
