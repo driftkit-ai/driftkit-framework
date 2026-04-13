@@ -2,9 +2,8 @@
   <div class="traces-page">
     <div class="page-header">
       <h4 class="page-subtitle">Model Request Traces</h4>
-      <p class="page-description">View and filter LLM call traces, inspect request/response details, add to test sets.</p>
+      <p class="page-description">View and filter LLM call traces, inspect request/response details, add items to test sets.</p>
     </div>
-    <!-- Existing TracesTab with Bootstrap — wrapped in PrimeVue card -->
     <div class="card">
       <TracesTab />
     </div>
