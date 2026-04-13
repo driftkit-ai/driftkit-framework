@@ -2,12 +2,16 @@ package ai.driftkit.workflow.engine.agent;
 
 import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineDefinition;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineRegistry;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineStep;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,12 +31,19 @@ public class SequentialAgent implements Agent {
     
     @Builder.Default
     private final String name = "SequentialAgent";
-    
+
+    /** True if user explicitly set .name() in builder — enables pipeline registration and trace context. */
+    @Builder.Default
+    private final boolean customName = false;
+
     @Builder.Default
     private final String description = "Agent that executes multiple agents in sequence";
-    
+
+    private transient volatile boolean registered = false;
+
     @Override
     public String execute(String input) {
+        registerIfNamed();
         return runSequence(input, null);
     }
     
@@ -92,7 +103,7 @@ public class SequentialAgent implements Agent {
         
         String result = input;
         
-        boolean isNamedPipeline = !"SequentialAgent".equals(getName());
+        boolean isNamedPipeline = customName;
 
         for (int i = 0; i < agents.size(); i++) {
             Agent agent = agents.get(i);
@@ -125,5 +136,29 @@ public class SequentialAgent implements Agent {
         return result;
     }
     
-    // Sequential agents don't support streaming - each agent needs complete output of previous one
+    private void registerIfNamed() {
+        if (registered || !customName) return;
+        registered = true;
+        try {
+            List<PipelineStep> steps = new ArrayList<>();
+            for (int i = 0; i < agents.size(); i++) {
+                Agent agent = agents.get(i);
+                steps.add(PipelineStep.builder()
+                        .stepId(agent.getName())
+                        .agentName(agent.getName())
+                        .order(i)
+                        .type(PipelineStep.StepType.LLM_CALL)
+                        .build());
+            }
+            PipelineRegistry.getInstance().register(PipelineDefinition.builder()
+                    .id(getName())
+                    .name(getName())
+                    .description(getDescription())
+                    .type(PipelineDefinition.PipelineType.SEQUENTIAL_AGENT)
+                    .steps(steps)
+                    .build());
+        } catch (Exception e) {
+            log.warn("Failed to register SequentialAgent '{}' in pipeline registry", getName(), e);
+        }
+    }
 }

@@ -33,6 +33,10 @@
             <artifactId>driftkit-context-engineering-services</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflow-engine-core</artifactId>
+        </dependency>
 
         <!-- Spring Boot -->
         <dependency>

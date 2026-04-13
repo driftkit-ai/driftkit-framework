@@ -24,6 +24,10 @@
         </dependency>
         <dependency>
             <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-workflow-engine-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
             <artifactId>driftkit-clients-core</artifactId>
         </dependency>
         <dependency>

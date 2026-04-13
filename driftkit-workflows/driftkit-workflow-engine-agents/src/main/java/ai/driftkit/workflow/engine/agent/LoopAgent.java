@@ -5,6 +5,9 @@ import ai.driftkit.common.domain.streaming.StreamingResponse;
 import ai.driftkit.common.domain.streaming.BasicStreamingResponse;
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.context.core.util.DefaultPromptLoader;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineDefinition;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineRegistry;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineStep;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -36,15 +39,22 @@ public class LoopAgent implements Agent {
     
     @Builder.Default
     private final String name = "LoopAgent";
-    
+
+    /** True if user explicitly set .name() in builder — enables pipeline registration and trace context. */
+    @Builder.Default
+    private final boolean customName = false;
+
     @Builder.Default
     private final String description = "Agent that executes work in a loop until condition is met";
     
     @Builder.Default
     private final int maxIterations = 10;
-    
+
+    private transient volatile boolean registered = false;
+
     @Override
     public String execute(String input) {
+        registerIfNamed();
         return runLoop(input, null);
     }
     
@@ -70,7 +80,7 @@ public class LoopAgent implements Agent {
         String currentResult = input;
         int iteration = 0;
         
-        boolean isNamedPipeline = !"LoopAgent".equals(getName());
+        boolean isNamedPipeline = customName;
 
         while (iteration < maxIterations) {
             iteration++;
@@ -240,5 +250,23 @@ public class LoopAgent implements Agent {
             .build();
     }
     
-    // Loop agents don't support streaming - need to evaluate complete results at each iteration
+    private void registerIfNamed() {
+        if (registered || !customName) return;
+        registered = true;
+        try {
+            PipelineRegistry.getInstance().register(PipelineDefinition.builder()
+                    .id(getName())
+                    .name(getName())
+                    .description(getDescription())
+                    .type(PipelineDefinition.PipelineType.LOOP_AGENT)
+                    .steps(java.util.List.of(
+                            PipelineStep.builder().stepId("worker").agentName(worker.getName()).order(0).type(PipelineStep.StepType.LOOP_WORKER).build(),
+                            PipelineStep.builder().stepId("evaluator").agentName(evaluator.getName()).order(1).type(PipelineStep.StepType.LOOP_EVALUATOR).build()
+                    ))
+                    .config(java.util.Map.of("maxIterations", maxIterations, "stopCondition", stopCondition.name()))
+                    .build());
+        } catch (Exception e) {
+            log.warn("Failed to register LoopAgent '{}' in pipeline registry", getName(), e);
+        }
+    }
 }

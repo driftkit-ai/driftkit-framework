@@ -7,6 +7,7 @@ import ai.driftkit.workflow.engine.async.InMemoryProgressTracker;
 import ai.driftkit.workflow.engine.async.ProgressTracker;
 import ai.driftkit.workflow.engine.async.TaskProgressReporter;
 import ai.driftkit.workflow.engine.builder.WorkflowBuilder;
+import ai.driftkit.workflow.engine.core.pipeline.PipelineRegistry;
 import ai.driftkit.workflow.engine.domain.AsyncStepState;
 import ai.driftkit.workflow.engine.domain.SuspensionData;
 import ai.driftkit.workflow.engine.domain.WorkflowEngineConfig;
@@ -185,9 +186,16 @@ public class WorkflowEngine {
 
         // Register async steps if any
         asyncStepHandler.registerWorkflow(graph);
-        
+
         // Register all input schemas for the workflow steps
         registerWorkflowSchemas(graph);
+
+        // Auto-register in pipeline registry for introspection/visualization
+        try {
+            PipelineRegistry.getInstance().registerFromWorkflowGraph(graph);
+        } catch (Exception e) {
+            log.warn("Failed to register workflow {} in pipeline registry: {}", workflowId, e.getMessage());
+        }
 
         log.info("Registered workflow: {} (version: {}, async steps: {})",
                 workflowId, graph.version(),
