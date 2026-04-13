@@ -110,19 +110,41 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         // Build messages
         List<ClaudeMessage> messages = new ArrayList<>();
         String systemPrompt = null;
+        List<ClaudeContent> systemContentBlocks = null;
         
         for (ModelContentMessage message : prompt.getMessages()) {
             String role = message.getRole().name().toLowerCase();
             
             // Handle system messages separately
             if ("system".equals(role)) {
-                StringBuilder systemBuilder = new StringBuilder();
-                for (ModelContentElement element : message.getContent()) {
-                    if (element.getType() == ModelTextRequest.MessageType.text) {
-                        systemBuilder.append(element.getText());
+                // Check if any content element has cache_control — if so, need array format
+                boolean hasCacheControl = message.getContent().stream()
+                        .anyMatch(el -> el.getCacheControl() != null);
+
+                if (hasCacheControl) {
+                    // Build as List<ClaudeContent> to preserve cache_control markers
+                    List<ClaudeContent> systemContents = new ArrayList<>();
+                    for (ModelContentElement element : message.getContent()) {
+                        if (element.getType() == ModelTextRequest.MessageType.text) {
+                            ClaudeContent cc = ClaudeContent.text(element.getText());
+                            applyCacheControlFromElement(cc, element);
+                            systemContents.add(cc);
+                        }
                     }
+                    systemPrompt = null;
+                    // Tag: store system contents for later assignment after request.build()
+                    // Using a thread-local to pass between method scopes cleanly
+                    systemContentBlocks = systemContents;
+                } else {
+                    StringBuilder systemBuilder = new StringBuilder();
+                    for (ModelContentElement element : message.getContent()) {
+                        if (element.getType() == ModelTextRequest.MessageType.text) {
+                            systemBuilder.append(element.getText());
+                        }
+                    }
+                    systemPrompt = systemBuilder.toString();
+                    systemContentBlocks = null;
                 }
-                systemPrompt = systemBuilder.toString();
                 continue;
             }
 
@@ -177,6 +199,11 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         applyStructuredOutputsAndTools(requestBuilder, prompt);
 
         ClaudeMessageRequest request = requestBuilder.build();
+
+        // If system message had cache_control markers, set as content block array
+        if (systemContentBlocks != null) {
+            request.setSystem(systemContentBlocks);
+        }
 
         // Apply cache policy
         applyCachePolicy(request, prompt.getCachePolicy());

@@ -85,7 +85,9 @@ public class ClaudeMessageRequest {
 
     /**
      * Get system prompt as plain string regardless of internal representation.
+     * JsonIgnore prevents Jackson from serializing this as a separate "systemAsString" field.
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String getSystemAsString() {
         if (system instanceof String s) {
             return s;
