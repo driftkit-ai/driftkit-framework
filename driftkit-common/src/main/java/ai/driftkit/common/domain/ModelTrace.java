@@ -32,4 +32,7 @@ public class ModelTrace {
 
     // Cache metrics
     private CacheUsage cacheUsage;
+
+    // Cost estimate
+    private Double estimatedCostUSD;
 }

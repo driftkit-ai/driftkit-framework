@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,9 +35,25 @@ public class Prompt {
     private boolean jsonRequest;
     private boolean jsonResponse;
     private ResponseFormat responseFormat;
+    private List<VariableSchema> variableSchemas;
     private long createdTime;
     private long updatedTime;
     private long approvedTime;
+
+    /**
+     * Schema definition for a template variable.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VariableSchema {
+        private String name;
+        private String type;        // string, number, json, text
+        private boolean required;
+        private String defaultValue;
+        private String description;
+        private String example;
+    }
 
     public Language getLanguage() {
         if (language == null) {

@@ -6,8 +6,10 @@ import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.spring.testsuite.domain.PromptEnvironment;
 import ai.driftkit.context.spring.testsuite.domain.PromptMethodConfig;
+import ai.driftkit.context.spring.testsuite.domain.PromptAudit;
 import ai.driftkit.context.spring.testsuite.repository.PromptEnvironmentRepository;
 import ai.driftkit.context.spring.testsuite.repository.PromptMethodConfigRepository;
+import ai.driftkit.context.spring.testsuite.service.PromptAuditService;
 import ai.driftkit.common.domain.RestResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.BooleanUtils;
@@ -30,6 +32,9 @@ public class PromptRestController {
 
     @Autowired(required = false)
     private PromptEnvironmentRepository promptEnvironmentRepository;
+
+    @Autowired(required = false)
+    private PromptAuditService auditService;
 
     @PostMapping("/create-if-not-exists")
     public @ResponseBody RestResponse<Prompt> createIfNotExists(
@@ -90,6 +95,7 @@ public class PromptRestController {
             @RequestBody Prompt input
     ) {
         Prompt prompt = promptService.savePrompt(input);
+        audit(prompt.getMethod(), prompt.getLanguage(), PromptAudit.Action.SAVED, prompt.getVersion());
 
         return new RestResponse<>(
                 true,
@@ -164,6 +170,7 @@ public class PromptRestController {
         draft.setState(Prompt.State.CURRENT);
         draft.setUpdatedTime(System.currentTimeMillis());
         Prompt saved = promptService.savePrompt(draft);
+        audit(method, language, PromptAudit.Action.PUBLISHED, saved.getVersion());
         return new RestResponse<>(true, saved);
     }
 
@@ -286,6 +293,55 @@ public class PromptRestController {
         return new RestResponse<>(true, saved);
     }
 
+    // --- Folder Operations ---
+
+    @PostMapping("/move")
+    public @ResponseBody RestResponse<Prompt> movePrompt(
+            @RequestParam String method,
+            @RequestParam String newMethod
+    ) {
+        List<Prompt> prompts = promptService.getPromptsByMethods(List.of(method));
+        if (prompts.isEmpty()) {
+            return new RestResponse<>(false, null, "No prompts found for method: " + method);
+        }
+        Prompt last = null;
+        for (Prompt p : prompts) {
+            p.setMethod(newMethod);
+            last = promptService.savePrompt(p);
+        }
+        return new RestResponse<>(true, last);
+    }
+
+    @PostMapping("/rename-folder")
+    public @ResponseBody RestResponse<Integer> renameFolder(
+            @RequestParam String oldPrefix,
+            @RequestParam String newPrefix
+    ) {
+        List<Prompt> all = promptService.getPrompts();
+        int count = 0;
+        for (Prompt p : all) {
+            if (p.getMethod() != null && p.getMethod().startsWith(oldPrefix + "/")) {
+                p.setMethod(newPrefix + p.getMethod().substring(oldPrefix.length()));
+                promptService.savePrompt(p);
+                count++;
+            }
+        }
+        return new RestResponse<>(true, count, count + " prompts renamed");
+    }
+
+    @DeleteMapping("/folder/{prefix}")
+    public @ResponseBody RestResponse<Integer> deleteFolder(@PathVariable String prefix) {
+        List<Prompt> all = promptService.getPrompts();
+        int count = 0;
+        for (Prompt p : all) {
+            if (p.getMethod() != null && p.getMethod().startsWith(prefix + "/")) {
+                promptService.deletePrompt(p.getId());
+                count++;
+            }
+        }
+        return new RestResponse<>(true, count, count + " prompts deleted");
+    }
+
     // --- Environment Endpoints ---
 
     @GetMapping("/{method}/environments")
@@ -320,10 +376,28 @@ public class PromptRestController {
         return new RestResponse<>(true, saved);
     }
 
+    // --- Audit Endpoints ---
+
+    @GetMapping("/audit/{method}")
+    public @ResponseBody RestResponse<List<PromptAudit>> getAuditHistory(@PathVariable String method) {
+        if (auditService == null) {
+            return new RestResponse<>(false, null, "Audit service not available");
+        }
+        return new RestResponse<>(true, auditService.getHistory(method));
+    }
+
+    // --- Helpers ---
+
     private Prompt findPromptByMethodLanguageAndState(String method, Language language, Prompt.State state) {
         return promptService.getPromptsByMethodsAndState(List.of(method), state).stream()
                 .filter(p -> p.getLanguage() == language)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void audit(String method, Language language, PromptAudit.Action action, int version) {
+        if (auditService != null) {
+            auditService.record(method, language, 0, version, action, null, null, null);
+        }
     }
 }

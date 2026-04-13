@@ -102,6 +102,7 @@ public class PromptService implements PromptServiceBase {
                 false,
                 jsonResponse,
                 null, // responseFormat
+                null, // variableSchemas
                 System.currentTimeMillis(),
                 System.currentTimeMillis(),
                 System.currentTimeMillis()
@@ -224,6 +225,7 @@ public class PromptService implements PromptServiceBase {
                             false,
                             false, // jsonResponse - can be parameterized in the future
                             null, // responseFormat
+                            null, // variableSchemas
                             System.currentTimeMillis(),
                             System.currentTimeMillis(),
                             System.currentTimeMillis()
