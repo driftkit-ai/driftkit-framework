@@ -133,19 +133,42 @@
               </DataTable>
 
               <!-- Expanded trace details -->
-              <div v-for="trace in contextTraces.filter(t => expandedTraces.includes(t.id))" :key="'detail-'+trace.id" class="expansion-panel">
+              <div v-for="trace in contextTraces.filter(t => expandedTraces.includes(t.id))" :key="'detail-'+trace.id" class="trace-detail-panel">
+                <div class="trace-detail-header">
+                  <Tag value="Trace Detail" severity="info" />
+                  <span class="text-sm text-muted">{{ trace.id }}</span>
+                  <span v-if="trace.trace" class="text-sm">{{ trace.trace.executionTimeMs }}ms | {{ (trace.trace.promptTokens || 0) + (trace.trace.completionTokens || 0) }} tokens</span>
+                </div>
+
+                <!-- System Message -->
+                <div v-if="trace.systemMessage" class="trace-section">
+                  <h6 class="section-label">System Message</h6>
+                  <pre class="code-block system-block">{{ trace.systemMessage }}</pre>
+                </div>
+
                 <div class="three-col">
-                  <div>
-                    <h6 class="text-sm">Prompt Template</h6>
+                  <div class="trace-section">
+                    <h6 class="section-label">Prompt Template</h6>
                     <pre class="code-block">{{ trace.promptTemplate || '' }}</pre>
                   </div>
-                  <div>
-                    <h6 class="text-sm">Variables</h6>
+                  <div class="trace-section">
+                    <h6 class="section-label">Variables</h6>
                     <pre class="code-block">{{ JSON.stringify(trace.variables || {}, null, 2) }}</pre>
                   </div>
-                  <div>
-                    <h6 class="text-sm">Response</h6>
-                    <pre class="code-block">{{ trace.response || '' }}</pre>
+                  <div class="trace-section">
+                    <h6 class="section-label">Response</h6>
+                    <pre class="code-block response-block">{{ trace.response || '' }}</pre>
+                  </div>
+                </div>
+
+                <!-- Messages (full conversation context) -->
+                <div v-if="trace.messages && trace.messages.length > 0" class="trace-section">
+                  <h6 class="section-label">Conversation ({{ trace.messages.length }} messages)</h6>
+                  <div class="messages-list">
+                    <div v-for="(msg, i) in trace.messages" :key="i" class="message-item" :class="'msg-' + msg.role">
+                      <Tag :value="msg.role" :severity="msg.role === 'system' ? 'warn' : msg.role === 'user' ? 'info' : 'success'" class="me-2" />
+                      <span class="text-sm">{{ msg.content?.substring(0, 200) }}{{ msg.content?.length > 200 ? '...' : '' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -296,6 +319,17 @@ onMounted(() => {
 .header-chat { background: var(--p-blue-50); }
 .header-context { background: var(--p-surface-50); }
 .expansion-panel { padding: 0.75rem; border-top: 1px solid var(--p-surface-border); background: var(--p-surface-50); }
+.trace-detail-panel { margin: 0.5rem; padding: 1rem; border: 2px solid var(--p-blue-200); border-radius: 8px; background: var(--p-blue-50); }
+.trace-detail-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--p-blue-200); }
+.trace-section { margin-bottom: 0.5rem; }
+.section-label { font-size: 0.8rem; font-weight: 600; color: var(--p-text-color); margin: 0 0 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.system-block { background: var(--p-yellow-50); border-color: var(--p-yellow-200); }
+.response-block { background: var(--p-green-50); border-color: var(--p-green-200); }
+.messages-list { display: flex; flex-direction: column; gap: 0.375rem; }
+.message-item { padding: 0.375rem 0.5rem; border-radius: 4px; display: flex; align-items: flex-start; }
+.msg-system { background: var(--p-yellow-50); }
+.msg-user { background: var(--p-blue-50); }
+.msg-assistant { background: var(--p-green-50); }
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
 .code-block { white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 0.8rem; background: var(--p-surface-0); border: 1px solid var(--p-surface-border); border-radius: 4px; padding: 0.5rem; max-height: 200px; overflow: auto; }
 .font-mono { font-family: monospace; }
