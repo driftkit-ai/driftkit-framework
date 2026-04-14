@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import Textarea from 'primevue/textarea';
 import InputText from 'primevue/inputtext';
@@ -195,6 +195,7 @@ const sweepTestSetId = ref('');
 const sweepModelId = ref('');
 const sweepLoading = ref(false);
 const sweepResult = ref<any>(null);
+const activeIntervals: number[] = [];
 
 const runSweep = async () => {
   if (!sweepPromptMethod.value || !sweepTestSetId.value) return;
@@ -209,15 +210,19 @@ const runSweep = async () => {
     // Poll for completion
     const runId = res.data.data?.id;
     if (runId) {
-      const poll = setInterval(async () => {
-        const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
-        const run = r.data.data;
-        if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
-          sweepResult.value = run;
-          sweepLoading.value = false;
-          clearInterval(poll);
-        }
+      const poll = window.setInterval(async () => {
+        try {
+          const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
+          const run = r.data.data;
+          if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
+            sweepResult.value = run;
+            sweepLoading.value = false;
+            clearInterval(poll);
+            activeIntervals.splice(activeIntervals.indexOf(poll), 1);
+          }
+        } catch { clearInterval(poll); activeIntervals.splice(activeIntervals.indexOf(poll), 1); sweepLoading.value = false; }
       }, 2000);
+      activeIntervals.push(poll);
     }
   } catch (e: any) {
     sweepResult.value = { status: 'ERROR', passedCases: 0, totalCases: 0, failedCases: 0 };
@@ -238,7 +243,7 @@ const runPipelineTest = async () => {
   pipelineTestResult.value = null;
   try {
     let overrides = {};
-    try { overrides = JSON.parse(pipelineOverridesJson.value); } catch {}
+    try { overrides = JSON.parse(pipelineOverridesJson.value); } catch { /* use empty overrides if invalid JSON */ }
 
     const res = await axios.post('/data/v1.0/admin/pipeline-tests/run', {
       pipelineId: pipelineId.value,
@@ -247,21 +252,30 @@ const runPipelineTest = async () => {
     });
     const runId = res.data.data?.id;
     if (runId) {
-      const poll = setInterval(async () => {
-        const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
-        const run = r.data.data;
-        if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
-          pipelineTestResult.value = run;
-          pipelineTestLoading.value = false;
-          clearInterval(poll);
-        }
+      const poll = window.setInterval(async () => {
+        try {
+          const r = await axios.get(`/data/v1.0/admin/pipeline-tests/${runId}`);
+          const run = r.data.data;
+          if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
+            pipelineTestResult.value = run;
+            pipelineTestLoading.value = false;
+            clearInterval(poll);
+            activeIntervals.splice(activeIntervals.indexOf(poll), 1);
+          }
+        } catch { clearInterval(poll); activeIntervals.splice(activeIntervals.indexOf(poll), 1); pipelineTestLoading.value = false; }
       }, 2000);
+      activeIntervals.push(poll);
     }
   } catch (e: any) {
     pipelineTestResult.value = { status: 'ERROR', passedCases: 0, totalCases: 0 };
     pipelineTestLoading.value = false;
   }
 };
+
+onBeforeUnmount(() => {
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals.length = 0;
+});
 </script>
 
 <style scoped>

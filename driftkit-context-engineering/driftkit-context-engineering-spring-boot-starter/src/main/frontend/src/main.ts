@@ -4,6 +4,7 @@ import router from './router';
 import axios, { InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
+import ToastService from 'primevue/toastservice';
 import 'primeicons/primeicons.css';
 // Keep Bootstrap temporarily during incremental migration
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -39,5 +40,6 @@ app.use(PrimeVue, {
   },
 });
 
+app.use(ToastService);
 app.use(router);
 app.mount('#app');

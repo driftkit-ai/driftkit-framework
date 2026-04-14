@@ -169,9 +169,10 @@
                 <div v-if="trace.messages && trace.messages.length > 0" class="trace-section">
                   <h6 class="section-label">Conversation ({{ trace.messages.length }} messages)</h6>
                   <div class="messages-list">
-                    <div v-for="(msg, i) in trace.messages" :key="i" class="message-item" :class="'msg-' + msg.role">
-                      <Tag :value="msg.role" :severity="msg.role === 'system' ? 'warn' : msg.role === 'user' ? 'info' : 'success'" class="me-2" />
-                      <span class="text-sm">{{ msg.content?.substring(0, 200) }}{{ msg.content?.length > 200 ? '...' : '' }}</span>
+                    <div v-for="(msg, i) in trace.messages" :key="i" class="message-item" :class="'msg-' + msg.role" @click="toggleMessageExpand(trace.id, i)">
+                      <Tag :value="msg.role" :severity="msg.role === 'system' ? 'warn' : msg.role === 'user' ? 'info' : 'success'" class="me-2 flex-shrink-0" />
+                      <span v-if="!isMessageExpanded(trace.id, i)" class="text-sm msg-truncated">{{ msg.content?.substring(0, 200) }}{{ msg.content?.length > 200 ? '...' : '' }}</span>
+                      <pre v-else class="msg-full">{{ msg.content }}</pre>
                     </div>
                   </div>
                 </div>
@@ -210,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import Button from 'primevue/button';
 import SelectButton from 'primevue/selectbutton';
 import InputText from 'primevue/inputtext';
@@ -292,6 +293,15 @@ const regroupTraces = () => {
 
 const handleAddToTestSet = async () => { await baseHandleAddToTestSet(); };
 
+// Expanded conversation messages
+const expandedMessages = ref<Set<string>>(new Set());
+const toggleMessageExpand = (traceId: string, msgIdx: number) => {
+  const key = `${traceId}-${msgIdx}`;
+  if (expandedMessages.value.has(key)) expandedMessages.value.delete(key);
+  else expandedMessages.value.add(key);
+};
+const isMessageExpanded = (traceId: string, msgIdx: number) => expandedMessages.value.has(`${traceId}-${msgIdx}`);
+
 const traceRowClass = (data: any) => {
   if (data.trace?.hasError) return 'row-error';
   return '';
@@ -335,6 +345,11 @@ onMounted(() => {
 .msg-system { background: var(--p-yellow-50); }
 .msg-user { background: var(--p-blue-50); }
 .msg-assistant { background: var(--p-green-50); }
+.message-item { cursor: pointer; transition: background 0.15s; }
+.message-item:hover { filter: brightness(0.95); }
+.msg-truncated { overflow: hidden; text-overflow: ellipsis; }
+.msg-full { white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 0.8rem; margin: 0; padding: 0.5rem; background: var(--p-surface-0); border-radius: 4px; border: 1px solid var(--p-surface-border); max-height: 400px; overflow: auto; }
+.flex-shrink-0 { flex-shrink: 0; }
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
 .code-block { white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 0.8rem; background: var(--p-surface-0); border: 1px solid var(--p-surface-border); border-radius: 4px; padding: 0.5rem; max-height: 200px; overflow: auto; }
 .font-mono { font-family: monospace; }

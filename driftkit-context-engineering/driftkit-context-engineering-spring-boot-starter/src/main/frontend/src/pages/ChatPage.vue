@@ -121,9 +121,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import Button from 'primevue/button';
 import Textarea from 'primevue/textarea';
 import InputText from 'primevue/inputtext';
@@ -150,6 +151,8 @@ const languages = ref<string[]>([]);
 const workflows = ref<any[]>([]);
 const imageTasks = ref<Record<string, any>>({});
 const chatMessages = ref<HTMLElement | null>(null);
+const activePollingIntervals = ref<number[]>([]);
+let fetchMessagesController: AbortController | null = null;
 
 const workflowOptions = computed(() => [
   { label: 'None', value: '' },
@@ -169,7 +172,9 @@ const fetchChats = () => {
 };
 
 const fetchMessages = (chatId: string) => {
-  axios.get(`/data/v1.0/admin/llm/chat/${chatId}`, { params: { skip: 0, limit: 50 } })
+  if (fetchMessagesController) fetchMessagesController.abort();
+  fetchMessagesController = new AbortController();
+  axios.get(`/data/v1.0/admin/llm/chat/${chatId}`, { params: { skip: 0, limit: 50 }, signal: fetchMessagesController.signal })
     .then(res => {
       messages.value = res.data.data;
       messages.value.forEach(m => {
@@ -178,13 +183,13 @@ const fetchMessages = (chatId: string) => {
         }
       });
       scrollToBottom();
-    }).catch(err => console.error('Error fetching messages:', err));
+    }).catch(err => { if (!axios.isCancel(err)) console.error('Error fetching messages:', err); });
 };
 
 const createChat = () => {
   const name = prompt('Enter chat name:');
   if (!name) return;
-  axios.post('/data/v1.0/admin/llm/chat', { name }).then(() => fetchChats());
+  axios.post('/data/v1.0/admin/llm/chat', { name }).then(() => fetchChats()).catch(err => console.error('Error creating chat:', err));
 };
 
 const selectChat = (chatId: string) => {
@@ -221,11 +226,11 @@ const sendChatMessage = () => {
     };
     messages.value.push(aiMsg);
     pollMessage(aiMsg);
-  }).catch(() => alert('Error sending message'));
+  }).catch(err => console.error('Error sending message:', err));
 };
 
 const pollMessage = (msg: Message) => {
-  const interval = setInterval(() => {
+  const interval = window.setInterval(() => {
     axios.get(`/data/v1.0/admin/llm/message/${msg.messageId}`).then(res => {
       const task = res.data.data;
       if (!task) return;
@@ -243,17 +248,22 @@ const pollMessage = (msg: Message) => {
           });
         }
         clearInterval(interval);
+        activePollingIntervals.value = activePollingIntervals.value.filter(id => id !== interval);
         scrollToBottom();
       }
+    }).catch(() => {
+      clearInterval(interval);
+      activePollingIntervals.value = activePollingIntervals.value.filter(id => id !== interval);
     });
-  }, 1000); // MESSAGE_POLL_INTERVAL_MS
+  }, 1000);
+  activePollingIntervals.value.push(interval);
 };
 
 // --- Formatting ---
 const formatTime = (ts: number) => ts ? new Date(ts).toLocaleString() : '';
 
 const formatMarkdown = (str: string): string => {
-  try { return marked.parse(str, { async: false }) as string; } catch { return str; }
+  try { return DOMPurify.sanitize(marked.parse(str, { async: false }) as string); } catch { return str; }
 };
 
 const isJSON = (text: string): boolean => {
@@ -290,7 +300,8 @@ const formatMessage = (text: string): string => {
   if (isJSON(text)) {
     try {
       const parsed = JSON.parse(text);
-      return '<pre class="json-pre">' + JSON.stringify(parsed, null, 2) + '</pre>';
+      const escaped = JSON.stringify(parsed, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<pre class="json-pre">' + escaped + '</pre>';
     } catch { /* fall through */ }
   }
   return formatMarkdown(text);
@@ -312,9 +323,9 @@ const displayTokenProbabilities = (msg: Message): string => {
 const copyToClipboard = async (text: string) => {
   try {
     let copy = text;
-    if (isJSON(text)) { try { copy = JSON.stringify(JSON.parse(text), null, 2); } catch {} }
+    if (isJSON(text)) { try { copy = JSON.stringify(JSON.parse(text), null, 2); } catch { /* not valid JSON, use raw */ } }
     await navigator.clipboard.writeText(copy);
-  } catch {}
+  } catch (err) { console.error('Clipboard write failed:', err); }
 };
 
 const scrollToBottom = () => {
@@ -323,8 +334,14 @@ const scrollToBottom = () => {
 
 onMounted(() => {
   fetchChats();
-  axios.get('/data/v1.0/admin/workflows').then(r => { workflows.value = r.data.data || []; });
-  axios.get('/data/v1.0/admin/llm/languages').then(r => { languages.value = r.data.data || []; });
+  axios.get('/data/v1.0/admin/workflows').then(r => { workflows.value = r.data.data || []; }).catch(() => {});
+  axios.get('/data/v1.0/admin/llm/languages').then(r => { languages.value = r.data.data || []; }).catch(() => {});
+});
+
+onBeforeUnmount(() => {
+  activePollingIntervals.value.forEach(id => clearInterval(id));
+  activePollingIntervals.value = [];
+  if (fetchMessagesController) fetchMessagesController.abort();
 });
 </script>
 

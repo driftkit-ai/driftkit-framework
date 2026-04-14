@@ -14,6 +14,7 @@
           <label for="password">Password</label>
           <Password id="password" v-model="password" placeholder="Enter password" :feedback="false" toggleMask class="w-full" inputClass="w-full" />
         </div>
+        <Message v-if="loginError" severity="error" :closable="false">{{ loginError }}</Message>
         <Button type="submit" label="Sign In" icon="pi pi-sign-in" class="w-full" />
       </form>
     </div>
@@ -25,8 +26,9 @@ import { useAuth } from '@/composables/useAuth';
 import InputText from 'primevue/inputtext';
 import Password from 'primevue/password';
 import Button from 'primevue/button';
+import Message from 'primevue/message';
 
-const { username, password, login } = useAuth();
+const { username, password, loginError, login } = useAuth();
 </script>
 
 <style scoped>

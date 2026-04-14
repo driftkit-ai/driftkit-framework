@@ -22,7 +22,8 @@ import jakarta.annotation.PreDestroy;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,7 +37,7 @@ import java.util.concurrent.Future;
 @RequiredArgsConstructor
 public class EvaluationService {
     
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static final String QA_TEST_PIPELINE_PURPOSE = "qa_test_pipeline";
 
     private ExecutorService testExecutor = Executors.newFixedThreadPool(
@@ -190,7 +191,7 @@ public class EvaluationService {
     public EvaluationRun createAndExecuteRun(String testSetId) {
         EvaluationRun run = EvaluationRun.builder()
                 .testSetId(testSetId)
-                .name("Run " + DATE_FORMAT.format(new Date()))
+                .name("Run " + LocalDateTime.now().format(DATE_FORMAT))
                 .description("Automatic run")
                 .status(EvaluationRun.RunStatus.QUEUED)
                 .startedAt(System.currentTimeMillis())
@@ -242,7 +243,7 @@ public class EvaluationService {
         for (TestSet testSet : testSets) {
             EvaluationRun run = EvaluationRun.builder()
                     .testSetId(testSet.getId())
-                    .name("Folder Run " + DATE_FORMAT.format(new Date()))
+                    .name("Folder Run " + LocalDateTime.now().format(DATE_FORMAT))
                     .description("Run as part of folder execution")
                     .status(EvaluationRun.RunStatus.QUEUED)
                     .startedAt(System.currentTimeMillis())
@@ -715,10 +716,10 @@ public class EvaluationService {
                     Map<String, Object> details = new HashMap<>();
                     details.put("imageTaskId", imageTask.getMessageId());
                     
-                    if (output.getDetails() != null) {
-                        if (output.getDetails() instanceof Map) {
-                            ((Map) details).putAll((Map) output.getDetails());
-                        }
+                    if (output.getDetails() instanceof Map<?, ?> outputDetails) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> outputDetailsMap = (Map<String, Object>) outputDetails;
+                        details.putAll(outputDetailsMap);
                     }
                     
                     resultBuilder.details(details);

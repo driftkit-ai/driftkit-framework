@@ -91,6 +91,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import axios from 'axios';
 import PromptList from '@/components/prompts/PromptList.vue';
 import PromptEditor from '@/components/prompts/PromptEditor.vue';
@@ -103,6 +104,7 @@ import { usePromptMethods } from '@/components/prompts/promptsTab/promptMethods'
 import { useTestRunMethods } from '@/components/prompts/promptsTab/testRunMethods';
 
 const router = useRouter();
+const toast = useToast();
 
 // State
 const promptsState = usePromptsState();
@@ -159,7 +161,7 @@ const publishPrompt = async () => {
     });
     fetchPrompts();
   } catch (e: any) {
-    alert('Error publishing: ' + (e.response?.data?.message || e.message));
+    toast.add({ severity: 'error', summary: 'Publish Error', detail: e.response?.data?.message || e.message, life: 5000 });
   }
 };
 
@@ -172,7 +174,7 @@ const submitForTesting = async () => {
     });
     fetchPrompts();
   } catch (e: any) {
-    alert('Error submitting for testing: ' + (e.response?.data?.message || e.message));
+    toast.add({ severity: 'error', summary: 'Testing Error', detail: e.response?.data?.message || e.message, life: 5000 });
   }
 };
 

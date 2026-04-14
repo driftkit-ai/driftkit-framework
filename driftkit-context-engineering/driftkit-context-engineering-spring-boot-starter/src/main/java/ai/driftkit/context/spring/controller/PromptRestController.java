@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 @Slf4j
@@ -119,6 +121,9 @@ public class PromptRestController {
     public @ResponseBody RestResponse<List<Prompt>> getPromptsByIds(
             @RequestParam String ids
     ) {
+        if (ids == null || ids.isBlank()) {
+            return new RestResponse<>(false, null, "ids parameter must not be empty");
+        }
         String[] promptIds = ids.split(",");
         List<String> idList = List.of(promptIds);
         List<Prompt> prompts = promptService.getPromptsByIds(idList);
@@ -410,9 +415,9 @@ public class PromptRestController {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Basic ")) {
             try {
-                String decoded = new String(java.util.Base64.getDecoder().decode(authHeader.substring(6)));
+                String decoded = new String(Base64.getDecoder().decode(authHeader.substring(6)), StandardCharsets.UTF_8);
                 return decoded.contains(":") ? decoded.substring(0, decoded.indexOf(":")) : decoded;
-            } catch (Exception e) { /* ignore */ }
+            } catch (Exception e) { log.warn("Failed to extract user from auth header", e); }
         }
         return request.getRemoteUser();
     }

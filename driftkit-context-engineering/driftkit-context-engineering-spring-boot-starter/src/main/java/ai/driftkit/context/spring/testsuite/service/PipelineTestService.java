@@ -72,7 +72,10 @@ public class PipelineTestService {
      */
     private void executeRun(String runId) {
         PipelineTestRun run = runRepository.findById(runId).orElse(null);
-        if (run == null) return;
+        if (run == null) {
+            log.warn("Pipeline test run not found: {}", runId);
+            return;
+        }
 
         run.setStatus(PipelineTestRun.RunStatus.RUNNING);
         runRepository.save(run);

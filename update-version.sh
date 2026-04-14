@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# Update DriftKit Framework version from 0.5.0 to 0.5.1
+# Update DriftKit Framework version
+OLD_VERSION="0.8.9"
+NEW_VERSION="0.9.0"
 
-echo "Updating DriftKit Framework version from 0.5.1 to 0.5.2..."
+echo "Updating DriftKit Framework version from ${OLD_VERSION} to ${NEW_VERSION}..."
 
 # Find all pom.xml files and update version
-find . -name "pom.xml" -type f -exec sed -i '' 's/<version>0.7.9<\/version>/<version>0.8.0<\/version>/g' {} \;
+find . -name "pom.xml" -type f -exec sed -i '' "s/<version>${OLD_VERSION}<\/version>/<version>${NEW_VERSION}<\/version>/g" {} \;
 
 echo "Version update complete!"
 echo "Updated files:"
-find . -name "pom.xml" -type f -exec grep -l "0.7.9" {} \;
+find . -name "pom.xml" -type f -exec grep -l "${NEW_VERSION}" {} \;

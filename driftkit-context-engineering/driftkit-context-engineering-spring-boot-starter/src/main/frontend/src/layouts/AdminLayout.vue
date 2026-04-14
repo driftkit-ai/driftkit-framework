@@ -118,6 +118,7 @@
         <Button v-if="indexResponse" label="Copy Output" icon="pi pi-copy" severity="info" @click="copyToClipboard(JSON.stringify(indexResponse, null, 2))" />
       </template>
     </Dialog>
+    <Toast />
   </div>
 </template>
 
@@ -133,6 +134,10 @@ import Textarea from 'primevue/textarea';
 import Select from 'primevue/select';
 import SelectButton from 'primevue/selectbutton';
 import Checkbox from 'primevue/checkbox';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+
+const toast = useToast();
 
 const { logout } = useAuth();
 const route = useRoute();
@@ -183,7 +188,7 @@ const parseResponse = ref<any>(null);
 
 const processInput = () => {
   if (parseMode.value === 'file') {
-    if (!parseFileInput.value?.files?.length) { alert('No file selected'); return; }
+    if (!parseFileInput.value?.files?.length) { toast.add({ severity: 'warn', summary: 'Validation', detail: 'No file selected', life: 3000 }); return; }
     const formData = new FormData();
     formData.append('file', parseFileInput.value.files[0]);
     formData.append('metadata', String(parseMetadata.value));
@@ -232,11 +237,11 @@ const closeIndexModal = () => {
 };
 
 const submitIndex = () => {
-  if (!selectedIndexId.value) { alert('Please select an index.'); return; }
+  if (!selectedIndexId.value) { toast.add({ severity: 'warn', summary: 'Validation', detail: 'Please select an index', life: 3000 }); return; }
   const url = '/data/v1.0/admin/index/submit';
 
   if (indexMode.value === 'file') {
-    if (!indexFileInput.value?.files?.length) { alert('No file selected'); return; }
+    if (!indexFileInput.value?.files?.length) { toast.add({ severity: 'warn', summary: 'Validation', detail: 'No file selected', life: 3000 }); return; }
     const formData = new FormData();
     formData.append('file', indexFileInput.value.files[0]);
     formData.append('index', selectedIndexId.value);
@@ -246,10 +251,10 @@ const submitIndex = () => {
   } else {
     const data: any = { index: selectedIndexId.value };
     if (indexMode.value === 'text') {
-      if (!indexTextInput.value) { alert('Please provide text input'); return; }
+      if (!indexTextInput.value) { toast.add({ severity: 'warn', summary: 'Validation', detail: 'Please provide text input', life: 3000 }); return; }
       data.text = indexTextInput.value;
     } else {
-      if (!indexYoutubeVideoId.value) { alert('Please provide a YouTube Video ID.'); return; }
+      if (!indexYoutubeVideoId.value) { toast.add({ severity: 'warn', summary: 'Validation', detail: 'Please provide a YouTube Video ID', life: 3000 }); return; }
       data.videoId = indexYoutubeVideoId.value;
       data.primaryLang = indexYoutubePrimaryLang.value;
       data.input = indexYoutubeExtraLangs.value ? indexYoutubeExtraLangs.value.split(',') : [];
@@ -261,7 +266,7 @@ const submitIndex = () => {
 };
 
 const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text).catch(() => alert('Failed to copy.'));
+  navigator.clipboard.writeText(text).catch(() => toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to copy', life: 3000 }));
 };
 
 onMounted(() => {

@@ -10,7 +10,7 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
   // Open the test runs modal
   const openTestRunsModal = () => {
     if (!promptForm.value.method) {
-      alert('Please select or enter a prompt ID first');
+      console.warn('Please select or enter a prompt ID first');
       return;
     }
 

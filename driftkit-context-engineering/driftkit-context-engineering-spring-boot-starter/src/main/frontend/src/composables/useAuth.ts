@@ -1,17 +1,18 @@
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
 const authenticated = ref(false);
 const username = ref('');
 const password = ref('');
+const loginError = ref('');
 
 export function useAuth() {
   const router = useRouter();
 
   const login = async () => {
+    loginError.value = '';
     const creds = btoa(`${username.value}:${password.value}`);
-    // Validate credentials against the backend before marking as authenticated
     try {
       await axios.get('/data/v1.0/admin/prompt/', {
         headers: { Authorization: `Basic ${creds}` },
@@ -22,7 +23,7 @@ export function useAuth() {
     } catch {
       authenticated.value = false;
       sessionStorage.removeItem('credentials');
-      alert('Invalid credentials');
+      loginError.value = 'Invalid credentials';
     }
   };
 
@@ -45,6 +46,7 @@ export function useAuth() {
     authenticated,
     username,
     password,
+    loginError,
     login,
     logout,
     checkAuth,
