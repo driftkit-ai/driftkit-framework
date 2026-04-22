@@ -3,6 +3,8 @@ package ai.driftkit.context.spring.testsuite.service;
 import ai.driftkit.common.domain.ImageMessageTask;
 import ai.driftkit.common.domain.Language;
 import ai.driftkit.common.domain.MessageTask;
+import ai.driftkit.common.domain.Prompt;
+import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.context.spring.testsuite.domain.*;
 import ai.driftkit.context.spring.testsuite.repository.*;
@@ -16,9 +18,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,12 +37,17 @@ import java.util.concurrent.Future;
 @RequiredArgsConstructor
 public class EvaluationService {
     
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static final String QA_TEST_PIPELINE_PURPOSE = "qa_test_pipeline";
 
     private ExecutorService testExecutor = Executors.newFixedThreadPool(
             Math.max(2, Runtime.getRuntime().availableProcessors())
     );
+
+    @PreDestroy
+    void shutdownExecutor() {
+        testExecutor.shutdown();
+    }
 
     private final EvaluationRepository evaluationRepository;
     private final EvaluationResultRepository resultRepository;
@@ -47,6 +57,8 @@ public class EvaluationService {
     private final AIService aiService;
     private final ImageModelService imageModelService;
     private final ImageTaskRepository imageTaskRepository;
+    private final PromptService promptService;
+    private final PromptMethodConfigRepository promptMethodConfigRepository;
 
     /**
      * Create a new evaluation
@@ -179,7 +191,7 @@ public class EvaluationService {
     public EvaluationRun createAndExecuteRun(String testSetId) {
         EvaluationRun run = EvaluationRun.builder()
                 .testSetId(testSetId)
-                .name("Run " + DATE_FORMAT.format(new Date()))
+                .name("Run " + LocalDateTime.now().format(DATE_FORMAT))
                 .description("Automatic run")
                 .status(EvaluationRun.RunStatus.QUEUED)
                 .startedAt(System.currentTimeMillis())
@@ -231,7 +243,7 @@ public class EvaluationService {
         for (TestSet testSet : testSets) {
             EvaluationRun run = EvaluationRun.builder()
                     .testSetId(testSet.getId())
-                    .name("Folder Run " + DATE_FORMAT.format(new Date()))
+                    .name("Folder Run " + LocalDateTime.now().format(DATE_FORMAT))
                     .description("Run as part of folder execution")
                     .status(EvaluationRun.RunStatus.QUEUED)
                     .startedAt(System.currentTimeMillis())
@@ -349,6 +361,77 @@ public class EvaluationService {
         run.setStatus(status);
         run.setCompletedAt(System.currentTimeMillis());
         runRepository.save(run);
+
+        // Prompt lifecycle integration: auto-promote linked prompt based on test results
+        handlePromptLifecycleAfterRun(run, status);
+    }
+
+    /**
+     * After a test run completes, update the linked prompt's state based on results.
+     * - COMPLETED (all passed) + no manual review required → promote to CURRENT
+     * - COMPLETED (all passed) + manual review required → set MANUAL_TESTING
+     * - PENDING (has manual evals) → set MANUAL_TESTING
+     * - FAILED → revert to DRAFT
+     */
+    private void handlePromptLifecycleAfterRun(EvaluationRun run, EvaluationRun.RunStatus status) {
+        if (StringUtils.isBlank(run.getLinkedPromptId())) {
+            return; // Not linked to a prompt lifecycle
+        }
+
+        try {
+            Optional<Prompt> promptOpt = promptService.getPromptById(run.getLinkedPromptId());
+            if (promptOpt.isEmpty()) {
+                log.warn("Linked prompt {} not found for run {}", run.getLinkedPromptId(), run.getId());
+                return;
+            }
+
+            Prompt prompt = promptOpt.get();
+            if (prompt.getState() != Prompt.State.AUTO_TESTING) {
+                return; // Only process prompts that are in AUTO_TESTING state
+            }
+
+            switch (status) {
+                case COMPLETED -> {
+                    // Check if manual review is required
+                    boolean needsManualReview = promptMethodConfigRepository.findById(prompt.getMethod())
+                            .map(PromptMethodConfig::isRequireManualReview)
+                            .orElse(false);
+
+                    if (needsManualReview) {
+                        prompt.setState(Prompt.State.MANUAL_TESTING);
+                        log.info("Prompt {} set to MANUAL_TESTING after tests passed", prompt.getMethod());
+                    } else {
+                        // Auto-promote: mark old CURRENT as REPLACED, set this as CURRENT
+                        promptService.getPromptsByMethodsAndState(List.of(prompt.getMethod()), Prompt.State.CURRENT)
+                                .stream()
+                                .filter(p -> p.getLanguage() == prompt.getLanguage())
+                                .forEach(p -> {
+                                    p.setState(Prompt.State.REPLACED);
+                                    promptService.savePrompt(p);
+                                });
+                        prompt.setState(Prompt.State.CURRENT);
+                        prompt.setApprovedTime(System.currentTimeMillis());
+                        log.info("Prompt {} auto-promoted to CURRENT after all tests passed", prompt.getMethod());
+                    }
+                    promptService.savePrompt(prompt);
+                }
+                case PENDING -> {
+                    prompt.setState(Prompt.State.MANUAL_TESTING);
+                    promptService.savePrompt(prompt);
+                    log.info("Prompt {} set to MANUAL_TESTING (pending manual evaluations)", prompt.getMethod());
+                }
+                case FAILED -> {
+                    prompt.setState(Prompt.State.DRAFT);
+                    promptService.savePrompt(prompt);
+                    log.info("Prompt {} reverted to DRAFT after test failures", prompt.getMethod());
+                }
+                default -> {
+                    // QUEUED, RUNNING, CANCELLED — no action
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error handling prompt lifecycle after run {}: {}", run.getId(), e.getMessage(), e);
+        }
     }
     
     /**
@@ -633,10 +716,10 @@ public class EvaluationService {
                     Map<String, Object> details = new HashMap<>();
                     details.put("imageTaskId", imageTask.getMessageId());
                     
-                    if (output.getDetails() != null) {
-                        if (output.getDetails() instanceof Map) {
-                            ((Map) details).putAll((Map) output.getDetails());
-                        }
+                    if (output.getDetails() instanceof Map<?, ?> outputDetails) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> outputDetailsMap = (Map<String, Object>) outputDetails;
+                        details.putAll(outputDetailsMap);
                     }
                     
                     resultBuilder.details(details);

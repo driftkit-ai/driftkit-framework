@@ -9,6 +9,7 @@ import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -77,7 +78,7 @@ public class DriftKitChatClient {
      */
     public class DriftKitPromptSpec {
         private final String promptId;
-        private final Map<String, Object> variables = new java.util.HashMap<>();
+        private final Map<String, Object> variables = new HashMap<>();
         private Language language = Language.GENERAL;
         
         private DriftKitPromptSpec(String promptId) {

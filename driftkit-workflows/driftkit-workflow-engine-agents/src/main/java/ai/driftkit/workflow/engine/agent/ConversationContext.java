@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -75,34 +76,64 @@ public class ConversationContext {
     }
     
     /**
-     * Add user message to context
+     * Add user message to context. Stores and sends the same content.
      */
     public void addUserMessage(String content) {
-        log.debug("Adding user message: {}", content);
-        
-        // Always add to current messages for API request
-        ModelMessage modelMessage = ModelMessage.user(content);
+        addUserMessage(content, content);
+    }
+
+    /**
+     * Add user message with separate store and API content.
+     * Use this when the API message contains injected context (summary, memories, etc.)
+     * that should NOT be persisted in chat history.
+     *
+     * @param storeContent raw user message to save in chat history (clean, no context)
+     * @param apiContent   full message with injected context for the API call
+     */
+    public void addUserMessage(String storeContent, String apiContent) {
+        log.debug("Adding user message: store={}ch, api={}ch",
+            storeContent != null ? storeContent.length() : 0,
+            apiContent != null ? apiContent.length() : 0);
+
+        // Add full content to messages for API request
+        ModelMessage modelMessage = ModelMessage.user(apiContent);
         messages.add(modelMessage);
-        
-        // Save to history if in history mode
+
+        // Save raw content to history (without injected context)
         if (historyMode && chatStore != null) {
-            chatStore.add(chatId, content, MessageType.USER);
+            chatStore.add(chatId, storeContent, MessageType.USER);
         }
     }
     
+    /**
+     * Set custom properties to attach to all saved AI messages (e.g. persona name).
+     * Properties are merged when saving to ChatStore.
+     */
+    public void setMessageProperties(Map<String, String> properties) {
+        this.messageProperties = properties;
+    }
+
+    private Map<String, String> messageProperties;
+
     /**
      * Add assistant message to context
      */
     public void addAssistantMessage(String content) {
         log.debug("Adding assistant message: {}", content);
-        
+
         // Always add to current messages
         ModelMessage modelMessage = ModelMessage.assistant(content);
         messages.add(modelMessage);
-        
+
         // Save to history if in history mode
         if (historyMode && chatStore != null) {
-            chatStore.add(chatId, content, MessageType.AI);
+            if (messageProperties != null && !messageProperties.isEmpty()) {
+                Map<String, String> properties = new HashMap<>(messageProperties);
+                properties.put(ChatMessage.PROPERTY_MESSAGE, content);
+                chatStore.add(chatId, properties, MessageType.AI);
+            } else {
+                chatStore.add(chatId, content, MessageType.AI);
+            }
         }
     }
     

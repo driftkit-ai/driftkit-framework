@@ -8,9 +8,11 @@ import ai.driftkit.workflow.engine.spring.tracing.repository.CoreModelRequestTra
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -26,79 +28,78 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @ConditionalOnBean(CoreModelRequestTraceRepository.class)
 public class SpringRequestTracingProvider implements RequestTracingProvider {
-    
+
     private final CoreModelRequestTraceRepository traceRepository;
     private final Executor traceExecutor;
-    
+
     @Override
     public void traceTextRequest(ModelTextRequest request, ModelTextResponse response, RequestContext context) {
         if (!shouldTrace(response, context)) {
             return;
         }
-        
+
         try {
-            ModelRequestTrace trace = buildTextTrace(request, response, context, 
+            ModelRequestTrace trace = buildTextTrace(request, response, context,
                 ModelRequestTrace.RequestType.TEXT_TO_TEXT);
             saveTraceAsync(trace);
-            
-            log.debug("Traced text request for context: {} with type: {}", 
+
+            log.debug("Traced text request for context: {} with type: {}",
                 context.getContextId(), context.getContextType());
         } catch (Exception e) {
             log.error("Error tracing text request for context: {}", context.getContextId(), e);
         }
     }
-    
+
     @Override
     public void traceImageRequest(ModelImageRequest request, ModelImageResponse response, RequestContext context) {
         if (!shouldTrace(response, context)) {
             return;
         }
-        
+
         try {
             ModelRequestTrace trace = buildImageTrace(request, response, context);
             saveTraceAsync(trace);
-            
-            log.debug("Traced image generation request for context: {} with type: {}", 
+
+            log.debug("Traced image generation request for context: {} with type: {}",
                 context.getContextId(), context.getContextType());
         } catch (Exception e) {
             log.error("Error tracing image request for context: {}", context.getContextId(), e);
         }
     }
-    
+
     @Override
     public void traceImageToTextRequest(ModelTextRequest request, ModelTextResponse response, RequestContext context) {
         if (!shouldTrace(response, context)) {
             return;
         }
-        
+
         try {
             ModelRequestTrace trace = buildTextTrace(request, response, context,
                 ModelRequestTrace.RequestType.IMAGE_TO_TEXT);
             saveTraceAsync(trace);
-            
-            log.debug("Traced image-to-text request for context: {} with type: {}", 
+
+            log.debug("Traced image-to-text request for context: {} with type: {}",
                 context.getContextId(), context.getContextType());
         } catch (Exception e) {
             log.error("Error tracing image-to-text request for context: {}", context.getContextId(), e);
         }
     }
-    
+
     private boolean shouldTrace(Object response, RequestContext context) {
         if (response == null || context == null || context.getContextId() == null) {
             return false;
         }
-        
-        // Check if response has trace information
+
         if (response instanceof ModelTextResponse textResponse) {
             return textResponse.getTrace() != null;
         } else if (response instanceof ModelImageResponse imageResponse) {
             return imageResponse.getTrace() != null;
         }
-        
+
         return false;
     }
-    
-    private ModelRequestTrace buildTextTrace(ModelTextRequest request, ModelTextResponse response, 
+
+    private ModelRequestTrace buildTextTrace(ModelTextRequest request, ModelTextResponse response,
                                             RequestContext context, ModelRequestTrace.RequestType requestType) {
         ModelRequestTrace.ModelRequestTraceBuilder builder = ModelRequestTrace.builder()
             .id(AIUtils.generateId())
@@ -107,25 +108,29 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
             .contextId(context.getContextId())
             .timestamp(System.currentTimeMillis())
             .promptTemplate(extractPromptTemplate(request))
+            .systemMessage(extractSystemMessage(request, context))
             .promptId(context.getPromptId())
             .variables(convertVariables(context.getVariables()))
-            .chatId(context.getChatId());
-        
+            .messages(convertMessages(request, context))
+            .chatId(context.getChatId())
+            .purpose(context.getPurpose())
+            .messageProperties(context.getMessageProperties());
+
         // Add response information
         if (response != null) {
             builder.responseId(response.getId())
                    .response(response.getResponse());
-            
+
             if (response.getTrace() != null) {
                 builder.trace(response.getTrace())
                        .modelId(response.getTrace().getModel());
-                
+
                 if (response.getTrace().isHasError()) {
                     builder.errorMessage(response.getTrace().getErrorMessage());
                 }
             }
         }
-        
+
         // Add workflow information if available
         if (context.getWorkflowId() != null) {
             builder.workflowInfo(ModelRequestTrace.WorkflowInfo.builder()
@@ -134,11 +139,11 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
                 .workflowStep(context.getWorkflowStep())
                 .build());
         }
-        
+
         return builder.build();
     }
-    
-    private ModelRequestTrace buildImageTrace(ModelImageRequest request, ModelImageResponse response, 
+
+    private ModelRequestTrace buildImageTrace(ModelImageRequest request, ModelImageResponse response,
                                              RequestContext context) {
         ModelRequestTrace.ModelRequestTraceBuilder builder = ModelRequestTrace.builder()
             .id(AIUtils.generateId())
@@ -147,20 +152,23 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
             .contextId(context.getContextId())
             .timestamp(System.currentTimeMillis())
             .promptTemplate(request.getPrompt())
+            .systemMessage(context.getSystemMessage())
             .promptId(context.getPromptId())
             .variables(convertVariables(context.getVariables()))
-            .chatId(context.getChatId());
-        
+            .chatId(context.getChatId())
+            .purpose(context.getPurpose())
+            .messageProperties(context.getMessageProperties());
+
         // Add response information
         if (response != null && response.getTrace() != null) {
             builder.trace(response.getTrace())
                    .modelId(response.getTrace().getModel());
-            
+
             if (response.getTrace().isHasError()) {
                 builder.errorMessage(response.getTrace().getErrorMessage());
             }
         }
-        
+
         // Add workflow information if available
         if (context.getWorkflowId() != null) {
             builder.workflowInfo(ModelRequestTrace.WorkflowInfo.builder()
@@ -169,15 +177,15 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
                 .workflowStep(context.getWorkflowStep())
                 .build());
         }
-        
+
         return builder.build();
     }
-    
+
     private ModelRequestTrace.ContextType getContextType(RequestContext context) {
         if (context.getContextType() == null) {
             return ModelRequestTrace.ContextType.CUSTOM;
         }
-        
+
         return switch (context.getContextType().toLowerCase()) {
             case "workflow" -> ModelRequestTrace.ContextType.WORKFLOW;
             case "agent" -> ModelRequestTrace.ContextType.AGENT;
@@ -187,45 +195,120 @@ public class SpringRequestTracingProvider implements RequestTracingProvider {
             default -> ModelRequestTrace.ContextType.CUSTOM;
         };
     }
-    
+
     private Map<String, String> convertVariables(Map<String, Object> variables) {
         if (variables == null) {
             return null;
         }
-        
+
         return variables.entrySet().stream()
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
                 entry -> entry.getValue() != null ? entry.getValue().toString() : ""
             ));
     }
-    
+
+    /**
+     * Extract text content from ModelContentMessage content elements.
+     * Handles both simple text and multimodal (text + image) content.
+     */
+    private String extractTextFromContent(ModelContentMessage message) {
+        if (message == null || message.getContent() == null) {
+            return null;
+        }
+
+        List<ModelContentMessage.ModelContentElement> elements = message.getContent();
+        StringBuilder sb = new StringBuilder();
+        for (ModelContentMessage.ModelContentElement element : elements) {
+            if (element.getText() != null) {
+                if (sb.length() > 0) {
+                    sb.append("\n");
+                }
+                sb.append(element.getText());
+            }
+        }
+        return sb.length() > 0 ? sb.toString() : null;
+    }
+
+    /**
+     * Check if a message contains image data.
+     */
+    private boolean hasImageContent(ModelContentMessage message) {
+        if (message == null || message.getContent() == null) {
+            return false;
+        }
+        return message.getContent().stream()
+            .anyMatch(e -> e.getImage() != null || e.getType() == ModelTextRequest.MessageType.image
+                        || e.getType() == ModelTextRequest.MessageType.image_url);
+    }
+
+    /**
+     * Extract the last user message text as prompt template.
+     */
     private String extractPromptTemplate(ModelTextRequest request) {
         if (request.getMessages() == null || CollectionUtils.isEmpty(request.getMessages())) {
             return null;
         }
-        
-        // Find the last user message as prompt template
+
         return request.getMessages().stream()
             .filter(msg -> msg.getRole() == Role.user)
-            .reduce((first, second) -> second) // Get the last user message
-            .map(msg -> {
-                Object content = msg.getContent();
-                if (content instanceof String) {
-                    return (String) content;
-                } else if (content instanceof List) {
-                    // Handle multimodal content
-                    return content.toString();
-                }
-                return null;
-            })
+            .reduce((first, second) -> second)
+            .map(this::extractTextFromContent)
             .orElse(null);
     }
-    
+
+    /**
+     * Extract system message from request messages or from context.
+     * Prefers context.systemMessage (the original text), falls back to extracting from request.
+     */
+    private String extractSystemMessage(ModelTextRequest request, RequestContext context) {
+        // Prefer the original system message text from context (set by LLMAgent)
+        if (context != null && StringUtils.isNotBlank(context.getSystemMessage())) {
+            return context.getSystemMessage();
+        }
+
+        // Fallback: extract from request messages
+        if (request.getMessages() == null || CollectionUtils.isEmpty(request.getMessages())) {
+            return null;
+        }
+
+        return request.getMessages().stream()
+            .filter(msg -> msg.getRole() == Role.system)
+            .findFirst()
+            .map(this::extractTextFromContent)
+            .orElse(null);
+    }
+
+    /**
+     * Convert all request messages to lightweight TraceMessage objects.
+     * Preserves the full conversation context (system, history, user message)
+     * without storing binary image data.
+     */
+    private List<ModelRequestTrace.TraceMessage> convertMessages(ModelTextRequest request, RequestContext context) {
+        // Prefer messages from context (set by LLMAgent with full conversation)
+        List<ModelContentMessage> sourceMessages = context != null && context.getMessages() != null
+            ? context.getMessages()
+            : request.getMessages();
+
+        if (sourceMessages == null || sourceMessages.isEmpty()) {
+            return null;
+        }
+
+        List<ModelRequestTrace.TraceMessage> traceMessages = new ArrayList<>();
+        for (ModelContentMessage msg : sourceMessages) {
+            traceMessages.add(ModelRequestTrace.TraceMessage.builder()
+                .role(msg.getRole() != null ? msg.getRole().name() : "unknown")
+                .content(extractTextFromContent(msg))
+                .hasImage(hasImageContent(msg))
+                .build());
+        }
+        return traceMessages;
+    }
+
     private void saveTraceAsync(ModelRequestTrace trace) {
         CompletableFuture.runAsync(() -> saveTrace(trace), traceExecutor);
     }
-    
+
     private void saveTrace(ModelRequestTrace trace) {
         try {
             traceRepository.save(trace);

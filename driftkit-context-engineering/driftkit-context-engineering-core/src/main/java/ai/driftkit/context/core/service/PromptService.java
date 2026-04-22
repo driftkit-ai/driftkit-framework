@@ -87,24 +87,19 @@ public class PromptService implements PromptServiceBase {
             }
         }
 
-        Prompt toSave = new Prompt(
-                UUID.randomUUID().toString(),
-                method,
-                prompt,
-                systemMessage,
-                State.CURRENT,
-                null,
-                ResolveStrategy.LAST_VERSION,
-                workflow,
-                language,
-                null,
-                false,
-                jsonResponse,
-                null, // responseFormat
-                System.currentTimeMillis(),
-                System.currentTimeMillis(),
-                System.currentTimeMillis()
-        );
+        Prompt toSave = Prompt.builder()
+                .id(UUID.randomUUID().toString())
+                .method(method)
+                .message(prompt)
+                .systemMessage(systemMessage)
+                .state(State.CURRENT)
+                .workflow(workflow)
+                .language(language)
+                .jsonResponse(jsonResponse)
+                .createdTime(System.currentTimeMillis())
+                .updatedTime(System.currentTimeMillis())
+                .approvedTime(System.currentTimeMillis())
+                .build();
         savePrompt(toSave);
 
         return toSave;
@@ -161,12 +156,12 @@ public class PromptService implements PromptServiceBase {
     public MessageTask getTaskFromPromptRequest(PromptRequest request) {
         Map<String, PromptIdRequest> ids2req = request.getPromptIds()
                 .stream()
-                .collect(Collectors.toMap(PromptIdRequest::getPromptId, e -> e));
-                
+                .collect(Collectors.toMap(PromptIdRequest::getResolvedMethod, e -> e));
+
         // Check that each PromptIdRequest has the required parameters
         for (PromptIdRequest promptIdRequest : request.getPromptIds()) {
-            if (StringUtils.isBlank(promptIdRequest.getPromptId())) {
-                throw new IllegalArgumentException("promptId cannot be null or empty in PromptIdRequest");
+            if (StringUtils.isBlank(promptIdRequest.getResolvedMethod())) {
+                throw new IllegalArgumentException("method (or promptId) cannot be null or empty in PromptIdRequest");
             }
         }
 
@@ -208,24 +203,18 @@ public class PromptService implements PromptServiceBase {
 
                     log.info("Creating new prompt for method: {}, language: {}", method, request.getLanguage());
 
-                    prompt = new Prompt(
-                            UUID.randomUUID().toString(),
-                            method,
-                            promptIdRequest.getPrompt(),
-                            null, // systemMessage
-                            State.CURRENT,
-                            request.getWorkflow(),
-                            ResolveStrategy.LAST_VERSION,
-                            null,
-                            request.getLanguage(),
-                            promptIdRequest.getTemperature(),
-                            false,
-                            false, // jsonResponse - can be parameterized in the future
-                            null, // responseFormat
-                            System.currentTimeMillis(),
-                            System.currentTimeMillis(),
-                            System.currentTimeMillis()
-                    );
+                    prompt = Prompt.builder()
+                            .id(UUID.randomUUID().toString())
+                            .method(method)
+                            .message(promptIdRequest.getPrompt())
+                            .state(State.CURRENT)
+                            .modelId(request.getWorkflow())
+                            .language(request.getLanguage())
+                            .temperature(promptIdRequest.getTemperature())
+                            .createdTime(System.currentTimeMillis())
+                            .updatedTime(System.currentTimeMillis())
+                            .approvedTime(System.currentTimeMillis())
+                            .build();
                 }
 
                 // If the request contains prompt text, update the existing prompt

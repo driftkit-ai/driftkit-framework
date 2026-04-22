@@ -1,0 +1,30 @@
+server:
+  port: 8085
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/driftkit-dev
+      database: driftkit-dev
+
+driftkit:
+  vault:
+    - name: deepseek
+      api-key: ${DEEPSEEK_API_KEY:sk-placeholder}
+      model: deepseek-chat
+      tracing: true
+
+  promptService:
+    name: mongodb
+
+  workflow:
+    tracing:
+      enabled: true
+      trace-threads: 2
+
+  chat-store:
+    mongodb:
+      enabled: true
+      collection: chat_messages

@@ -97,7 +97,7 @@ public class TestSetService {
             List<MessageTask> messageTasks = messageTaskRepository.findAllById(messageTaskIds)
                 .stream()
                 .map(MessageTaskEntity::toMessageTask)
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
             
             for (MessageTask messageTask : messageTasks) {
                 boolean isImageMessage = messageTask.getMessage() != null && 

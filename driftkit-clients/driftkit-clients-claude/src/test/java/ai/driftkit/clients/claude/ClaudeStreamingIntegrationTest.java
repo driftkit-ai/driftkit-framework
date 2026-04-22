@@ -17,17 +17,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+/**
+ * Integration tests for Claude streaming functionality.
+ * Requires CLAUDE_API_KEY environment variable to be set.
+ */
+@EnabledIfEnvironmentVariable(named = "CLAUDE_API_KEY", matches = ".+")
 public class ClaudeStreamingIntegrationTest {
+
+    private static final String API_KEY = System.getenv("CLAUDE_API_KEY");
 
     @Test
     public void testStreamingResponse() throws InterruptedException {
-        String apiKey = System.getenv("CLAUDE_API_KEY");
-        Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "CLAUDE_API_KEY is not set");
-
         VaultConfig config = new VaultConfig();
-        config.setApiKey(apiKey);
+        config.setApiKey(API_KEY);
         config.setModel("claude-3-5-haiku-20241022");
         config.setBaseUrl("https://api.anthropic.com");
 
@@ -79,11 +83,8 @@ public class ClaudeStreamingIntegrationTest {
 
     @Test
     public void testStreamingCancellation() throws InterruptedException {
-        String apiKey = System.getenv("CLAUDE_API_KEY");
-        Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "CLAUDE_API_KEY is not set");
-
         VaultConfig config = new VaultConfig();
-        config.setApiKey(apiKey);
+        config.setApiKey(API_KEY);
         config.setModel("claude-3-5-haiku-20241022");
         config.setBaseUrl("https://api.anthropic.com");
 

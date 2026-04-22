@@ -2,7 +2,7 @@ import { Ref } from 'vue';
 
 // Prompt related types
 export interface PromptForm {
-  promptId: string;
+  method: string;
   message: string;
   systemMessage: string;
   variables: string[];

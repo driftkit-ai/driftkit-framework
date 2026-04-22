@@ -5,6 +5,7 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,38 +21,43 @@ public class ModelRequestTrace {
 
     @Id
     private String id;
-    
+
     // Context information
     private String contextId;  // Can be workflow ID, agent ID, or message ID
     private ContextType contextType;
     private RequestType requestType;
-    
+
     // Timing
     private long timestamp;
-    
+
     // Request details
     private String promptTemplate;
+    private String systemMessage;
     private String promptId;
     private Map<String, String> variables;
-    
+
+    // Full conversation context - all messages sent in this request
+    private List<TraceMessage> messages;
+
     // Model information
     private String modelId;
-    
+
     // Response details
     private String responseId;
     private String response;
     private String errorMessage;
-    
+
     // Trace information from model
     private ModelTrace trace;
-    
+
     // Workflow context
     private WorkflowInfo workflowInfo;
-    
+
     // Additional metadata
     private String purpose;
     private String chatId;
     private String userId;
+    private Map<String, String> messageProperties;
     
     /**
      * Request type enumeration
@@ -87,5 +93,19 @@ public class ModelRequestTrace {
         private String workflowType;
         private String workflowStep;
         private String workflowVersion;
+    }
+
+    /**
+     * Lightweight representation of a message in the conversation context.
+     * Stores role and text content without binary image data to keep traces manageable.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TraceMessage {
+        private String role;      // system, user, assistant
+        private String content;   // text content of the message
+        private boolean hasImage; // true if message contained image data (not stored)
     }
 }

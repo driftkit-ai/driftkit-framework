@@ -1,5 +1,7 @@
 package ai.driftkit.workflow.engine.core;
 
+import java.util.Optional;
+
 /**
  * Listener for internal step executions within composite steps like branches.
  * This allows external components (like test frameworks) to track and potentially
@@ -43,7 +45,7 @@ public interface InternalStepListener {
      * @param context the workflow context
      * @return an optional alternative result, or empty to proceed with normal execution
      */
-    default java.util.Optional<StepResult<?>> interceptInternalStep(String stepId, Object input, WorkflowContext context) {
-        return java.util.Optional.empty();
+    default Optional<StepResult<?>> interceptInternalStep(String stepId, Object input, WorkflowContext context) {
+        return Optional.empty();
     }
 }

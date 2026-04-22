@@ -9,8 +9,8 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
 
   // Open the test runs modal
   const openTestRunsModal = () => {
-    if (!promptForm.value.promptId) {
-      alert('Please select or enter a prompt ID first');
+    if (!promptForm.value.method) {
+      console.warn('Please select or enter a prompt ID first');
       return;
     }
 
@@ -22,9 +22,9 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
     testRunState.selectedTestSet.value = null;
     testRunState.testSetItemCount.value = 0;
     testRunState.newTestRun.value = {
-      name: `Run with ${promptForm.value.promptId} - ${new Date().toLocaleString()}`,
-      description: `Testing ${promptForm.value.promptId} with test set`,
-      alternativePromptId: promptForm.value.promptId,
+      name: `Run with ${promptForm.value.method} - ${new Date().toLocaleString()}`,
+      description: `Testing ${promptForm.value.method} with test set`,
+      alternativePromptId: promptForm.value.method,
       // Important: Use the actual prompt message/template here, not just the ID
       alternativePromptTemplate: promptForm.value.message,
       modelId: promptForm.value.modelId || '',
@@ -57,7 +57,7 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
 
   // Fetch all test sets
   const fetchTestSets = () => {
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get('/data/v1.0/admin/test-sets', {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -82,7 +82,7 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
     testRunState.selectedTestSet.value = testRunState.testSets.value.find(ts => ts.id === testRunState.selectedTestSetId.value);
 
     // Fetch test set items to get the count
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.get(`/data/v1.0/admin/test-sets/${testRunState.selectedTestSetId.value}/items`, {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -105,7 +105,7 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
       testRunState.newTestRun.value.modelId = '';
     }
 
-    const creds = localStorage.getItem('credentials');
+    const creds = sessionStorage.getItem('credentials');
 
     axios.post(`/data/v1.0/admin/test-sets/${testRunState.selectedTestSetId.value}/runs`, testRunState.newTestRun.value, {
       headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
@@ -142,7 +142,7 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
 
     // Create function to fetch status
     const fetchRunStatus = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       console.log("Fetching run status for ID:", runId);
       // First try the endpoint from EvaluationController
       axios.get(`/data/v1.0/admin/runs/${runId}`, {
@@ -196,15 +196,15 @@ export function useTestRunMethods(testRunState: TestRunState, promptForm: Ref<an
     // Initial fetch
     fetchRunStatus();
 
-    // Set up interval (every 3 seconds)
-    statusPollingInterval = window.setInterval(fetchRunStatus, 3000);
+    const TEST_RUN_POLL_INTERVAL_MS = 3000;
+    statusPollingInterval = window.setInterval(fetchRunStatus, TEST_RUN_POLL_INTERVAL_MS);
   };
 
   // Navigate to test results view
   const viewTestResults = (runId: string) => {
     if (runId) {
       router.push({
-        path: '/prompt-engineering/evaluation-runs/results',
+        path: '/evaluation-runs/results',
         query: { runId }
       });
     } else {

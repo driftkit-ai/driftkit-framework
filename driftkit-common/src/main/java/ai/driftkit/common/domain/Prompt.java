@@ -5,15 +5,18 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * Unified Prompt domain object used across all DriftKit modules.
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(Include.NON_NULL)
@@ -22,20 +25,39 @@ public class Prompt {
 
     private String id;
     private String method;
+    private int version;
     private String message;
     private String systemMessage;
     private State state;
     private String modelId;
+    @Builder.Default
     private ResolveStrategy resolveStrategy = ResolveStrategy.LAST_VERSION;
     private String workflow;
+    @Builder.Default
     private Language language = Language.GENERAL;
     private Double temperature;
     private boolean jsonRequest;
     private boolean jsonResponse;
     private ResponseFormat responseFormat;
+    private List<VariableSchema> variableSchemas;
     private long createdTime;
     private long updatedTime;
     private long approvedTime;
+
+    /**
+     * Schema definition for a template variable.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VariableSchema {
+        private String name;
+        private String type;        // string, number, json, text
+        private boolean required;
+        private String defaultValue;
+        private String description;
+        private String example;
+    }
 
     public Language getLanguage() {
         if (language == null) {
@@ -68,9 +90,9 @@ public class Prompt {
     }
 
     public enum State {
-        MODERATION,
-        MANUAL_TESTING,
+        DRAFT,
         AUTO_TESTING,
+        MANUAL_TESTING,
         CURRENT,
         REPLACED
     }

@@ -151,7 +151,7 @@ export default defineComponent({
     const indexForm = ref<Index>({ id: '', indexName: '', description: '', language: 'general', createdTime: 0 });
     
     const fetchIndexes = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/index/indexed/list', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -169,7 +169,7 @@ export default defineComponent({
     };
 
     const fetchIndexesList = () => {
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.get('/data/v1.0/admin/index/list', {
         headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
       }).then(res => {
@@ -227,7 +227,7 @@ export default defineComponent({
         indexForm.value.id = generateUUID();
         indexForm.value.createdTime = Date.now();
       }
-      const creds = localStorage.getItem('credentials');
+      const creds = sessionStorage.getItem('credentials');
       axios.post('/data/v1.0/admin/index/', indexForm.value, {
         headers: {
           ...(creds ? { Authorization: 'Basic ' + creds } : {}),
@@ -251,7 +251,7 @@ export default defineComponent({
 
     const deleteIndex = (index: Index) => {
       if (confirm(`Are you sure you want to delete index "${index.indexName}"?`)) {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         axios.delete(`/data/v1.0/admin/index/${index.id}`, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         }).then(() => {

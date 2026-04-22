@@ -4,6 +4,20 @@ target/
 *.war
 *.ear
 
+# Documentation (except README and selected docs)
+**/[A-Z]*.md
+!**/README.md
+*.md
+!README.md
+!driftkit-workflows/LLMAGENT.md
+!driftkit-workflows/driftkit-workflow-test-framework/ADVANCED_EXAMPLES.md
+
+# Claude Code
+.claude/commands/
+
+# CLI (separate repo)
+driftkit-cli/
+
 # IDE
 .idea/
 *.iml
@@ -30,6 +44,11 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+*.patch
+*.versionsBackup
+package-lock.json
+package.json
+yarn.lock
 
 # Build output
 build/

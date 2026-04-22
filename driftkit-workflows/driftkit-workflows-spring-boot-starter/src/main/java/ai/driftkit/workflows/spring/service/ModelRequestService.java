@@ -227,11 +227,11 @@ public class ModelRequestService {
                 .build();
     }
     
-    private ModelRequestTrace buildTextTrace(ModelClient modelClient, ModelRequestContext context, 
+    private ModelRequestTrace buildTextTrace(ModelClient modelClient, ModelRequestContext context,
                                           ModelTextRequest request, ModelTextResponse response) {
         String modelId = request.getModel() != null ? request.getModel() : modelClient.getModel();
-        
-        return ModelRequestTrace.fromTextResponse(
+
+        ModelRequestTrace trace = ModelRequestTrace.fromTextResponse(
                 context.getContextId(),
                 context.getContextType(),
                 context.getRequestType(),
@@ -244,6 +244,50 @@ public class ModelRequestService {
                 context.getPurpose(),
                 context.getChatId()
         );
+
+        // Extract system message and full conversation context from request
+        if (request.getMessages() != null) {
+            request.getMessages().stream()
+                .filter(msg -> msg.getRole() == Role.system)
+                .findFirst()
+                .ifPresent(sysMsg -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (ModelContentMessage.ModelContentElement el : sysMsg.getContent()) {
+                        if (el.getText() != null) {
+                            if (sb.length() > 0) sb.append("\n");
+                            sb.append(el.getText());
+                        }
+                    }
+                    if (sb.length() > 0) {
+                        trace.setSystemMessage(sb.toString());
+                    }
+                });
+
+            List<ModelRequestTrace.TraceMessage> traceMessages = new ArrayList<>();
+            for (ModelContentMessage msg : request.getMessages()) {
+                StringBuilder sb = new StringBuilder();
+                boolean hasImage = false;
+                if (msg.getContent() != null) {
+                    for (ModelContentMessage.ModelContentElement el : msg.getContent()) {
+                        if (el.getText() != null) {
+                            if (sb.length() > 0) sb.append("\n");
+                            sb.append(el.getText());
+                        }
+                        if (el.getImage() != null) {
+                            hasImage = true;
+                        }
+                    }
+                }
+                traceMessages.add(ModelRequestTrace.TraceMessage.builder()
+                    .role(msg.getRole() != null ? msg.getRole().name() : "unknown")
+                    .content(sb.length() > 0 ? sb.toString() : null)
+                    .hasImage(hasImage)
+                    .build());
+            }
+            trace.setMessages(traceMessages);
+        }
+
+        return trace;
     }
     
     private ModelRequestTrace buildImageTrace(ModelClient modelClient, ModelRequestContext context, 

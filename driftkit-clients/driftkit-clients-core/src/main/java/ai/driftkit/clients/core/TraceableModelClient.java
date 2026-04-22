@@ -3,6 +3,7 @@ package ai.driftkit.clients.core;
 import ai.driftkit.common.domain.client.*;
 import ai.driftkit.config.EtlConfig.VaultConfig;
 import ai.driftkit.common.domain.*;
+import ai.driftkit.common.domain.CostCalculator;
 import ai.driftkit.common.service.TextTokenizer;
 import ai.driftkit.common.service.impl.SimpleTextTokenizer;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
@@ -184,6 +185,13 @@ public class TraceableModelClient<T> extends ModelClient<T> {
             if (usage.getCompletionTokens() != null) {
                 trace.setCompletionTokens(usage.getCompletionTokens());
             }
+            if (usage.getCacheUsage() != null) {
+                trace.setCacheUsage(usage.getCacheUsage());
+            }
+
+            // Calculate estimated cost
+            trace.setEstimatedCostUSD(CostCalculator.calculate(
+                    trace.getModel(), trace.getPromptTokens(), trace.getCompletionTokens(), trace.getCacheUsage()));
         } else {
             String responseContent = response.getResponse();
             if (StringUtils.isNotBlank(responseContent)) {

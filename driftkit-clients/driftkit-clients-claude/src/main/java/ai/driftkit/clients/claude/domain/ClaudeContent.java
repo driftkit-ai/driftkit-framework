@@ -15,15 +15,18 @@ import java.util.Map;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ClaudeContent {
-    
+
     @JsonProperty("type")
     private String type; // "text", "image", "tool_use", "tool_result"
-    
+
     @JsonProperty("text")
     private String text;
-    
+
     @JsonProperty("source")
     private ImageSource source;
+
+    @JsonProperty("cache_control")
+    private Map<String, String> cacheControl;
     
     @JsonProperty("id")
     private String id; // For tool_use and tool_result
@@ -101,6 +104,26 @@ public class ClaudeContent {
                 .toolUseId(toolUseId)
                 .content(error)
                 .isError(true)
+                .build();
+    }
+
+    public static ClaudeContent textWithCache(String text) {
+        return ClaudeContent.builder()
+                .type("text")
+                .text(text)
+                .cacheControl(Map.of("type", "ephemeral"))
+                .build();
+    }
+
+    public static ClaudeContent imageWithCache(String base64Data, String mediaType) {
+        return ClaudeContent.builder()
+                .type("image")
+                .source(ImageSource.builder()
+                        .type("base64")
+                        .mediaType(mediaType)
+                        .data(base64Data)
+                        .build())
+                .cacheControl(Map.of("type", "ephemeral"))
                 .build();
     }
 }

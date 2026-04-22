@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Composite mock that delegates to multiple mocks based on conditions.
@@ -34,7 +36,7 @@ public class CompositeMockDefinition extends MockDefinition<Object> {
      * @return this for chaining
      */
     public <I> CompositeMockDefinition when(Class<I> inputType, 
-                                           java.util.function.Predicate<I> condition, 
+                                           Predicate<I> condition, 
                                            MockDefinition<?> mock) {
         Objects.requireNonNull(condition, "condition cannot be null");
         Objects.requireNonNull(mock, "mock cannot be null");
@@ -96,8 +98,8 @@ public class CompositeMockDefinition extends MockDefinition<Object> {
         }
         
         public <I> Builder when(Class<I> inputType, 
-                               java.util.function.Predicate<I> condition,
-                               java.util.function.Function<I, StepResult<?>> function) {
+                               Predicate<I> condition,
+                               Function<I, StepResult<?>> function) {
             MockDefinition<I> mock = MockDefinition.ofAny(
                 composite.workflowId, 
                 composite.stepId, 
@@ -108,7 +110,7 @@ public class CompositeMockDefinition extends MockDefinition<Object> {
             return this;
         }
         
-        public Builder otherwise(java.util.function.Function<Object, StepResult<?>> function) {
+        public Builder otherwise(Function<Object, StepResult<?>> function) {
             composite.otherwise(MockDefinition.ofAny(
                 composite.workflowId,
                 composite.stepId,
@@ -128,11 +130,11 @@ public class CompositeMockDefinition extends MockDefinition<Object> {
      */
     private static class ConditionalMock {
         private final Class<?> inputType;
-        private final java.util.function.Predicate<?> condition;
+        private final Predicate<?> condition;
         private final MockDefinition<?> mock;
         
         ConditionalMock(Class<?> inputType, 
-                       java.util.function.Predicate<?> condition,
+                       Predicate<?> condition,
                        MockDefinition<?> mock) {
             this.inputType = inputType;
             this.condition = condition;
@@ -146,7 +148,7 @@ public class CompositeMockDefinition extends MockDefinition<Object> {
             }
             
             try {
-                return ((java.util.function.Predicate<Object>) condition).test(input);
+                return ((Predicate<Object>) condition).test(input);
             } catch (ClassCastException e) {
                 log.warn("Failed to apply condition", e);
                 return false;

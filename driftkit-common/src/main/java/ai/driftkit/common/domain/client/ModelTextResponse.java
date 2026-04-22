@@ -95,6 +95,17 @@ public class ModelTextResponse {
         private Integer completionTokens;
         @JsonProperty("total_tokens")
         private Integer totalTokens;
+
+        private CacheUsage cacheUsage;
+
+        @JsonProperty("reasoning_tokens")
+        private Integer reasoningTokens;
+
+        public Usage(Integer promptTokens, Integer completionTokens, Integer totalTokens) {
+            this.promptTokens = promptTokens;
+            this.completionTokens = completionTokens;
+            this.totalTokens = totalTokens;
+        }
     }
     
 }

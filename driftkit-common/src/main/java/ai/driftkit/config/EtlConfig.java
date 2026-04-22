@@ -110,5 +110,14 @@ public class EtlConfig {
         private double temperature;
         private boolean jsonObject;
         private boolean tracing;
+        /**
+         * Connection timeout in seconds. Default: 30
+         */
+        private Integer connectTimeout;
+        /**
+         * Read timeout in seconds. Default: 300 (5 minutes).
+         * Increase for long-running requests like large content generation.
+         */
+        private Integer readTimeout;
     }
 }

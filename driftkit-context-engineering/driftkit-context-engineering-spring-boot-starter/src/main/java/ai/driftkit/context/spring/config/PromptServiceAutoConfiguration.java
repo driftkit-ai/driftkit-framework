@@ -1,7 +1,9 @@
 package ai.driftkit.context.spring.config;
 
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
+import ai.driftkit.context.core.service.PromptEnvironmentResolver;
 import ai.driftkit.context.core.service.PromptService;
+import ai.driftkit.context.spring.testsuite.repository.PromptEnvironmentRepository;
 import ai.driftkit.contextengineering.autoconfigure.WebMvcConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,17 +42,32 @@ import jakarta.annotation.PreDestroy;
 public class PromptServiceAutoConfiguration {
     
     private final PromptService promptService;
-    
-    public PromptServiceAutoConfiguration(@Autowired(required = false) PromptService promptService) {
+    private final PromptEnvironmentRepository environmentRepository;
+
+    public PromptServiceAutoConfiguration(
+            @Autowired(required = false) PromptService promptService,
+            @Autowired(required = false) PromptEnvironmentRepository environmentRepository) {
         this.promptService = promptService;
+        this.environmentRepository = environmentRepository;
     }
-    
+
     @PostConstruct
     public void registerPromptService() {
         if (promptService != null) {
             PromptServiceRegistry.register(promptService);
-            log.info("Auto-registered PromptService with global registry: {}", 
+            log.info("Auto-registered PromptService with global registry: {}",
                     promptService.getClass().getSimpleName());
+        }
+
+        // Register environment resolver for environment-aware prompt resolution
+        if (environmentRepository != null) {
+            PromptEnvironmentResolver.setResolver((method, language, environment) -> {
+                return environmentRepository
+                        .findByMethodAndLanguageAndEnvironment(method, language, environment)
+                        .map(env -> env.getVersion())
+                        .orElse(null);
+            });
+            log.info("Registered PromptEnvironmentResolver for environment-aware prompt resolution");
         }
     }
     

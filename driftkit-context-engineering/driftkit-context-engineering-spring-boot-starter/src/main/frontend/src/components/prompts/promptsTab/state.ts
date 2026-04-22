@@ -19,7 +19,7 @@ export function usePromptsState(): PromptsState {
   
   // Prompt form state with default values
   const promptForm = ref({
-    promptId: '',
+    method: '',
     message: '',
     systemMessage: '',
     variables: [] as string[],

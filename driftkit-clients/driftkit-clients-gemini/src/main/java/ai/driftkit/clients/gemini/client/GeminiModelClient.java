@@ -57,7 +57,9 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         this.config = config;
         this.client = GeminiClientFactory.createClient(
                 config.getApiKey(),
-                Optional.ofNullable(config.getBaseUrl()).orElse(null)
+                Optional.ofNullable(config.getBaseUrl()).orElse(null),
+                config.getConnectTimeout(),
+                config.getReadTimeout()
         );
         this.setTemperature(config.getTemperature());
         this.setModel(config.getModel());

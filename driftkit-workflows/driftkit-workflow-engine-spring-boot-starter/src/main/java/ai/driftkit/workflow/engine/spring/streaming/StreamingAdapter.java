@@ -2,6 +2,7 @@ package ai.driftkit.workflow.engine.spring.streaming;
 
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
+import java.util.List;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
@@ -107,7 +108,7 @@ public class StreamingAdapter {
      * @param <T> Type of items in the stream
      * @return Flux that emits buffered lists
      */
-    public static <T> Flux<java.util.List<T>> toBufferedFlux(
+    public static <T> Flux<List<T>> toBufferedFlux(
             StreamingResponse<T> streamingResponse, 
             int bufferSize) {
         return toFlux(streamingResponse).buffer(bufferSize);

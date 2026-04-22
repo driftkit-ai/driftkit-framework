@@ -6,7 +6,7 @@
 
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-parent</artifactId>
-    <version>0.8.7</version>
+    <version>0.9.0</version>
     <packaging>pom</packaging>
 
     <name>DriftKit Parent</name>
@@ -187,6 +187,11 @@
             <dependency>
                 <groupId>ai.driftkit</groupId>
                 <artifactId>driftkit-clients-openai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.driftkit</groupId>
+                <artifactId>driftkit-clients-deepseek</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

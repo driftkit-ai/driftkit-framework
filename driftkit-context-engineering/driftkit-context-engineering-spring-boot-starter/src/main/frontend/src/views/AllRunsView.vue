@@ -212,7 +212,7 @@ export default defineComponent({
           await loadAllTestSets();
         }
         
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get('/data/v1.0/admin/test-sets/all-runs', {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -259,7 +259,7 @@ export default defineComponent({
     // Load all test sets in one request
     const loadAllTestSets = async () => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.get('/data/v1.0/admin/test-sets', {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
@@ -398,7 +398,7 @@ export default defineComponent({
     
     const rerunEvaluation = async (testSetId: string) => {
       try {
-        const creds = localStorage.getItem('credentials');
+        const creds = sessionStorage.getItem('credentials');
         const response = await axios.post(`/data/v1.0/admin/test-sets/${testSetId}/quick-run`, {}, {
           headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });

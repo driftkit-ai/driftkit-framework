@@ -750,6 +750,7 @@ public class LLMAgentIntegrationTest {
         Prompt troubleshootPrompt = new Prompt(
             "support.troubleshoot",  // id
             "support.troubleshoot",  // method
+            0,  // version
             "Help me troubleshoot my {{product}} that {{issue}}",  // message
             "You are a helpful technical support agent.",  // systemMessage
             Prompt.State.CURRENT,  // state
@@ -761,6 +762,7 @@ public class LLMAgentIntegrationTest {
             false,  // structured
             false,  // jsonResponse
             null,  // responseFormat
+            null,  // variableSchemas
             System.currentTimeMillis(),  // createdTime
             System.currentTimeMillis(),  // updatedTime
             System.currentTimeMillis()  // timestamp

@@ -57,6 +57,8 @@ public class ModelTextRequest {
 
     private PredictionContentItem prediction;
 
+    private CachePolicy cachePolicy;
+
     public static ModelTextRequestBuilder create(Role role, String model, String str) {
         return create(role, model, List.of(str), Collections.emptyList());
     }
