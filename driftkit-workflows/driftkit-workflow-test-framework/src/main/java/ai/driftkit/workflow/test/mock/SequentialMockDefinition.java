@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * Mock that returns different results on sequential calls.
@@ -109,7 +110,7 @@ public class SequentialMockDefinition extends MockDefinition<Object> {
         /**
          * Adds a successful response to the sequence.
          */
-        public Builder<I> thenReturn(java.util.function.Function<I, StepResult<?>> function) {
+        public Builder<I> thenReturn(Function<I, StepResult<?>> function) {
             sequential.then(MockDefinition.ofAny(workflowId, stepId, inputType, function));
             return this;
         }
@@ -136,7 +137,7 @@ public class SequentialMockDefinition extends MockDefinition<Object> {
         /**
          * Sets the behavior after sequence is exhausted.
          */
-        public Builder<I> thenAlwaysReturn(java.util.function.Function<I, StepResult<?>> function) {
+        public Builder<I> thenAlwaysReturn(Function<I, StepResult<?>> function) {
             sequential.thenAlways(MockDefinition.ofAny(workflowId, stepId, inputType, function));
             return this;
         }
