@@ -4,6 +4,12 @@ target/
 *.war
 *.ear
 
+# Claude Code
+.claude/commands/
+
+# CLI (separate repo)
+driftkit-cli/
+
 # IDE
 .idea/
 *.iml
