@@ -4,6 +4,12 @@ target/
 *.war
 *.ear
 
+# Documentation (except README)
+**/[A-Z]*.md
+!**/README.md
+*.md
+!README.md
+
 # Claude Code
 .claude/commands/
 
