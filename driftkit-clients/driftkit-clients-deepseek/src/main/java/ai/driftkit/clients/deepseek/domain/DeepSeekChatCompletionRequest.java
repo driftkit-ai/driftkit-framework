@@ -83,10 +83,44 @@ public class DeepSeekChatCompletionRequest {
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ResponseFormat {
+        @JsonProperty("type")
         private String type;
+
+        @JsonProperty("json_schema")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private JsonSchema jsonSchema;
+
+        public ResponseFormat() {}
+
+        public ResponseFormat(String type) {
+            this.type = type;
+        }
+
+        public ResponseFormat(String type, JsonSchema jsonSchema) {
+            this.type = type;
+            this.jsonSchema = jsonSchema;
+        }
+
+        @Data
+        public static class JsonSchema {
+            @JsonProperty("name")
+            private String name;
+
+            @JsonProperty("strict")
+            private Boolean strict;
+
+            @JsonProperty("schema")
+            private Map<String, Object> schema;
+
+            public JsonSchema() {}
+
+            public JsonSchema(String name, Map<String, Object> schema) {
+                this.name = name;
+                this.strict = true;
+                this.schema = schema;
+            }
+        }
     }
 }

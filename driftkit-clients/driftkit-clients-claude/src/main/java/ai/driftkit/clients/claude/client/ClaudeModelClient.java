@@ -621,21 +621,19 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 request.setSystemWithCache(systemText);
             }
 
-            // Auto-cache the last large text block in messages (independent of system cache)
+            // Auto-cache conversation history prefix: place breakpoint on the second-to-last message
+            // (the last message from history, before the current user message).
+            // Claude caches everything from start up to the breakpoint, so this caches
+            // system prompt + entire conversation history on every turn.
             List<ClaudeMessage> messages = request.getMessages();
-            if (messages != null) {
-                for (int i = messages.size() - 1; i >= 0; i--) {
-                    List<ClaudeContent> contents = messages.get(i).getContent();
-                    if (contents == null) continue;
-                    for (int j = contents.size() - 1; j >= 0; j--) {
-                        ClaudeContent content = contents.get(j);
-                        if ("text".equals(content.getType())
-                                && content.getCacheControl() == null
-                                && content.getText() != null
-                                && estimateTokenCount(content.getText()) >= 1024) {
-                            content.setCacheControl(java.util.Map.of("type", "ephemeral"));
-                            return; // One message breakpoint is enough — Claude caches everything up to it
-                        }
+            if (messages != null && messages.size() >= 2) {
+                // Second-to-last message = last history message (before current user input)
+                ClaudeMessage historyTail = messages.get(messages.size() - 2);
+                List<ClaudeContent> contents = historyTail.getContent();
+                if (contents != null && !contents.isEmpty()) {
+                    ClaudeContent lastContent = contents.get(contents.size() - 1);
+                    if (lastContent.getCacheControl() == null) {
+                        lastContent.setCacheControl(Map.of("type", "ephemeral"));
                     }
                 }
             }
@@ -651,7 +649,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
     private void applyCacheControlFromElement(ClaudeContent claudeContent, ModelContentElement element) {
         if (element.getCacheControl() != null
                 && element.getCacheControl().getType() == CacheControl.CacheType.EPHEMERAL) {
-            claudeContent.setCacheControl(java.util.Map.of("type", "ephemeral"));
+            claudeContent.setCacheControl(Map.of("type", "ephemeral"));
         }
     }
 

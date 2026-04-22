@@ -7,23 +7,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class PromptAppController {
 
-    // Redirects all routes from /prompt-engineering/* to the SPA index
+    // Forward all SPA routes to index.html (Vue Router handles client-side routing)
     @GetMapping({
         "/prompt-engineering",
         "/prompt-engineering/",
-        "/prompt-engineering/chat/**",
-        "/prompt-engineering/prompts/**", 
-        "/prompt-engineering/indexes/**",
-        "/prompt-engineering/dictionaries/**", 
-        "/prompt-engineering/checklists/**"
+        "/prompt-engineering/{path:^(?!static|index\\.html).*$}",
+        "/prompt-engineering/{path:^(?!static|index\\.html).*$}/**"
     })
     public String forwardToSpaIndex() {
         return "forward:/prompt-engineering/index.html";
-    }
-
-    // Fallback route for any paths not explicitly handled
-    @GetMapping("/{path:^(?!api|data|prompt-engineering).*$}")
-    public String redirect() {
-        return "forward:/";
     }
 }

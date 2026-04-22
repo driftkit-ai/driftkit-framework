@@ -118,6 +118,16 @@
                 <Column header="Tokens" style="width:90px">
                   <template #body="{data}">{{ (data.trace?.promptTokens||0) + (data.trace?.completionTokens||0) }}</template>
                 </Column>
+                <Column header="Cache" style="width:120px">
+                  <template #body="{data}">
+                    <span v-if="data.trace?.cacheUsage" class="cache-badge">
+                      <span v-if="data.trace.cacheUsage.cacheHitTokens" class="cache-hit">{{ data.trace.cacheUsage.cacheHitTokens }} hit</span>
+                      <span v-if="data.trace.cacheUsage.cacheWriteTokens" class="cache-write">{{ data.trace.cacheUsage.cacheWriteTokens }} write</span>
+                      <span v-if="!data.trace.cacheUsage.cacheHitTokens && !data.trace.cacheUsage.cacheWriteTokens" class="cache-miss">miss</span>
+                    </span>
+                    <span v-else class="text-muted text-sm">—</span>
+                  </template>
+                </Column>
                 <Column header="Model" style="width:120px">
                   <template #body="{data}">{{ data.trace?.model || data.modelId || '' }}</template>
                 </Column>
@@ -142,6 +152,13 @@
                   <Tag value="Trace Detail" severity="info" />
                   <span class="text-sm text-muted">{{ trace.id }}</span>
                   <span v-if="trace.trace" class="text-sm">{{ trace.trace.executionTimeMs }}ms | {{ (trace.trace.promptTokens || 0) + (trace.trace.completionTokens || 0) }} tokens</span>
+                  <span v-if="trace.trace?.cacheUsage" class="cache-detail-badges">
+                    <Tag v-if="trace.trace.cacheUsage.cacheHitTokens" :value="`Cache Hit: ${trace.trace.cacheUsage.cacheHitTokens}`" severity="success" />
+                    <Tag v-if="trace.trace.cacheUsage.cacheWriteTokens" :value="`Cache Write: ${trace.trace.cacheUsage.cacheWriteTokens}`" severity="warn" />
+                    <Tag v-if="trace.trace.cacheUsage.cacheMissTokens" :value="`Cache Miss: ${trace.trace.cacheUsage.cacheMissTokens}`" severity="danger" />
+                    <Tag v-if="trace.trace.cacheUsage.cacheHitTokens" :value="`Hit Ratio: ${(trace.trace.cacheUsage.cacheHitTokens / ((trace.trace.cacheUsage.cacheHitTokens || 0) + (trace.trace.cacheUsage.cacheMissTokens || 0) + (trace.trace.cacheUsage.cacheWriteTokens || 0)) * 100).toFixed(0)}%`" severity="info" />
+                  </span>
+                  <span v-if="trace.trace?.estimatedCostUSD" class="text-sm text-muted">${{ trace.trace.estimatedCostUSD.toFixed(4) }}</span>
                 </div>
 
                 <!-- System Message -->
@@ -354,6 +371,11 @@ onMounted(() => {
 .code-block { white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 0.8rem; background: var(--p-surface-0); border: 1px solid var(--p-surface-border); border-radius: 4px; padding: 0.5rem; max-height: 200px; overflow: auto; }
 .font-mono { font-family: monospace; }
 :deep(.row-error) { background: var(--p-red-50) !important; }
+.cache-badge { display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; }
+.cache-hit { color: var(--p-green-600); font-weight: 600; }
+.cache-write { color: var(--p-orange-600); }
+.cache-miss { color: var(--p-text-muted-color); }
+.cache-detail-badges { display: flex; gap: 0.375rem; flex-wrap: wrap; }
 .d-flex { display: flex; }
 .flex-1 { flex: 1; }
 .justify-content-between { justify-content: space-between; }

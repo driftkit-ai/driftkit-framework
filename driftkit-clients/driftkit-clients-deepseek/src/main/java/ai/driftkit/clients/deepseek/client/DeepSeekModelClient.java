@@ -208,12 +208,24 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
             }
         }
 
-        // Response format
+        // Response format — DeepSeek only supports json_object, NOT json_schema.
+        // We map json_schema → json_object and inject schema into prompt.
         if (prompt.getResponseFormat() != null
                 && prompt.getResponseFormat().getType() != null
                 && prompt.getResponseFormat().getType() != ResponseType.TEXT) {
-            builder.responseFormat(new DeepSeekChatCompletionRequest.ResponseFormat(
-                    prompt.getResponseFormat().getType().getValue()));
+            builder.responseFormat(new DeepSeekChatCompletionRequest.ResponseFormat("json_object"));
+
+            // DeepSeek requires "json" in prompt for json_object mode.
+            // Generate schema description from ResponseFormat.JsonSchema and inject into prompt.
+            String schemaPrompt = buildJsonSchemaPrompt(prompt.getResponseFormat().getJsonSchema());
+            if (schemaPrompt != null && messages != null && !messages.isEmpty()) {
+                var firstMsg = messages.get(0);
+                if (firstMsg.getContent() instanceof String content) {
+                    if (!content.toLowerCase().contains("json")) {
+                        firstMsg.setContent(content + schemaPrompt);
+                    }
+                }
+            }
         }
 
         if (getStop() != null) {
@@ -221,6 +233,53 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
         }
 
         return builder.build();
+    }
+
+    /**
+     * Build a prompt fragment describing the expected JSON schema.
+     * DeepSeek doesn't support json_schema mode, so we inject the schema into the prompt
+     * along with the word "json" (required by DeepSeek API for json_object mode).
+     */
+    private String buildJsonSchemaPrompt(ai.driftkit.common.domain.client.ResponseFormat.JsonSchema schema) {
+        if (schema == null) {
+            return "\n\nYou MUST respond with a valid JSON object.";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n\nYou MUST respond with a valid JSON object matching this schema:\n{");
+
+        if (schema.getProperties() != null) {
+            var props = schema.getProperties();
+            int i = 0;
+            for (var entry : props.entrySet()) {
+                if (i > 0) sb.append(",");
+                sb.append("\n  \"").append(entry.getKey()).append("\": ");
+                var prop = entry.getValue();
+                if (prop != null && prop.getType() != null) {
+                    switch (prop.getType()) {
+                        case "string" -> sb.append("\"<string>\"");
+                        case "integer", "number" -> sb.append("<number>");
+                        case "boolean" -> sb.append("<true|false>");
+                        case "array" -> sb.append("[...]");
+                        default -> sb.append("\"<").append(prop.getType()).append(">\"");
+                    }
+                    if (prop.getDescription() != null) {
+                        sb.append("  // ").append(prop.getDescription());
+                    }
+                } else {
+                    sb.append("\"<value>\"");
+                }
+                i++;
+            }
+        }
+        sb.append("\n}");
+
+        if (schema.getRequired() != null && !schema.getRequired().isEmpty()) {
+            sb.append("\nRequired fields: ").append(String.join(", ", schema.getRequired()));
+        }
+
+        sb.append("\nReturn ONLY the JSON object, no other text.");
+        return sb.toString();
     }
 
     private boolean isThinkingEnabled(ModelTextRequest prompt, String model) {

@@ -61,6 +61,7 @@ public class LLMAgent implements Agent {
     private final String imageModel;
     private final ReasoningEffort reasoningEffort;
     private final CachePolicy cachePolicy;
+    private final StoreContentExtractor storeContentExtractor;
 
     // Unique agent identifier
     private final String agentId;
@@ -101,7 +102,8 @@ public class LLMAgent implements Agent {
                        ChatStore chatStore, String chatId, PromptService promptService, ToolRegistry toolRegistry,
                        RequestTracingProvider tracingProvider, String workflowId, String workflowType,
                        String workflowStep, boolean autoExecuteTools, ReasoningEffort reasoningEffort,
-                       Map<String, String> messageProperties, CachePolicy cachePolicy) {
+                       Map<String, String> messageProperties, CachePolicy cachePolicy,
+                       StoreContentExtractor storeContentExtractor) {
         this.modelClient = modelClient;
         this.name = name;
         this.description = description;
@@ -111,6 +113,7 @@ public class LLMAgent implements Agent {
         this.model = model;
         this.reasoningEffort = reasoningEffort;
         this.cachePolicy = cachePolicy;
+        this.storeContentExtractor = storeContentExtractor;
         this.imageModel = imageModel;
         this.agentId = agentId != null ? agentId : AIUtils.generateId();
         this.chatStore = chatStore;
@@ -139,9 +142,9 @@ public class LLMAgent implements Agent {
     public AgentResponse<String> executeText(String message) {
         return executeText(message, Collections.emptyMap());
     }
-    
+
     /**
-     * Execute with text and context variables
+     * Execute with text and context variables.
      */
     public AgentResponse<String> executeText(String message, Map<String, Object> variables) {
         try {
@@ -150,14 +153,14 @@ public class LLMAgent implements Agent {
 
             // Create conversation context with token limit
             ConversationContext context = createConversationContext();
-            
+
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
                 context.addSystemMessage(systemMessage);
             }
-            
-            // Add user message (saves to store if in history mode)
-            context.addUserMessage(processedMessage);
+
+            // Add user message (extractor separates store vs API content if configured)
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -245,7 +248,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add user message (saves to store if in history mode)
-            context.addUserMessage(processedMessage);
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request with tools
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -304,7 +307,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add user message (saves to store if in history mode)
-            context.addUserMessage(processedMessage);
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request with tools
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -362,22 +365,25 @@ public class LLMAgent implements Agent {
     /**
      * Execute with structured output extraction
      */
+    /**
+     * Execute with structured output.
+     */
     public <T> AgentResponse<T> executeStructured(String userMessage, Class<T> targetClass) {
         try {
             // Create response format for structured output
             ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
-            
+
             // Create conversation context with token limit
             ConversationContext context = createConversationContext();
-            
+
             // Add system message if present
             if (StringUtils.isNotBlank(systemMessage)) {
                 context.addSystemMessage(systemMessage);
             }
             
-            // Add user message (saves to store if in history mode)
-            context.addUserMessage(userMessage);
-            
+            // Add user message (extractor separates store vs API content if configured)
+            addUserMessageToContext(context, userMessage, null);
+
             // Build request with structured output
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
             ModelTextRequest request = ModelTextRequest.builder()
@@ -399,18 +405,32 @@ public class LLMAgent implements Agent {
                     buildTraceContext("STRUCTURED", null, null, request.getMessages()));
             }
             
+            // Extract cache and reasoning info
+            CacheUsage cacheUsage = response != null && response.getUsage() != null
+                    ? response.getUsage().getCacheUsage() : null;
+            String reasoning = extractReasoningContent(response);
+            Integer reasoningTokens = response != null && response.getUsage() != null
+                    ? response.getUsage().getReasoningTokens() : null;
+
             // Extract and parse response
             String jsonResponse = extractResponseText(response);
-            
+
             // Save assistant response
             if (StringUtils.isNotBlank(jsonResponse)) {
                 context.addAssistantMessage(jsonResponse);
             }
-            
+
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
-            
-            return AgentResponse.structured(result);
-            
+
+            return AgentResponse.<T>builder()
+                    .structuredData(result)
+                    .type(AgentResponse.ResponseType.STRUCTURED_DATA)
+                    .cacheUsage(cacheUsage)
+                    .reasoningContent(reasoning)
+                    .reasoningTokens(reasoningTokens)
+                    .rawResponse(response)
+                    .build();
+
         } catch (Exception e) {
             log.error("Error extracting structured data", e);
             throw new RuntimeException("Failed to extract structured data", e);
@@ -467,7 +487,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add user message
-            context.addUserMessage(processedMessage);
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -490,16 +510,26 @@ public class LLMAgent implements Agent {
                     buildTraceContext("STRUCTURED_PROMPT", variables, promptId, request.getMessages()));
             }
             
+            // Extract cache and reasoning info
+            CacheUsage cacheUsage2 = response != null && response.getUsage() != null
+                    ? response.getUsage().getCacheUsage() : null;
+            String reasoning2 = extractReasoningContent(response);
+
             // Extract and parse response
             String jsonResponse = extractResponseText(response);
-            
-            // Add logging to see the actual JSON response
+
             log.info("Raw JSON response from AI: {}", jsonResponse);
-            
+
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
-            
-            return AgentResponse.structured(result);
-            
+
+            return AgentResponse.<T>builder()
+                    .structuredData(result)
+                    .type(AgentResponse.ResponseType.STRUCTURED_DATA)
+                    .cacheUsage(cacheUsage2)
+                    .reasoningContent(reasoning2)
+                    .rawResponse(response)
+                    .build();
+
         } catch (Exception e) {
             log.error("Error in executeStructuredWithPrompt", e);
             throw new RuntimeException("Failed to execute structured with prompt", e);
@@ -568,7 +598,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add user message (saves to store if in history mode)
-            context.addUserMessage(processedMessage);
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -715,7 +745,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add to context (saves to store if in history mode)
-            context.addUserMessage(processedText); // Add processed text version
+            addUserMessageToContext(context, processedText, null); // Add processed text version
             
             // Get all messages from context (includes system message and history)
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -831,7 +861,7 @@ public class LLMAgent implements Agent {
             }
 
             // Add user message (saves to store if in history mode)
-            context.addUserMessage(text);
+            addUserMessageToContext(context, text, null);
 
             // Get all messages from context (includes system message and history)
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -859,6 +889,10 @@ public class LLMAgent implements Agent {
                     buildTraceContext("MEDIA_STRUCTURED", null, null, request.getMessages()));
             }
 
+            // Extract cache info
+            CacheUsage mediaCacheUsage = response != null && response.getUsage() != null
+                    ? response.getUsage().getCacheUsage() : null;
+
             // Extract and parse response
             String jsonResponse = extractResponseText(response);
 
@@ -869,7 +903,12 @@ public class LLMAgent implements Agent {
 
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
 
-            return AgentResponse.structured(result);
+            return AgentResponse.<T>builder()
+                    .structuredData(result)
+                    .type(AgentResponse.ResponseType.STRUCTURED_DATA)
+                    .cacheUsage(mediaCacheUsage)
+                    .rawResponse(response)
+                    .build();
 
         } catch (Exception e) {
             log.error("Error extracting structured data from media", e);
@@ -966,6 +1005,20 @@ public class LLMAgent implements Agent {
             context.setMessageProperties(messageProperties);
         }
         return context;
+    }
+
+    /**
+     * Add user message to context, using storeContentExtractor if configured.
+     * When extractor is set, the raw content goes to chatStore while full API content goes to messages.
+     */
+    private void addUserMessageToContext(ConversationContext context, String apiContent,
+                                         Map<String, Object> variables) {
+        if (storeContentExtractor != null) {
+            String storeContent = storeContentExtractor.extract(apiContent, variables);
+            context.addUserMessage(storeContent, apiContent);
+        } else {
+            context.addUserMessage(apiContent);
+        }
     }
 
     /**
@@ -1071,7 +1124,7 @@ public class LLMAgent implements Agent {
             }
             
             // Add user message (saves to store if in history mode)
-            context.addUserMessage(processedMessage);
+            addUserMessageToContext(context, processedMessage, variables);
             
             // Build request
             List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
@@ -1353,6 +1406,7 @@ public class LLMAgent implements Agent {
         private boolean autoExecuteTools = true;
         private ReasoningEffort reasoningEffort;
         private CachePolicy cachePolicy;
+        private StoreContentExtractor storeContentExtractor;
         private Map<String, String> messageProperties;
 
         private List<ToolInfo> pendingTools = new ArrayList<>();
@@ -1467,6 +1521,11 @@ public class LLMAgent implements Agent {
             return this;
         }
 
+        public CustomLLMAgentBuilder storeContentExtractor(StoreContentExtractor storeContentExtractor) {
+            this.storeContentExtractor = storeContentExtractor;
+            return this;
+        }
+
         /**
          * Add a tool to the agent
          */
@@ -1502,7 +1561,8 @@ public class LLMAgent implements Agent {
                     temperature, maxTokens, model, imageModel, agentId,
                     chatStore, chatId, promptService, toolRegistry,
                     tracingProvider, workflowId, workflowType, workflowStep,
-                    autoExecuteTools, reasoningEffort, messageProperties, cachePolicy);
+                    autoExecuteTools, reasoningEffort, messageProperties, cachePolicy,
+                    storeContentExtractor);
         }
     }
 }
