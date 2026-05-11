@@ -401,35 +401,46 @@ Advanced prompt editing and management interface with the following features:
 
 ![Prompts Management Interface](./screens/prompts.png)
 
+### Dashboard Overview
+
+Centralized view of the prompt engineering platform:
+- Total tasks, prompt tokens, completion tokens
+- Estimated cost (USD) and median latency
+- Success/error statistics with percentages
+- Latency percentiles (p25, p50, p75, p90)
+
+![Dashboard](./screens/dashboard.png)
+
+### Traces with Cache Metrics
+
+Real-time observability for every LLM call:
+- Per-request cache hit/write/miss token counts
+- Unified metrics across Claude (prompt cache), OpenAI (auto cache), DeepSeek (prefix cache)
+- Cache hit ratio percentage
+- Expandable trace details with system message and conversation context
+
+![Traces — per-request metrics](./screens/traces.png)
+
+![Trace Detail — cache hit/write, system message](./screens/traces-detail-cache.png)
+
+![Cache Hit Ratio — DeepSeek prefix cache](./screens/traces-cache-metrics.png)
+
+### Prompt Playground
+
+Side-by-side A/B prompt comparison:
+- Execute two prompts against the same variables
+- Dataset sweep mode — run against entire test sets
+- Pipeline playground — test prompt overrides in production pipelines
+
+![Playground](./screens/playground.png)
+
 ### Test Sets Management
 
 Comprehensive testing framework with multiple evaluation types:
 - Create and manage test sets for prompts
 - Multiple evaluation types: JSON Schema, Keywords, Exact Match, LLM Evaluation, Manual Review, Regex, Field Value, Array Length
 - Batch test execution with pass/fail statistics
-- Test case management with variables and expected results
-- Test run history and reporting
-- Visual test results with evaluation details
-
-![Test Sets Management](./screens/test-sets.png)
-
-![Test Sets with Details](./screens/test-sets-hidden-details.png)
-        
-### Dashboard Overview
-
-The main dashboard provides a centralized view of the prompt engineering platform:
-- System health monitoring
-- Recent activity tracking  
-- Quick access to prompts and test sets
-- Performance metrics and statistics
-
-![Dashboard](./screens/dashboard.png)
-
-### Test Set Evaluation Results
-
-Detailed evaluation results with comprehensive metrics:
-
-![Test Set Evaluation](./screens/prompts-test-set-evaluation.png)
+- Test run history and automated regression detection
 
 ## Spring Boot Integration
 

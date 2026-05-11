@@ -21,6 +21,8 @@
 | **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls                       | ❌                               | ⚠️ Limited                      | ✅ Built-in                                      |
 | **Workflow as graph** | ✅ Full graph with cross-workflow calls                                           | ❌                               | ⚠️ Chain only                   | ⚠️ Basic                                        |
 | **Simplified LLM SDK** | ✅ High-level Agent API                                                           | ⚠️ Low-level                    | ⚠️ Complex                      | ✅ Good                                          |
+| **Prompt caching** | ✅ Unified: Claude, OpenAI, DeepSeek                                              | ❌                               | ❌                               | ❌                                               |
+| **Cache observability** | ✅ Hit/write/miss per request                                                     | ❌                               | ❌                               | ❌                                               |
 | **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                 | ❌ Code rewrite                  | ⚠️ Limited                                      |
 | **Audio processing** | ✅ VAD + Transcription                                                            | ❌                               | ❌                               | ❌                                               |
 | **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers            | ❌                               | ❌                                               |
@@ -29,18 +31,27 @@
 ### 🎯 Unique features
 
 1. **Complete prompt lifecycle platform** - The ONLY framework with full Dev→Test→Prod workflow
-   ![Prompt Engineering Platform](driftkit-context-engineering/screens/prompts.png)
-   - Version control and A/B testing
+   ![Dashboard — cost, tokens, latency metrics](driftkit-context-engineering/screens/dashboard.png)
+   ![Prompt Editor with folders, versioning, state machine](driftkit-context-engineering/screens/prompts.png)
+   - Prompt state machine: DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED
+   - Version control, A/B testing, and folder organization
    - Test sets with multiple evaluation methods
-   - Production tracing and monitoring
-   - Real-world scenario testing
+   - Cost tracking (USD), token usage, and latency percentiles
    
-2. **Enterprise prompt management** - What competitors lack:
-   ![Test Sets and Evaluation](driftkit-context-engineering/screens/test-sets.png)
-   - Automated prompt testing against production data
-   - Multiple evaluation strategies
-   - Performance tracking and optimization
-   - No other Java framework offers this!
+2. **Production tracing with cache metrics** - Real-time observability for every LLM call:
+   ![Traces — per-request cache hit/write/miss, tokens, latency](driftkit-context-engineering/screens/traces.png)
+   ![Trace Detail — cache metrics, system message, conversation context](driftkit-context-engineering/screens/traces-detail-cache.png)
+   ![Cache Hit Ratio — DeepSeek prefix cache and Claude prompt cache](driftkit-context-engineering/screens/traces-cache-metrics.png)
+   - Unified cache metrics across Claude (prompt cache), OpenAI (auto cache), DeepSeek (prefix cache)
+   - Per-request cache hit/write/miss token counts with hit ratio
+   - Hierarchical agent tracing (SequentialAgent, LoopAgent)
+   - Expandable conversation context and system message display
+
+3. **Prompt Playground** - Side-by-side prompt comparison:
+   ![Playground — A/B prompt testing with shared variables](driftkit-context-engineering/screens/playground.png)
+   - Execute two prompts against the same variables
+   - Dataset sweep mode — run against entire test sets
+   - Pipeline playground — test prompt overrides in production pipelines
 
 3. **Workflow as maintainable graph** - Build complex agents with cross-workflow composition
 4. **Simplified LLM SDK** - High-level Agent API for quick prototyping and production
@@ -143,7 +154,7 @@
 | Module | Purpose | Key Features |
 |--------|---------|--------------|
 | [**driftkit-common**](driftkit-common/README.md) | Core utilities | Chat memory, document processing, templates |
-| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, O3-Mini, Spring AI supported models, type-safe responses |
+| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, DeepSeek, Spring AI — unified cache metrics, reasoning/thinking mode |
 | [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, Spring AI providers, local BERT models |
 | [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone, Spring AI |
 | [**driftkit-workflows**](driftkit-workflows/README.md) | AI Orchestration | Workflow engine, testing framework, multi-agent patterns, Spring Boot integration |
@@ -159,7 +170,8 @@ driftkit-framework/
 │   ├── driftkit-clients-core/           # Core client interfaces
 │   ├── driftkit-clients-openai/         # OpenAI implementation
 │   ├── driftkit-clients-gemini/         # Google Gemini implementation
-│   ├── driftkit-clients-claude/         # Anthropic Claude implementation
+│   ├── driftkit-clients-claude/         # Anthropic Claude implementation (prompt caching)
+│   ├── driftkit-clients-deepseek/      # DeepSeek implementation (prefix cache, thinking mode)
 │   ├── driftkit-clients-spring-ai/      # Spring AI models integration
 │   └── driftkit-clients-spring-boot-starter/
 ├── driftkit-embedding/                  # 🧠 Text embedding services
@@ -207,14 +219,14 @@ driftkit-framework/
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.8.8</version>
+    <version>0.9.0</version>
 </dependency>
 
 <!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
-    <version>0.8.8</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -522,13 +534,18 @@ The LLMAgent provides a simplified, type-safe interface for AI interactions:
 - **Error Recovery** - Comprehensive error handling with retry policies
 
 ### DriftKit Context Engineering
-**Advanced prompt management and engineering platform**
+**Production prompt lifecycle platform with visual IDE**
 
 - **Multi-storage Backends** - In-memory, filesystem, and MongoDB
 - **Template Processing** - Advanced variable substitution with control flow
-- **Version Control** - Prompt lifecycle management
-- **Testing Framework** - Comprehensive evaluation system
-- **Vue.js Frontend** - Modern web interface for prompt development
+- **Prompt State Machine** - DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED
+- **Pipeline Registry** - Auto-registers workflows and agents for pipeline testing
+- **Prompt Overrides** - ThreadLocal-based prompt injection for A/B testing in production pipelines
+- **Environment Resolution** - dev/staging/production with thread-safe resolver
+- **Unified Cache Tracking** - CacheUsage metrics (hit/write/miss) across Claude, OpenAI, DeepSeek
+- **Cost Calculator** - Per-request USD cost estimates for all supported models
+- **Audit Log** - Track who changed what prompt, when, and why
+- **Regression Detection** - Automatic comparison of test runs to catch prompt regressions
 
 **Template Features:**
 - Variable substitution: `{{variable}}`
@@ -536,12 +553,17 @@ The LLMAgent provides a simplified, type-safe interface for AI interactions:
 - List iteration: `{{#list items as item}}...{{/list}}`
 - Dictionary integration: `dict:itemId-markers:`
 
-**Frontend Capabilities:**
-- Monaco-style editor with syntax highlighting
-- Real-time variable detection and validation
-- Test set creation and execution
-- Multi-language prompt support
-- Version comparison and rollback
+**Frontend (Vue 3 + PrimeVue):**
+- Dashboard with cost, tokens, latency percentiles, success/error stats
+- Prompt editor with folder organization, versioning, and lifecycle state
+- Traces page with cache hit/write/miss per request and hit ratio
+- Expandable trace details — system message, conversation context, variables
+- Playground — side-by-side A/B prompt comparison with shared variables
+- Dataset sweep — run prompts against entire test sets
+- Pipeline playground — test prompt overrides in production pipelines
+- Test sets and evaluation runs with automated regression detection
+- PrimeVue Toast notifications (no alert() dialogs)
+- SPA routing — page refresh works on any route
 
 ### DriftKit Workflow Examples
 **Production-ready patterns for modern AI applications**
@@ -669,17 +691,19 @@ public class StrictPerson {
 ## 🗺️ Roadmap
 
 ### Ecosystem expansion
-- **Additional LLM providers** - Mistral AI, Grok, DeepSeek
+- **Additional LLM providers** - Mistral AI, Grok
+- ~~DeepSeek~~ ✅ Done — full client with prefix cache metrics and thinking/reasoning mode
 - **PostgreSQL backend** - Enterprise-grade persistence for context-engineering module
 - **Extended vector storage** - Native support without Spring: Weaviate, Qdrant, Redis Vector, Elasticsearch
 
 ### Developer experience  
-- **Frontend upgrade** - Modern UI/UX for prompt engineering, real-time collaboration, advanced debugging
+- ~~Frontend upgrade~~ ✅ Done — Vue 3 + PrimeVue + Vite, sidebar layout, 13 pages
 - **Comprehensive testing** - Full test coverage, performance benchmarks, integration tests
 - **Documentation website** - Interactive examples, API references, best practices guide
 - **Open-source demos** - Production-ready reference implementations
 
 ### Advanced capabilities
+- ~~Prompt caching~~ ✅ Done — Unified CachePolicy/CacheControl/CacheUsage across Claude, OpenAI, DeepSeek
 - **Enhanced evaluations** - More metrics, custom evaluators, industry benchmarks
 - **Text-to-speech** - OpenAI TTS, ElevenLabs, local TTS models
 - **OpenTelemetry** - Full observability for model calls and agent workflows
@@ -790,7 +814,7 @@ Add the starter for automatic configuration:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-ai-starter</artifactId>
-    <version>0.8.8</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -870,7 +894,7 @@ limitations under the License.
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-framework</artifactId>
-    <version>0.8.8</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
