@@ -199,7 +199,7 @@ For Spring Boot applications:
 ## Requirements
 
 - Java 21+ (for virtual threads support)
-- DriftKit 0.8.8+
+- DriftKit 0.9.0+
 
 ## Spring Boot Integration
 
