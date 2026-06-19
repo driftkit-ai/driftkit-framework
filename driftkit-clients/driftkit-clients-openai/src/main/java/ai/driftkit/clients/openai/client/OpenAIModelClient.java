@@ -804,7 +804,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
     private Message toMessage(ModelContentMessage message) {
         // Agentic loop: tool result message pairs with its call by id
         if (message.getRole() == Role.tool) {
-            StringMessage toolMessage = new StringMessage("tool", message.getName(), extractPlainText(message));
+            StringMessage toolMessage = new StringMessage(Role.tool.name(), message.getName(), extractPlainText(message));
             toolMessage.setToolCallId(message.getToolCallId());
             return toolMessage;
         }
@@ -876,7 +876,7 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                                 tc.getFunction().getName(), argumentsJson);
                     }
                     return new ChatCompletionRequest.RequestToolCall(
-                            tc.getId(), tc.getType() != null ? tc.getType() : "function", function);
+                            tc.getId(), tc.getType() != null ? tc.getType() : ToolCall.FUNCTION_TYPE, function);
                 })
                 .toList();
     }

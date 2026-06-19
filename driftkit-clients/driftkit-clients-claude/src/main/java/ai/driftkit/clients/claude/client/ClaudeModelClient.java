@@ -107,6 +107,11 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         throw new UnsupportedCapabilityException("Claude does not support image generation");
     }
     
+    // Claude content-block types (Anthropic wire format).
+    private static final String BLOCK_TEXT = "text";
+    private static final String BLOCK_TOOL_USE = "tool_use";
+    private static final String BLOCK_TOOL_RESULT = "tool_result";
+
     private ModelTextResponse processPrompt(ModelTextRequest prompt) {
         String model = Optional.ofNullable(prompt.getModel())
                 .orElse(Optional.ofNullable(getModel())
@@ -121,7 +126,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
             String role = message.getRole().name().toLowerCase();
             
             // Handle system messages separately
-            if ("system".equals(role)) {
+            if (message.getRole() == Role.system) {
                 // Check if any content element has cache_control — if so, need array format
                 boolean hasCacheControl = message.getContent().stream()
                         .anyMatch(el -> el.getCacheControl() != null);
@@ -236,7 +241,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                                         List<ClaudeContent> contents) {
         if (message.getRole() == Role.tool) {
             ClaudeContent toolResult = ClaudeContent.builder()
-                    .type("tool_result")
+                    .type(BLOCK_TOOL_RESULT)
                     .toolUseId(message.getToolCallId())
                     .content(joinTextBlocks(contents))
                     .build();
@@ -244,9 +249,9 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
             // Merge consecutive tool results into the previous tool-result user message
             if (!messages.isEmpty()) {
                 ClaudeMessage last = messages.get(messages.size() - 1);
-                boolean lastIsToolResultUser = "user".equals(last.getRole())
+                boolean lastIsToolResultUser = Role.user.name().equals(last.getRole())
                         && last.getContent() != null && !last.getContent().isEmpty()
-                        && "tool_result".equals(last.getContent().get(0).getType());
+                        && BLOCK_TOOL_RESULT.equals(last.getContent().get(0).getType());
                 if (lastIsToolResultUser) {
                     List<ClaudeContent> merged = new ArrayList<>(last.getContent());
                     merged.add(toolResult);
@@ -254,7 +259,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     return;
                 }
             }
-            messages.add(ClaudeMessage.contentMessage("user", new ArrayList<>(List.of(toolResult))));
+            messages.add(ClaudeMessage.contentMessage(Role.user.name(), new ArrayList<>(List.of(toolResult))));
             return;
         }
 
@@ -264,7 +269,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
             List<ClaudeContent> withToolUse = new ArrayList<>();
             for (ClaudeContent content : contents) {
                 // Anthropic rejects empty text blocks in assistant tool-use echoes
-                if ("text".equals(content.getType())
+                if (BLOCK_TEXT.equals(content.getType())
                         && (content.getText() == null || content.getText().isBlank())) {
                     continue;
                 }
@@ -277,7 +282,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                             input.put(key, ModelUtils.OBJECT_MAPPER.convertValue(value, Object.class)));
                 }
                 withToolUse.add(ClaudeContent.builder()
-                        .type("tool_use")
+                        .type(BLOCK_TOOL_USE)
                         .id(toolCall.getId())
                         .name(toolCall.getFunction() != null ? toolCall.getFunction().getName() : null)
                         .input(input)
@@ -293,7 +298,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
     private static String joinTextBlocks(List<ClaudeContent> contents) {
         StringBuilder sb = new StringBuilder();
         for (ClaudeContent content : contents) {
-            if ("text".equals(content.getType()) && content.getText() != null) {
+            if (BLOCK_TEXT.equals(content.getType()) && content.getText() != null) {
                 sb.append(content.getText());
             }
         }
@@ -311,9 +316,9 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         
         if (response.getContent() != null) {
             for (ClaudeContent content : response.getContent()) {
-                if ("text".equals(content.getType())) {
+                if (BLOCK_TEXT.equals(content.getType())) {
                     contentBuilder.append(content.getText());
-                } else if ("tool_use".equals(content.getType())) {
+                } else if (BLOCK_TOOL_USE.equals(content.getType())) {
                     // Convert tool use to tool call
                     Map<String, JsonNode> arguments = new HashMap<>();
                     if (content.getInput() != null) {
@@ -329,7 +334,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     
                     toolCalls.add(ToolCall.builder()
                             .id(content.getId())
-                            .type("function")
+                            .type(ToolCall.FUNCTION_TYPE)
                             .function(ToolCall.FunctionCall.builder()
                                     .name(content.getName())
                                     .arguments(arguments)
@@ -595,7 +600,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     for (ModelContentElement element : msg.getContent()) {
                         if (element.getText() != null) {
                             contents.add(ClaudeContent.builder()
-                                    .type("text")
+                                    .type(BLOCK_TEXT)
                                     .text(element.getText())
                                     .build());
                         } else if (element.getImage() != null) {

@@ -19,12 +19,15 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ToolCall {
-    
+
+    /** The only tool type currently supported by the OpenAI-compatible wire format. */
+    public static final String FUNCTION_TYPE = "function";
+
     @JsonProperty("id")
     private String id;
-    
+
     @JsonProperty("type")
-    private String type = "function";
+    private String type = FUNCTION_TYPE;
     
     @JsonProperty("function")
     private FunctionCall function;

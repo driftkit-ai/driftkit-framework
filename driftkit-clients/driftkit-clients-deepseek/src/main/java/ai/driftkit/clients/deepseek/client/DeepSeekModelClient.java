@@ -21,6 +21,7 @@ import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -184,7 +185,7 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
             // Echo assistant tool calls / pair tool results for the agentic loop
             if (CollectionUtils.isNotEmpty(msg.getToolCalls())) {
                 message.setToolCalls(mapRequestToolCalls(msg.getToolCalls()));
-                if (text == null || text.isEmpty()) {
+                if (StringUtils.isBlank(text)) {
                     message.setContent(null); // OpenAI format: content may be null when tool_calls present
                 }
             }
@@ -329,7 +330,7 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
                     }
                     return new DeepSeekChatCompletionRequest.RequestToolCall(
                             tc.getId(),
-                            tc.getType() != null ? tc.getType() : "function",
+                            tc.getType() != null ? tc.getType() : ToolCall.FUNCTION_TYPE,
                             function);
                 })
                 .toList();
