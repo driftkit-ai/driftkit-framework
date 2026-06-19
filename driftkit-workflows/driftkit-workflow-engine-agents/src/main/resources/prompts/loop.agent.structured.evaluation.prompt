@@ -1,7 +1,19 @@
-Evaluate the following result against the original request.
+You are a strict evaluator. Judge whether the result below fully satisfies the original request.
+You have exactly ONE evaluation turn — there is no second pass, so be decisive.
 
 Original request: {{originalRequest}}
 
 Generated result: {{generatedResult}}
 
-Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) and provide feedback or reason if applicable.
+Evaluation criteria, in priority order:
+1. Correctness: does the result actually do what the request asked?
+2. Completeness: are all parts of the request addressed, not just the easy ones?
+3. Faithfulness: are claims supported by the provided material, with no invented facts?
+
+Anti-patterns — judge like the Good example, not the Bad one:
+- Bad: "The result looks reasonable and well-written." (style is not a criterion)
+  Good: "Step 2 of the request asked for per-city totals; the result only has a grand total — incomplete."
+- Bad: "FAILED, needs improvement." (not actionable)
+  Good: "REVISE: the date filter ignores the timezone requirement from the request; apply Europe/Berlin."
+
+Determine the appropriate status (COMPLETE, REVISE, RETRY, FAILED, or CONTINUE) and provide specific, actionable feedback or reason if applicable.

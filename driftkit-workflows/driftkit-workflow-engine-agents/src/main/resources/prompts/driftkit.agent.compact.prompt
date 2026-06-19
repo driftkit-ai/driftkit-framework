@@ -1,0 +1,17 @@
+CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
+You already have all the context you need below. Tool calls will be REJECTED and will waste your only turn — you will fail the task.
+
+Your task is to create a detailed summary of the conversation below, paying close attention to the user's explicit requests and the assistant's previous actions.
+
+Your summary MUST include the following sections:
+1. Primary Request and Intent: all explicit user requests and intents, in detail.
+2. Key Technical Concepts: important concepts, technologies, entities discussed.
+3. Artifacts and Data: specific files, records, identifiers or data examined, modified or produced; include exact values where applicable.
+4. Errors and Fixes: every error encountered and how it was resolved.
+5. Problem Solving: problems solved and ongoing troubleshooting.
+6. All User Messages: list ALL user messages that are not tool results.
+7. Pending Tasks: work that was requested but not finished.
+8. Current Work and Next Step: precisely what was being worked on immediately before this summary, and the directly implied next step.
+
+Conversation to summarize:
+{{conversation}}

@@ -64,6 +64,13 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- Google Auth for Vertex AI ADC -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.34.0</version>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteLocationNormalizedLoaded } from 'vue-router';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import LoginPage from '@/pages/LoginPage.vue';
+import { ADVANCED_PATHS, isFeatureEnabled } from '@/config/features';
 
 // All pages
 import DashboardPage from '@/pages/DashboardPage.vue';
@@ -55,13 +56,17 @@ const router = createRouter({
   routes,
 });
 
-// Navigation guard: redirect to login if not authenticated
+// Navigation guard: auth + advanced-feature gate.
 router.beforeEach((to) => {
   const credentials = sessionStorage.getItem('credentials');
   if (to.path !== '/login' && !credentials) {
     return '/login';
   }
   if (to.path === '/login' && credentials) {
+    return '/dashboard';
+  }
+  // Disabled advanced feature must not be reachable even by direct URL.
+  if (ADVANCED_PATHS.some((p) => to.path.startsWith(p)) && !isFeatureEnabled(to.path)) {
     return '/dashboard';
   }
 });

@@ -20,12 +20,24 @@ public class ModelContentMessage {
     private List<ModelContentElement> content;
     private Role role;
     private String name;
+    /**
+     * Tool calls requested by an assistant message. Required when echoing an
+     * assistant turn that triggered tools back to the model in a follow-up request.
+     */
+    private List<ai.driftkit.common.tools.ToolCall> toolCalls;
+    /**
+     * Identifier pairing a {@link Role#tool} result message with its originating tool call.
+     */
+    private String toolCallId;
 
     @Builder
-    public ModelContentMessage(Role role, String name, List<ModelContentElement> content) {
+    public ModelContentMessage(Role role, String name, List<ModelContentElement> content,
+                               List<ai.driftkit.common.tools.ToolCall> toolCalls, String toolCallId) {
         this.role = role;
         this.name = name;
         this.content = content;
+        this.toolCalls = toolCalls;
+        this.toolCallId = toolCallId;
     }
 
     public static ModelContentMessage create(Role role, String str) {

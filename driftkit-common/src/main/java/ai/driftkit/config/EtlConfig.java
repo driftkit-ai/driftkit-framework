@@ -119,5 +119,14 @@ public class EtlConfig {
          * Increase for long-running requests like large content generation.
          */
         private Integer readTimeout;
+        /**
+         * Vertex AI project ID. When set, uses Vertex AI (OAuth2 ADC) instead of API key auth.
+         */
+        private String vertexProject;
+        /**
+         * Vertex AI location. "global" uses generativelanguage.googleapis.com with Bearer auth.
+         * Regional (e.g. "us-central1") uses {location}-aiplatform.googleapis.com.
+         */
+        private String vertexLocation;
     }
 }

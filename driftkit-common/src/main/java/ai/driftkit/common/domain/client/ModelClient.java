@@ -143,6 +143,17 @@ public abstract class ModelClient<T> {
 
     public abstract Set<Capability> getCapabilities();
 
+    /**
+     * Whether this client serializes tool-call echoes ({@code toolCalls}) and tool
+     * results ({@code toolCallId}, {@link Role#tool}) into provider requests.
+     * Required by the agentic loop; clients without support fail fast instead of
+     * silently dropping tool results from the conversation.
+     */
+    public boolean supportsToolMessages() {
+        return false;
+    }
+
+
     public ModelTextResponse textToText(ModelTextRequest prompt) throws UnsupportedCapabilityException {
         checkCapability(Capability.TEXT_TO_TEXT);
         return null;

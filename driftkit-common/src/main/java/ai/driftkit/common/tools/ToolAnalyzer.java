@@ -54,27 +54,41 @@ public class ToolAnalyzer {
      * @return ToolInfo with complete method analysis
      */
     public static ToolInfo analyzeMethod(Method method, Object instance, String functionName, String description) {
+        return analyzeMethod(method, instance, functionName, description, ToolMetadata.defaults());
+    }
+
+    /**
+     * Analyzes a method and creates a ToolInfo with explicit execution metadata.
+     * The model-facing description is composed from the base description plus
+     * when-to-use / when-not-to-use guidance from the metadata.
+     */
+    public static ToolInfo analyzeMethod(Method method, Object instance, String functionName, String description,
+                                         ToolMetadata metadata) {
         if (functionName == null || functionName.isEmpty()) {
             functionName = method.getName();
         }
-        
+        if (metadata == null) {
+            metadata = ToolMetadata.defaults();
+        }
+
         // Get parameter information
         Parameter[] parameters = method.getParameters();
         List<String> parameterNames = new ArrayList<>();
         List<Type> parameterTypes = new ArrayList<>();
-        
+
         for (Parameter parameter : parameters) {
             parameterNames.add(parameter.getName());
             parameterTypes.add(parameter.getType());
         }
-        
+
         Type returnType = method.getGenericReturnType();
-        
-        // Generate tool definition
-        ModelClient.Tool toolDefinition = generateToolDefinition(functionName, description, parameters);
-        
+
+        // Generate tool definition with the composed (guidance-enriched) description
+        String modelFacingDescription = metadata.composeDescription(description);
+        ModelClient.Tool toolDefinition = generateToolDefinition(functionName, modelFacingDescription, parameters);
+
         boolean isStatic = instance == null;
-        
+
         return new ToolInfo(
             functionName,
             description,
@@ -84,7 +98,8 @@ public class ToolAnalyzer {
             parameterTypes,
             returnType,
             isStatic,
-            toolDefinition
+            toolDefinition,
+            metadata
         );
     }
     
@@ -116,7 +131,8 @@ public class ToolAnalyzer {
                     continue;
                 }
                 
-                ToolInfo toolInfo = analyzeMethod(method, methodInstance, functionName, description);
+                ToolInfo toolInfo = analyzeMethod(method, methodInstance, functionName, description,
+                        ToolMetadata.from(annotation));
                 tools.add(toolInfo);
                 
                 log.debug("Found {} tool function: {} in class {}", 

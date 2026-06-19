@@ -66,8 +66,44 @@ public class DeepSeekChatCompletionRequest {
         private String role;
         private Object content; // String or List<ContentElement>
 
+        /** Echo of assistant tool calls in a follow-up request (OpenAI-compatible). */
+        @JsonProperty("tool_calls")
+        private List<RequestToolCall> toolCalls;
+
+        /** Pairs a role=tool message with its originating call. */
+        @JsonProperty("tool_call_id")
+        private String toolCallId;
+
+        public Message(String role, Object content) {
+            this.role = role;
+            this.content = content;
+        }
+
         public static Message of(String role, String content) {
             return new Message(role, content);
+        }
+    }
+
+    /**
+     * Tool call echoed back to the API. Unlike the response DTO, {@code function.arguments}
+     * must be a JSON-encoded string per the OpenAI-compatible wire format.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class RequestToolCall {
+        private String id;
+        private String type;
+        private RequestFunctionCall function;
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class RequestFunctionCall {
+            private String name;
+            private String arguments; // JSON string
         }
     }
 

@@ -280,11 +280,10 @@ export const addToTestSet = async (
     try {
         const creds = sessionStorage.getItem('credentials');
 
-        await axios.post('/data/v1.0/admin/test-sets/add-items', {
+        await axios.post(`/data/v1.0/admin/test-sets/${finalTestSetId}/items`, {
             messageTaskIds: selectedMessageTasks,
             traceSteps: selectedTraceSteps,
-            imageTaskIds: selectedImageTasks,
-            testSetId: finalTestSetId
+            imageTaskIds: selectedImageTasks
         }, {
             headers: { ...(creds ? { Authorization: 'Basic ' + creds } : {}) }
         });
