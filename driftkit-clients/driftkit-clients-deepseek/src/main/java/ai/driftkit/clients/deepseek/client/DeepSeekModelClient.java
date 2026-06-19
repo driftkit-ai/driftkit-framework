@@ -21,6 +21,7 @@ import ai.driftkit.config.EtlConfig.VaultConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -90,6 +91,11 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
                 Capability.JSON_SCHEMA,
                 Capability.TOOLS
         );
+    }
+
+    @Override
+    public boolean supportsToolMessages() {
+        return true;
     }
 
     @Override
@@ -174,7 +180,19 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
         for (ModelContentMessage msg : prompt.getMessages()) {
             String role = msg.getRole().name().toLowerCase();
             String text = extractText(msg);
-            messages.add(DeepSeekChatCompletionRequest.Message.of(role, text));
+            DeepSeekChatCompletionRequest.Message message = DeepSeekChatCompletionRequest.Message.of(role, text);
+
+            // Echo assistant tool calls / pair tool results for the agentic loop
+            if (CollectionUtils.isNotEmpty(msg.getToolCalls())) {
+                message.setToolCalls(mapRequestToolCalls(msg.getToolCalls()));
+                if (StringUtils.isBlank(text)) {
+                    message.setContent(null); // OpenAI format: content may be null when tool_calls present
+                }
+            }
+            if (msg.getToolCallId() != null) {
+                message.setToolCallId(msg.getToolCallId());
+            }
+            messages.add(message);
         }
 
         // Determine thinking mode
@@ -292,6 +310,30 @@ public class DeepSeekModelClient extends ModelClient implements ModelClient.Mode
         // budget control — thinking is all-or-nothing.
         ReasoningEffort effort = prompt.getReasoningEffort();
         return effort == ReasoningEffort.high || effort == ReasoningEffort.dynamic;
+    }
+
+    private List<DeepSeekChatCompletionRequest.RequestToolCall> mapRequestToolCalls(List<ToolCall> toolCalls) {
+        return toolCalls.stream()
+                .filter(Objects::nonNull)
+                .map(tc -> {
+                    DeepSeekChatCompletionRequest.RequestToolCall.RequestFunctionCall function = null;
+                    if (tc.getFunction() != null) {
+                        String argumentsJson;
+                        try {
+                            argumentsJson = ModelUtils.OBJECT_MAPPER.writeValueAsString(
+                                    tc.getFunction().getArguments() != null ? tc.getFunction().getArguments() : Map.of());
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to serialize tool call arguments for echo", e);
+                        }
+                        function = new DeepSeekChatCompletionRequest.RequestToolCall.RequestFunctionCall(
+                                tc.getFunction().getName(), argumentsJson);
+                    }
+                    return new DeepSeekChatCompletionRequest.RequestToolCall(
+                            tc.getId(),
+                            tc.getType() != null ? tc.getType() : ToolCall.FUNCTION_TYPE,
+                            function);
+                })
+                .toList();
     }
 
     private String extractText(ModelContentMessage msg) {

@@ -27,4 +27,13 @@ public class ToolInfo {
     private Type returnType;              // Return type
     private boolean isStatic;             // Whether this is a static method
     private ModelClient.Tool toolDefinition; // Generated tool definition for LLM
+    private ToolMetadata metadata;        // Execution metadata (concurrency, permissions, limits)
+
+    /**
+     * Execution metadata; never null — defaults are returned for tools
+     * registered without explicit metadata.
+     */
+    public ToolMetadata getMetadata() {
+        return metadata != null ? metadata : ToolMetadata.defaults();
+    }
 }

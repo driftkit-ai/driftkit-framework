@@ -106,6 +106,11 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
     }
 
     @Override
+    public boolean supportsToolMessages() {
+        return true;
+    }
+
+    @Override
     public ModelTextResponse imageToText(ModelTextRequest prompt) throws UnsupportedCapabilityException {
         super.imageToText(prompt);
 
@@ -797,6 +802,21 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
     }
     
     private Message toMessage(ModelContentMessage message) {
+        // Agentic loop: tool result message pairs with its call by id
+        if (message.getRole() == Role.tool) {
+            StringMessage toolMessage = new StringMessage(Role.tool.name(), message.getName(), extractPlainText(message));
+            toolMessage.setToolCallId(message.getToolCallId());
+            return toolMessage;
+        }
+        // Agentic loop: assistant echo carrying the tool calls of a prior turn
+        if (CollectionUtils.isNotEmpty(message.getToolCalls())) {
+            String text = extractPlainText(message);
+            StringMessage assistantEcho = new StringMessage(message.getRole().name(), message.getName(),
+                    StringUtils.isNotBlank(text) ? text : null);
+            assistantEcho.setToolCalls(toRequestToolCalls(message.getToolCalls()));
+            return assistantEcho;
+        }
+
 //        if (message.getContent().size() == 1) {
 //            ModelContentElement mce = message.getContent().get(0);
 //
@@ -826,6 +846,39 @@ public class OpenAIModelClient extends ModelClient implements ModelClientInit {
                 }).filter(Objects::nonNull).toList();
 
         return new ContentMessage(message.getRole().name(), message.getName(), elements);
+    }
+
+    private static String extractPlainText(ModelContentMessage message) {
+        if (message.getContent() == null) {
+            return "";
+        }
+        return message.getContent().stream()
+                .filter(e -> e.getType() == ModelTextRequest.MessageType.text)
+                .map(ModelContentElement::getText)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" "));
+    }
+
+    private static List<ChatCompletionRequest.RequestToolCall> toRequestToolCalls(List<ToolCall> toolCalls) {
+        return toolCalls.stream()
+                .filter(Objects::nonNull)
+                .map(tc -> {
+                    ChatCompletionRequest.RequestToolCall.RequestFunctionCall function = null;
+                    if (tc.getFunction() != null) {
+                        String argumentsJson;
+                        try {
+                            argumentsJson = ModelUtils.OBJECT_MAPPER.writeValueAsString(
+                                    tc.getFunction().getArguments() != null ? tc.getFunction().getArguments() : Map.of());
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to serialize tool call arguments for echo", e);
+                        }
+                        function = new ChatCompletionRequest.RequestToolCall.RequestFunctionCall(
+                                tc.getFunction().getName(), argumentsJson);
+                    }
+                    return new ChatCompletionRequest.RequestToolCall(
+                            tc.getId(), tc.getType() != null ? tc.getType() : ToolCall.FUNCTION_TYPE, function);
+                })
+                .toList();
     }
     
     /**

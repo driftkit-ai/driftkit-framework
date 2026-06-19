@@ -15,15 +15,21 @@ import ai.driftkit.common.domain.client.ModelTextResponse.ResponseMessage;
 import ai.driftkit.common.domain.client.ModelTextResponse.Usage;
 import ai.driftkit.common.domain.streaming.StreamingCallback;
 import ai.driftkit.common.domain.streaming.StreamingResponse;
+import ai.driftkit.common.domain.client.Role;
 import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.utils.JsonUtils;
 import ai.driftkit.common.utils.ModelUtils;
 import ai.driftkit.config.EtlConfig.VaultConfig;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.auth.oauth2.GoogleCredentials;
+import feign.RequestInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,28 +50,121 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
     public static final String GEMINI_IMAGE_DEFAULT = GeminiUtils.GEMINI_IMAGE_MODEL;
     
     public static final String GEMINI_PREFIX = "gemini";
-    
+
+    private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
+    private static final String VERTEX_LOCATION_GLOBAL = "global";
+
+    /**
+     * Lenient mapper for SSE stream chunks. Gemini adds fields over time (e.g.
+     * {@code thoughtSignature} on think-model parts) that the domain classes don't model;
+     * the Feign/unary decoder ignores unknown fields, so streaming must too — otherwise a
+     * chunk silently drops and its text is lost from the accumulated response.
+     */
+    private static final ObjectMapper STREAM_CHUNK_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     private GeminiApiClient client;
     private VaultConfig config;
+    private boolean vertexMode;
+    private boolean regionalVertex;
+    private GoogleCredentials vertexCredentials;
+    private String vertexProject;
+    private String vertexLocation;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_2)
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+
+    private static GeminiChatResponse parseStreamChunk(String data) throws IOException {
+        return STREAM_CHUNK_MAPPER.readValue(data, GeminiChatResponse.class);
+    }
     
     @Override
     public ModelClient init(VaultConfig config) {
         this.config = config;
-        this.client = GeminiClientFactory.createClient(
-                config.getApiKey(),
-                Optional.ofNullable(config.getBaseUrl()).orElse(null),
-                config.getConnectTimeout(),
-                config.getReadTimeout()
-        );
+
+        String vProject = config.getVertexProject();
+        if (vProject != null && !vProject.isBlank()) {
+            try {
+                this.vertexCredentials = GoogleCredentials.getApplicationDefault()
+                        .createScoped("https://www.googleapis.com/auth/cloud-platform");
+                this.vertexMode = true;
+                this.vertexProject = vProject;
+                this.vertexLocation = config.getVertexLocation() != null
+                        ? config.getVertexLocation() : VERTEX_LOCATION_GLOBAL;
+                this.regionalVertex = !VERTEX_LOCATION_GLOBAL.equals(vertexLocation);
+
+                this.client = GeminiClientFactory.createClient(
+                        createBearerInterceptor(), resolveBaseUrl(),
+                        config.getConnectTimeout(), config.getReadTimeout());
+                log.info("Gemini client initialized in Vertex AI mode: project={}, location={}",
+                        vertexProject, vertexLocation);
+            } catch (IOException e) {
+                log.error("Failed to load ADC for Vertex AI, falling back to API key: {}", e.getMessage());
+                this.vertexMode = false;
+            }
+        }
+
+        if (!vertexMode) {
+            this.client = GeminiClientFactory.createClient(
+                    config.getApiKey(),
+                    Optional.ofNullable(config.getBaseUrl()).orElse(null),
+                    config.getConnectTimeout(),
+                    config.getReadTimeout()
+            );
+            log.info("Gemini client initialized in API key mode");
+        }
+
         this.setTemperature(config.getTemperature());
         this.setModel(config.getModel());
         this.setStop(config.getStop());
         this.jsonObjectSupport = config.isJsonObject();
         return this;
+    }
+
+    private RequestInterceptor createBearerInterceptor() {
+        return requestTemplate -> {
+            try {
+                vertexCredentials.refreshIfExpired();
+                requestTemplate.header("Authorization",
+                        "Bearer " + vertexCredentials.getAccessToken().getTokenValue());
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to refresh Vertex AI credentials", e);
+            }
+        };
+    }
+
+    private String resolveBaseUrl() {
+        if (vertexMode) {
+            if (regionalVertex) {
+                return "https://" + vertexLocation + "-aiplatform.googleapis.com";
+            }
+            return "https://aiplatform.googleapis.com";
+        }
+        return Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
+    }
+
+    private void applyAuth(HttpRequest.Builder builder) throws IOException {
+        if (vertexMode) {
+            vertexCredentials.refreshIfExpired();
+            builder.header("Authorization",
+                    "Bearer " + vertexCredentials.getAccessToken().getTokenValue());
+        } else {
+            builder.header("x-goog-api-key", config.getApiKey());
+        }
+    }
+
+    private String buildEndpointUrl(String model, String action) {
+        if (vertexMode) {
+            String vertexPath = "/projects/" + vertexProject + "/locations/" + vertexLocation
+                    + "/publishers/google/models/" + model + ":" + action;
+            if (regionalVertex) {
+                return "https://" + vertexLocation + "-aiplatform.googleapis.com/v1" + vertexPath;
+            }
+            return "https://aiplatform.googleapis.com/v1beta1" + vertexPath;
+        }
+        String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
+        return baseUrl + "/v1beta/models/" + model + ":" + action;
     }
     
     public static ModelClient create(VaultConfig config) {
@@ -87,6 +186,11 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 // Note: TTS (Text-to-Speech) and native audio capabilities are available
                 // through experimental models but not yet exposed through standard capabilities
         );
+    }
+
+    @Override
+    public boolean supportsToolMessages() {
+        return true;
     }
     
     @Override
@@ -140,7 +244,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 .build();
         
         try {
-            GeminiChatResponse response = client.generateContent(imageModel, chatRequest);
+            GeminiChatResponse response = callGenerateContent(imageModel, chatRequest);
             
             List<ModelContentElement.ImageData> images = new ArrayList<>();
             
@@ -180,6 +284,210 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         }
     }
     
+    private GeminiChatResponse callGenerateContent(String model, GeminiChatRequest request) {
+        if (vertexMode) {
+            if (regionalVertex) {
+                return client.vertexGenerateContent(vertexProject, vertexLocation, model, request);
+            }
+            return client.vertexBetaGenerateContent(vertexProject, vertexLocation, model, request);
+        }
+        return client.generateContent(model, request);
+    }
+
+    /**
+     * Streaming generateContent call that ACCUMULATES chunks into a single
+     * {@link GeminiChatResponse} equivalent to the unary response.
+     *
+     * Why: the server-side (Vertex/GFE) deadline on UNARY {@code generateContent} is ~300s —
+     * long responses from think-models drop the connection at 300s ("Connection reset"). The
+     * {@code streamGenerateContent?alt=sse} endpoint keeps the connection alive with chunks and
+     * has no such limit (verified: unary breaks at 300.1s, stream lives 366s). For the caller
+     * the result is identical to unary — the text is simply assembled from deltas.
+     *
+     * Images / system instructions / tools arrive in the same {@link GeminiChatRequest} as in
+     * the unary path (built by {@code processPrompt}), so streaming sees exactly the same input.
+     */
+    private GeminiChatResponse streamGenerateContentAccumulating(String model, GeminiChatRequest request) {
+        if (request.getGenerationConfig() == null) {
+            request.setGenerationConfig(new GeminiGenerationConfig());
+        }
+        String streamUrl = buildEndpointUrl(model, "streamGenerateContent") + "?alt=sse";
+        try {
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                    .uri(URI.create(streamUrl))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(JsonUtils.toJson(request)))
+                    .timeout(streamTimeout());
+            applyAuth(requestBuilder);
+
+            HttpResponse<java.util.stream.Stream<String>> response =
+                    httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofLines());
+
+            if (response.statusCode() >= 400) {
+                String err = response.body().collect(Collectors.joining("\n"));
+                throw new RuntimeException("Gemini streaming API error: HTTP "
+                        + response.statusCode() + " — " + err);
+            }
+
+            StringBuilder text = new StringBuilder();
+            List<Part> extraParts = new ArrayList<>(); // functionCall / inlineData etc. — pass-through
+            String finishReason = null;
+            String role = "model";
+            GeminiChatResponse.UsageMetadata usage = null;
+            String modelVersion = null;
+            ContentLoopDetector loopDetector = new ContentLoopDetector();
+
+            // try-with-resources: closing the body stream cancels the HTTP subscription and
+            // releases the connection when we stop reading early (loop detector / error).
+            try (java.util.stream.Stream<String> body = response.body()) {
+                Iterator<String> lines = body.iterator();
+                while (lines.hasNext()) {
+                    String line = lines.next();
+                    if (line == null || line.isBlank()) {
+                        continue;
+                    }
+                    String data = line.startsWith("data:") ? line.substring(5).trim() : line.trim();
+                    if (data.isEmpty() || "[DONE]".equals(data) || data.charAt(0) != '{') {
+                        continue;
+                    }
+                    GeminiChatResponse chunk;
+                    try {
+                        chunk = parseStreamChunk(data);
+                    } catch (Exception e) {
+                        log.debug("Skipping unparsable stream chunk: {}", e.getMessage());
+                        continue;
+                    }
+                    if (chunk == null) {
+                        continue;
+                    }
+                    if (chunk.getUsageMetadata() != null) {
+                        usage = chunk.getUsageMetadata();
+                    }
+                    if (chunk.getModelVersion() != null) {
+                        modelVersion = chunk.getModelVersion();
+                    }
+                    if (CollectionUtils.isEmpty(chunk.getCandidates())) {
+                        continue;
+                    }
+                    GeminiChatResponse.Candidate candidate = chunk.getCandidates().get(0);
+                    if (candidate.getContent() != null) {
+                        if (candidate.getContent().getRole() != null) {
+                            role = candidate.getContent().getRole();
+                        }
+                        if (candidate.getContent().getParts() != null) {
+                            for (Part part : candidate.getContent().getParts()) {
+                                if (part.getText() != null) {
+                                    text.append(part.getText());
+                                    // Gemini think-models degenerate into a repetition loop up to
+                                    // maxTokens (known 2.5/3.x bug on structured output). On the
+                                    // stream we catch the repeat early and abort → a cheap retryable
+                                    // failure instead of 7 min / 65k tokens of garbage.
+                                    if (loopDetector.append(part.getText())) {
+                                        log.warn("Gemini stream repetition loop (model={}, {} chars) — aborting",
+                                                model, text.length());
+                                        throw new ContentLoopException("Gemini output degenerated into a "
+                                                + "repetition loop after " + text.length() + " chars (model="
+                                                + model + ")");
+                                    }
+                                } else {
+                                    extraParts.add(part);
+                                }
+                            }
+                        }
+                    }
+                    if (candidate.getFinishReason() != null) {
+                        finishReason = candidate.getFinishReason();
+                    }
+                }
+            }
+
+            List<Part> parts = new ArrayList<>();
+            if (text.length() > 0) {
+                parts.add(Part.builder().text(text.toString()).build());
+            }
+            parts.addAll(extraParts);
+
+            GeminiContent content = GeminiContent.builder().role(role).parts(parts).build();
+            GeminiChatResponse.Candidate merged = GeminiChatResponse.Candidate.builder()
+                    .content(content)
+                    .finishReason(finishReason)
+                    .index(0)
+                    .build();
+            return GeminiChatResponse.builder()
+                    .candidates(List.of(merged))
+                    .usageMetadata(usage)
+                    .modelVersion(modelVersion)
+                    .build();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to call Gemini streaming API", e);
+        }
+    }
+
+    /**
+     * Streaming-call timeout. This is the java.net.http limit on receiving the RESPONSE
+     * (headers), not a server-side deadline: generous, so a think-model has time to start
+     * streaming. Takes readTimeout from config, otherwise defaults to 10 minutes.
+     */
+    private Duration streamTimeout() {
+        Integer rt = config != null ? config.getReadTimeout() : null;
+        return Duration.ofSeconds(rt != null && rt > 0 ? rt : 600L);
+    }
+
+    /**
+     * Signals that the model degenerated into repetition (see {@link ContentLoopDetector}).
+     * Unchecked → propagated up as a retryable error (a fresh attempt often does not loop).
+     */
+    public static class ContentLoopException extends RuntimeException {
+        public ContentLoopException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Repetition-loop detector over streamed text — inspired by gemini-cli LoopDetectionService.
+     * Sliding window of {@value #CHUNK} chars; if the same window is seen {@value #THRESHOLD}+
+     * times it is a degeneration loop. A conservative threshold plus a small window means
+     * virtually no false positives on legitimate structured output. History is capped at
+     * {@value #MAX_HISTORY} chars (with hysteresis) so the cost is amortized O(1) per char.
+     *
+     * Note: code/lists are NOT stripped (unlike gemini-cli) — for our short, heterogeneous
+     * responses a threshold of 10 is enough; raise THRESHOLD if false positives appear.
+     */
+    // Package-private (not private) so the detector can be unit-tested directly.
+    static final class ContentLoopDetector {
+        static final int CHUNK = 50;
+        static final int THRESHOLD = 10;
+        private static final int MAX_HISTORY = 5000;
+        private static final int TRIM_TRIGGER = 6000;
+
+        private final StringBuilder history = new StringBuilder();
+        private final Map<String, Integer> counts = new HashMap<>();
+        private int scanned = 0; // index of the next unprocessed window start
+
+        /** @return true as soon as a repetition loop is detected. */
+        boolean append(String delta) {
+            if (delta == null || delta.isEmpty()) {
+                return false;
+            }
+            history.append(delta);
+            if (history.length() > TRIM_TRIGGER) {
+                history.delete(0, history.length() - MAX_HISTORY);
+                counts.clear();
+                scanned = 0;
+            }
+            int limit = history.length() - CHUNK;
+            for (; scanned <= limit; scanned++) {
+                String window = history.substring(scanned, scanned + CHUNK);
+                if (counts.merge(window, 1, Integer::sum) >= THRESHOLD) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     @Nullable
     private ModelTextResponse processPrompt(ModelTextRequest prompt) {
         String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
@@ -187,6 +495,19 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         // Build contents from messages
         List<GeminiContent> contents = new ArrayList<>();
         GeminiContent systemInstruction = null;
+        // Gemini pairs tool results by function NAME, our protocol pairs by call id —
+        // pre-pass over ALL messages so a result is resolvable regardless of ordering.
+        Map<String, String> toolCallNames = new HashMap<>();
+        for (ModelContentMessage message : prompt.getMessages()) {
+            if (CollectionUtils.isNotEmpty(message.getToolCalls())) {
+                for (ToolCall toolCall : message.getToolCalls()) {
+                    if (toolCall.getId() != null && toolCall.getFunction() != null
+                            && toolCall.getFunction().getName() != null) {
+                        toolCallNames.put(toolCall.getId(), toolCall.getFunction().getName());
+                    }
+                }
+            }
+        }
         
         for (ModelContentMessage message : prompt.getMessages()) {
             String role = message.getRole().name().toLowerCase();
@@ -211,6 +532,26 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 continue;
             }
             
+            // Agentic loop: tool result -> user message with a functionResponse part
+            if (message.getRole() == Role.tool) {
+                String functionName = toolCallNames.getOrDefault(message.getToolCallId(), "tool");
+                String resultText = message.getContent() == null ? "" : message.getContent().stream()
+                        .filter(e -> e.getType() == ModelTextRequest.MessageType.text)
+                        .map(ModelContentElement::getText)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(" "));
+                contents.add(GeminiContent.builder()
+                        .role("user")
+                        .parts(List.of(Part.builder()
+                                .functionResponse(Part.FunctionResponse.builder()
+                                        .name(functionName)
+                                        .response(Map.of("result", resultText))
+                                        .build())
+                                .build()))
+                        .build());
+                continue;
+            }
+
             // Map role appropriately
             if ("assistant".equals(role)) {
                 role = "model";
@@ -221,6 +562,11 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             for (ModelContentElement element : message.getContent()) {
                 switch (element.getType()) {
                     case text:
+                        // Gemini rejects empty text parts in tool-call echoes
+                        if (element.getText() == null || (element.getText().isEmpty()
+                                && CollectionUtils.isNotEmpty(message.getToolCalls()))) {
+                            break;
+                        }
                         parts.add(Part.builder()
                                 .text(element.getText())
                                 .build());
@@ -237,6 +583,24 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                                 ))
                                 .build());
                         break;
+                }
+            }
+
+            // Agentic loop: assistant echo carrying tool calls -> functionCall parts
+            if (CollectionUtils.isNotEmpty(message.getToolCalls())) {
+                for (ToolCall toolCall : message.getToolCalls()) {
+                    String name = toolCall.getFunction() != null ? toolCall.getFunction().getName() : null;
+                    Map<String, Object> args = new LinkedHashMap<>();
+                    if (toolCall.getFunction() != null && toolCall.getFunction().getArguments() != null) {
+                        toolCall.getFunction().getArguments().forEach((key, value) ->
+                                args.put(key, ModelUtils.OBJECT_MAPPER.convertValue(value, Object.class)));
+                    }
+                    parts.add(Part.builder()
+                            .functionCall(Part.FunctionCall.builder()
+                                    .name(name)
+                                    .args(args)
+                                    .build())
+                            .build());
                 }
             }
             
@@ -282,39 +646,31 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             configBuilder.logprobs(Optional.ofNullable(prompt.getTopLogprobs()).orElse(getTopLogprobs()));
         }
         
-        // Handle reasoning/thinking for Gemini 2.5 models
-        if (model != null && model.contains("2.5") && prompt.getReasoningEffort() != null) {
+        // Thinking control: map an EXPLICIT reasoningEffort to thinkingConfig. Works on 2.5
+        // AND 3.x (verified: 3.5-flash accepts thinkingBudget=0 → HTTP 200, ~1s). When the
+        // caller sets no reasoningEffort we send NO thinkingConfig and let the model use its
+        // own native default — the framework must not silently override model behaviour.
+        if (model != null && model.toLowerCase().contains("gemini") && prompt.getReasoningEffort() != null) {
+            String modelLc = model.toLowerCase();
             ThinkingConfig.ThinkingConfigBuilder thinkingBuilder = ThinkingConfig.builder();
-            
             switch (prompt.getReasoningEffort()) {
                 case none:
-                    thinkingBuilder.thinkingBudget(0); // Disable thinking
+                    thinkingBuilder.thinkingBudget(0);
                     break;
                 case low:
-                    thinkingBuilder.thinkingBudget(4096); // Disable thinking
+                    thinkingBuilder.thinkingBudget(4096);
                     break;
                 case medium:
-                    thinkingBuilder.thinkingBudget(8192); // Disable thinking
+                    thinkingBuilder.thinkingBudget(8192);
                     break;
                 case dynamic:
-                    thinkingBuilder.thinkingBudget(-1); // Dynamic thinking
+                    thinkingBuilder.thinkingBudget(-1);
                     break;
-                //128 to 32768
                 case high:
-                    // Use higher budget for pro models
-                    if (model.contains("pro")) {
-                        thinkingBuilder.thinkingBudget(32768); // Max for Pro
-                    } else if (model.contains("lite")) {
-                        //512 to 24576
-                        thinkingBuilder.thinkingBudget(16384); // Mid-range for Lite
-                    } else {
-                        //0 to 24576
-                        thinkingBuilder.thinkingBudget(16384); // Mid-range for Flash
-                    }
+                    thinkingBuilder.thinkingBudget(modelLc.contains("pro") ? 32768 : 16384);
                     thinkingBuilder.includeThoughts(true);
                     break;
             }
-            
             configBuilder.thinkingConfig(thinkingBuilder.build());
         }
         
@@ -349,7 +705,13 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 .build();
         
         try {
-            GeminiChatResponse response = client.generateContent(model, request);
+            // Vertex unary generateContent has a server-side ~300s deadline (drops long
+            // responses from think-models). Text/structured calls go through
+            // streamGenerateContent with chunk accumulation — no limit, same result.
+            // Image generation (textToImage) stays on unary callGenerateContent.
+            GeminiChatResponse response = vertexMode
+                    ? streamGenerateContentAccumulating(model, request)
+                    : callGenerateContent(model, request);
             return mapToModelTextResponse(response);
         } catch (Exception e) {
             log.error("Error calling Gemini API", e);
@@ -544,19 +906,17 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         }
         
         String model = Optional.ofNullable(prompt.getModel()).orElse(getModel());
-        String apiKey = config.getApiKey();
-        String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse("https://generativelanguage.googleapis.com");
-        
         String requestBody = JsonUtils.toJson(request);
-        
-        // Build HTTP request for streaming with alt=sse parameter for SSE format
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/v1beta/models/" + model + ":streamGenerateContent?alt=sse"))
+        String streamUrl = buildEndpointUrl(model, "streamGenerateContent") + "?alt=sse";
+
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(streamUrl))
                 .header("Content-Type", "application/json")
-                .header("x-goog-api-key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofMinutes(5))
-                .build();
+                .timeout(Duration.ofMinutes(5));
+        applyAuth(requestBuilder);
+
+        HttpRequest httpRequest = requestBuilder.build();
         
         // Create SSE subscriber
         SSESubscriber sseSubscriber = new SSESubscriber(callback, cancelled);
@@ -636,7 +996,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 // Try to parse as JSON directly (each line should be a complete JSON object)
                 if (data.trim().startsWith("{")) {
                     try {
-                        GeminiChatResponse chunk = JsonUtils.fromJson(data, GeminiChatResponse.class);
+                        GeminiChatResponse chunk = parseStreamChunk(data);
                         
                         // Extract text from the chunk
                         if (chunk != null && chunk.getCandidates() != null && !chunk.getCandidates().isEmpty()) {

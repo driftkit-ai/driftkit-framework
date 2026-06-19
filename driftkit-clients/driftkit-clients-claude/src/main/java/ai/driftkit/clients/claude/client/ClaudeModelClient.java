@@ -43,6 +43,11 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
     public static final String CLAUDE_PREFIX = ClaudeUtils.CLAUDE_PREFIX;
     public static final int MAX_TOKENS = 8192;
 
+    // Claude content-block types (Anthropic wire format).
+    private static final String BLOCK_TEXT = "text";
+    private static final String BLOCK_TOOL_USE = "tool_use";
+    private static final String BLOCK_TOOL_RESULT = "tool_result";
+
     private ClaudeApiClient client;
     private VaultConfig config;
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -84,6 +89,11 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 // Note: TEXT_TO_IMAGE is not supported by Claude
         );
     }
+
+    @Override
+    public boolean supportsToolMessages() {
+        return true;
+    }
     
     @Override
     public ModelTextResponse textToText(ModelTextRequest prompt) {
@@ -116,7 +126,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
             String role = message.getRole().name().toLowerCase();
             
             // Handle system messages separately
-            if ("system".equals(role)) {
+            if (message.getRole() == Role.system) {
                 // Check if any content element has cache_control — if so, need array format
                 boolean hasCacheControl = message.getContent().stream()
                         .anyMatch(el -> el.getCacheControl() != null);
@@ -171,7 +181,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 }
             }
 
-            messages.add(ClaudeMessage.contentMessage(role, contents));
+            appendToolAwareMessage(messages, message, contents);
         }
         
         // Add system messages from config if not already present
@@ -217,6 +227,84 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         }
     }
     
+    /**
+     * Agentic-loop aware message append (Anthropic wire format):
+     * <ul>
+     *   <li>assistant messages that requested tools are echoed with {@code tool_use}
+     *       content blocks (empty text blocks dropped — the API rejects them);</li>
+     *   <li>{@link Role#tool} results become {@code tool_result} blocks inside a
+     *       <b>user</b> message; consecutive tool results merge into one user message,
+     *       as the API requires alternating roles.</li>
+     * </ul>
+     */
+    private void appendToolAwareMessage(List<ClaudeMessage> messages, ModelContentMessage message,
+                                        List<ClaudeContent> contents) {
+        if (message.getRole() == Role.tool) {
+            ClaudeContent toolResult = ClaudeContent.builder()
+                    .type(BLOCK_TOOL_RESULT)
+                    .toolUseId(message.getToolCallId())
+                    .content(joinTextBlocks(contents))
+                    .build();
+
+            // Merge consecutive tool results into the previous tool-result user message
+            if (!messages.isEmpty()) {
+                ClaudeMessage last = messages.get(messages.size() - 1);
+                boolean lastIsToolResultUser = Role.user.name().equals(last.getRole())
+                        && last.getContent() != null && !last.getContent().isEmpty()
+                        && BLOCK_TOOL_RESULT.equals(last.getContent().get(0).getType());
+                if (lastIsToolResultUser) {
+                    List<ClaudeContent> merged = new ArrayList<>(last.getContent());
+                    merged.add(toolResult);
+                    last.setContent(merged);
+                    return;
+                }
+            }
+            messages.add(ClaudeMessage.contentMessage(Role.user.name(), new ArrayList<>(List.of(toolResult))));
+            return;
+        }
+
+        String role = message.getRole().name().toLowerCase();
+
+        if (CollectionUtils.isNotEmpty(message.getToolCalls())) {
+            List<ClaudeContent> withToolUse = new ArrayList<>();
+            for (ClaudeContent content : contents) {
+                // Anthropic rejects empty text blocks in assistant tool-use echoes
+                if (BLOCK_TEXT.equals(content.getType())
+                        && (content.getText() == null || content.getText().isBlank())) {
+                    continue;
+                }
+                withToolUse.add(content);
+            }
+            for (ToolCall toolCall : message.getToolCalls()) {
+                Map<String, Object> input = new LinkedHashMap<>();
+                if (toolCall.getFunction() != null && toolCall.getFunction().getArguments() != null) {
+                    toolCall.getFunction().getArguments().forEach((key, value) ->
+                            input.put(key, ModelUtils.OBJECT_MAPPER.convertValue(value, Object.class)));
+                }
+                withToolUse.add(ClaudeContent.builder()
+                        .type(BLOCK_TOOL_USE)
+                        .id(toolCall.getId())
+                        .name(toolCall.getFunction() != null ? toolCall.getFunction().getName() : null)
+                        .input(input)
+                        .build());
+            }
+            messages.add(ClaudeMessage.contentMessage(role, withToolUse));
+            return;
+        }
+
+        messages.add(ClaudeMessage.contentMessage(role, contents));
+    }
+
+    private static String joinTextBlocks(List<ClaudeContent> contents) {
+        StringBuilder sb = new StringBuilder();
+        for (ClaudeContent content : contents) {
+            if (BLOCK_TEXT.equals(content.getType()) && content.getText() != null) {
+                sb.append(content.getText());
+            }
+        }
+        return sb.toString();
+    }
+
     private ModelTextResponse mapToModelTextResponse(ClaudeMessageResponse response) {
         if (response == null) {
             return null;
@@ -228,9 +316,9 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         
         if (response.getContent() != null) {
             for (ClaudeContent content : response.getContent()) {
-                if ("text".equals(content.getType())) {
+                if (BLOCK_TEXT.equals(content.getType())) {
                     contentBuilder.append(content.getText());
-                } else if ("tool_use".equals(content.getType())) {
+                } else if (BLOCK_TOOL_USE.equals(content.getType())) {
                     // Convert tool use to tool call
                     Map<String, JsonNode> arguments = new HashMap<>();
                     if (content.getInput() != null) {
@@ -246,7 +334,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     
                     toolCalls.add(ToolCall.builder()
                             .id(content.getId())
-                            .type("function")
+                            .type(ToolCall.FUNCTION_TYPE)
                             .function(ToolCall.FunctionCall.builder()
                                     .name(content.getName())
                                     .arguments(arguments)
@@ -512,7 +600,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     for (ModelContentElement element : msg.getContent()) {
                         if (element.getText() != null) {
                             contents.add(ClaudeContent.builder()
-                                    .type("text")
+                                    .type(BLOCK_TEXT)
                                     .text(element.getText())
                                     .build());
                         } else if (element.getImage() != null) {
@@ -528,10 +616,7 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                     }
                 }
                 
-                messages.add(ClaudeMessage.builder()
-                        .role(msg.getRole().name())
-                        .content(contents)
-                        .build());
+                appendToolAwareMessage(messages, msg, contents);
             }
         }
         

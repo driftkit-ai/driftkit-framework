@@ -28,7 +28,20 @@ import java.util.stream.Collectors;
 @Getter
 @Builder
 public class ConversationContext {
-    
+
+    /**
+     * Explicit history mode (plan, D2): replaces the implicit
+     * {@code chatStore != null && workflowId blank} convention.
+     */
+    public enum MemoryMode {
+        /** Legacy auto-detection: conversational when a ChatStore exists and no workflowId is set. */
+        AUTO,
+        /** Always persist user/assistant messages; requires a ChatStore. */
+        CONVERSATIONAL,
+        /** Never persist; the context lives only for this execution. */
+        STATELESS
+    }
+
     private final ChatStore chatStore;
     private final String workflowId;
     private final String chatId;
@@ -54,7 +67,22 @@ public class ConversationContext {
                                           String workflowId,
                                           String chatId,
                                           Integer maxTokens) {
-        boolean historyMode = chatStore != null && StringUtils.isBlank(workflowId);
+        return from(chatStore, workflowId, chatId, maxTokens, MemoryMode.AUTO);
+    }
+
+    /**
+     * Create context with an explicit memory mode.
+     */
+    public static ConversationContext from(ChatStore chatStore,
+                                          String workflowId,
+                                          String chatId,
+                                          Integer maxTokens,
+                                          MemoryMode memoryMode) {
+        MemoryMode mode = memoryMode != null ? memoryMode : MemoryMode.AUTO;
+        if (mode == MemoryMode.CONVERSATIONAL && chatStore == null) {
+            throw new IllegalStateException("MemoryMode.CONVERSATIONAL requires a ChatStore");
+        }
+        boolean historyMode = resolveHistoryMode(chatStore, workflowId, mode);
         
         ConversationContextBuilder builder = ConversationContext.builder()
             .chatStore(chatStore)
@@ -75,6 +103,38 @@ public class ConversationContext {
         return builder.build();
     }
     
+    /**
+     * Append-only context: same persistence semantics as a full context, but the
+     * existing history is NOT loaded from the store. Use when the only goal is to
+     * persist a message (e.g. the final assistant text after an agentic resume).
+     */
+    public static ConversationContext appendOnly(ChatStore chatStore,
+                                                 String workflowId,
+                                                 String chatId,
+                                                 MemoryMode memoryMode) {
+        MemoryMode mode = memoryMode != null ? memoryMode : MemoryMode.AUTO;
+        boolean historyMode = resolveHistoryMode(chatStore, workflowId, mode);
+        return ConversationContext.builder()
+            .chatStore(chatStore)
+            .workflowId(workflowId)
+            .chatId(chatId)
+            .historyMode(historyMode)
+            .build();
+    }
+
+    /**
+     * Single source of truth for the history-mode decision (used by both factories).
+     * CONVERSATIONAL requires a ChatStore — validated by the full factory; the
+     * append-only factory degrades to no-op persistence without a store.
+     */
+    private static boolean resolveHistoryMode(ChatStore chatStore, String workflowId, MemoryMode mode) {
+        return switch (mode) {
+            case AUTO -> chatStore != null && StringUtils.isBlank(workflowId);
+            case CONVERSATIONAL -> chatStore != null;
+            case STATELESS -> false;
+        };
+    }
+
     /**
      * Add user message to context. Stores and sends the same content.
      */

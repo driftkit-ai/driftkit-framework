@@ -24,7 +24,7 @@ public class SimplifiedAgentExamples {
      * Equivalent to the example from your request.
      */
     public String travelPlanningLoop() {
-        // Агент, который выполняет основную работу
+        // Agent that performs the main work
         Agent workerAgent = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("Generate a travel plan for a 3-day trip to Paris.")
@@ -40,14 +40,14 @@ public class SimplifiedAgentExamples {
                     "Determine whether the plan is COMPLETE or needs REVISE status.")
                 .build();
 
-        // LoopAgent, который управляет циклом
+        // LoopAgent that drives the loop
         LoopAgent planningLoop = LoopAgent.builder()
                 .worker(workerAgent)
                 .evaluator(evaluatorAgent)
-                .stopCondition(LoopStatus.COMPLETE) // Условие для выхода из цикла
+                .stopCondition(LoopStatus.COMPLETE) // Condition to exit the loop
                 .build();
 
-        // Запускаем цикл
+        // Run the loop
         return planningLoop.execute("Create a plan for me.");
     }
     
@@ -56,25 +56,25 @@ public class SimplifiedAgentExamples {
      * Equivalent to the workflow example from your request.
      */
     public String researchAndWriteWorkflow() {
-        // Агент-исследователь: ищет информацию
+        // Researcher agent: finds information
         Agent researcherAgent = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("You are a researcher. Find detailed information on the given topic.")
                 .build();
 
-        // Агент-писатель: пишет краткую заметку на основе полученной информации
+        // Writer agent: writes a short note based on the gathered information
         Agent writerAgent = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("You are a writer. Summarize the provided text into a concise paragraph.")
                 .build();
 
-        // Создаём SequentialAgent, который будет управлять workflow
+        // Create a SequentialAgent that will drive the workflow
         SequentialAgent researchAndWriteWorkflow = SequentialAgent.builder()
-                .agent(researcherAgent) // Шаг 1
-                .agent(writerAgent)     // Шаг 2
+                .agent(researcherAgent) // Step 1
+                .agent(writerAgent)     // Step 2
                 .build();
 
-        // Запускаем весь рабочий процесс с начальным запросом
+        // Run the entire workflow with the initial request
         String topic = "The history of the Eiffel Tower";
         return researchAndWriteWorkflow.execute(topic);
     }
@@ -84,7 +84,7 @@ public class SimplifiedAgentExamples {
      * Shows how agents can be used as tools for other agents.
      */
     public String travelOrchestratorExample() {
-        // Создаём агентов для каждого шага
+        // Create agents for each step
         Agent flightAgent = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("Search for flights. Return flight options with prices and times.")
@@ -97,21 +97,21 @@ public class SimplifiedAgentExamples {
                 .name("HotelBookingAgent")
                 .build();
 
-        // Оборачиваем агентов в инструменты
+        // Wrap the agents as tools
         ToolInfo flightTool = AgentAsTool.create("flightSearch", "Searches for flights.", flightAgent);
         ToolInfo hotelTool = AgentAsTool.create("hotelBooking", "Books hotels for given dates.", hotelAgent);
 
-        // Создаём главного агента-оркестратора
+        // Create the main orchestrator agent
         Agent travelOrchestrator = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage(
                     "You are a travel planner. First, find flights. Then, book a hotel. " +
                     "If hotel booking fails, try to find flights for different dates and repeat the process.")
-                .addTool(flightTool)  // Регистрируем агентов как инструменты
+                .addTool(flightTool)  // Register the agents as tools
                 .addTool(hotelTool)
                 .build();
 
-        // Запускаем оркестратор
+        // Run the orchestrator
         return travelOrchestrator.execute("Plan a trip to Rome for next week.");
     }
     
@@ -120,19 +120,19 @@ public class SimplifiedAgentExamples {
      * Combines sequential processing with loop validation.
      */
     public String complexAgentSystem() {
-        // Анализатор требований
+        // Requirements analyzer
         Agent requirementAnalyzer = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("Analyze user requirements and extract key components.")
                 .build();
                 
-        // Генератор решения
+        // Solution generator
         Agent solutionGenerator = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage("Generate a solution based on analyzed requirements.")
                 .build();
                 
-        // Валидатор качества
+        // Quality validator
         Agent qualityValidator = LLMAgent.builder()
                 .modelClient(llm)
                 .systemMessage(
@@ -140,13 +140,13 @@ public class SimplifiedAgentExamples {
                     "{\"status\": \"COMPLETE\"} if good, {\"status\": \"REVISE\", \"feedback\": \"issues\"} if needs work.")
                 .build();
         
-        // Создаем последовательный workflow для анализа и генерации
+        // Create a sequential workflow for analysis and generation
         SequentialAgent analysisAndGeneration = SequentialAgent.builder()
                 .agent(requirementAnalyzer)
                 .agent(solutionGenerator)
                 .build();
         
-        // Создаем loop для итеративного улучшения
+        // Create a loop for iterative improvement
         LoopAgent qualityLoop = LoopAgent.builder()
                 .worker(analysisAndGeneration)
                 .evaluator(qualityValidator)

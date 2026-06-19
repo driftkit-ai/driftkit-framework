@@ -126,6 +126,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
+import { isFeatureEnabled } from '@/config/features';
 import axios from 'axios';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
@@ -157,14 +158,17 @@ const allMenuItems = [
   { path: '/checklists', label: 'Checklists', icon: 'pi pi-check-circle', probe: '/data/v1.0/admin/checklist/' },
 ];
 
-// Check which optional pages are available
-const menuItems = ref(allMenuItems.filter(i => !i.probe));
+// Visibility = advanced-feature gate (core vs advanced) AND backend probe (if any).
+// Core features show immediately; probe features are appended once their backend responds.
+const menuItems = ref(allMenuItems.filter(i => !i.probe && isFeatureEnabled(i.path)));
 
 onMounted(async () => {
   fetchIndexesList();
-  for (const item of allMenuItems.filter(i => i.probe)) {
+  for (const item of allMenuItems.filter(i => i.probe && isFeatureEnabled(i.path))) {
+    const probe = item.probe;
+    if (!probe) continue;
     try {
-      await axios.get(item.probe);
+      await axios.get(probe);
       menuItems.value.push(item);
     } catch { /* endpoint not available — hide from sidebar */ }
   }

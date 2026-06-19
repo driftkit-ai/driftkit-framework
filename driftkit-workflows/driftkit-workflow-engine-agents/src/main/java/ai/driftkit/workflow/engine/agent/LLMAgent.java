@@ -26,8 +26,13 @@ import ai.driftkit.context.core.registry.PromptServiceRegistry;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.core.util.PromptUtils;
 import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.workflow.engine.agent.loop.AgentLoopResult;
+import ai.driftkit.workflow.engine.agent.loop.AgenticOptions;
+import ai.driftkit.workflow.engine.agent.loop.ApprovalDecision;
+import ai.driftkit.workflow.engine.agent.loop.LoopState;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -49,6 +54,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Data
+@EqualsAndHashCode(exclude = {"workflowId", "workflowType", "workflowStep", "memoryMode"})
 public class LLMAgent implements Agent {
     
     private final ModelClient modelClient;
@@ -77,6 +83,9 @@ public class LLMAgent implements Agent {
     
     // Custom properties to attach to saved messages (e.g. persona name)
     private final Map<String, String> messageProperties;
+
+    // Explicit history mode (default AUTO keeps the legacy workflowId-based detection)
+    private volatile ConversationContext.MemoryMode memoryMode;
 
     // Workflow context fields for tracing (mutable + volatile for hierarchical agent context injection)
     private volatile String workflowId;
@@ -125,6 +134,15 @@ public class LLMAgent implements Agent {
         this.workflowType = workflowType;
         this.workflowStep = workflowStep;
         this.messageProperties = messageProperties;
+        this.memoryMode = ConversationContext.MemoryMode.AUTO;
+    }
+
+    /**
+     * Explicit history mode; AUTO (default) keeps the legacy detection
+     * {@code chatStore != null && workflowId blank}.
+     */
+    public void setMemoryMode(ConversationContext.MemoryMode memoryMode) {
+        this.memoryMode = memoryMode != null ? memoryMode : ConversationContext.MemoryMode.AUTO;
     }
     
     /**
@@ -148,54 +166,23 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<String> executeText(String message, Map<String, Object> variables) {
         try {
-            // Process message with variables
-            String processedMessage = processMessageWithVariables(message, variables);
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(message)
+                .variables(variables)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("TEXT")
+                .build());
 
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
+            ModelTextResponse response = outcome.getResponse();
+            String responseText = outcome.getResponseText();
 
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-
-            // Add user message (extractor separates store vs API content if configured)
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .messages(messages)
-                .build();
-
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-
-            // Save assistant response
-            String responseText = extractResponseText(response);
-            if (StringUtils.isNotBlank(responseText)) {
-                context.addAssistantMessage(responseText);
-            }
-
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("TEXT", variables, null, request.getMessages()));
-            }
-
-            // Extract reasoning and cache info
             String reasoning = extractReasoningContent(response);
             CacheUsage cacheUsage = response != null && response.getUsage() != null
                     ? response.getUsage().getCacheUsage() : null;
             Integer reasoningTokens = response != null && response.getUsage() != null
                     ? response.getUsage().getReasoningTokens() : null;
 
-            // Check if response contains images
             List<ModelContentElement.ImageData> images = extractImages(response);
             if (CollectionUtils.isNotEmpty(images)) {
                 return AgentResponse.<String>builder()
@@ -217,7 +204,7 @@ public class LLMAgent implements Agent {
                     .reasoningTokens(reasoningTokens)
                     .rawResponse(response)
                     .build();
-            
+
         } catch (Exception e) {
             log.error("Error in executeText", e);
             throw new RuntimeException("Failed to execute text", e);
@@ -236,47 +223,17 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<List<ToolCall>> executeForToolCalls(String message, Map<String, Object> variables) {
         try {
-            // Process message with variables
-            String processedMessage = processMessageWithVariables(message, variables);
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message (saves to store if in history mode)
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request with tools
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelClient.Tool[] tools = toolRegistry != null ? toolRegistry.getTools() : new ModelClient.Tool[0];
-            
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .tools(tools.length > 0 ? Arrays.asList(tools) : null)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("TOOL_CALLS", variables, null, request.getMessages()));
-            }
-            
-            // Extract tool calls
-            List<ToolCall> toolCalls = extractToolCalls(response);
-            return AgentResponse.toolCalls(toolCalls);
-            
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(message)
+                .variables(variables)
+                .includeTools(true)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.NONE)
+                .traceSuffix("TOOL_CALLS")
+                .build());
+
+            return AgentResponse.toolCalls(AgentExecutionPipeline.toolCallsOf(outcome.getResponse()));
+
         } catch (Exception e) {
             log.error("Error getting tool calls", e);
             throw new RuntimeException("Failed to get tool calls", e);
@@ -295,56 +252,26 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<List<ToolExecutionResult>> executeWithTools(String message, Map<String, Object> variables) {
         try {
-            // Process message with variables
-            String processedMessage = processMessageWithVariables(message, variables);
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message (saves to store if in history mode)
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request with tools
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelClient.Tool[] tools = toolRegistry != null ? toolRegistry.getTools() : new ModelClient.Tool[0];
-            
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .tools(tools.length > 0 ? Arrays.asList(tools) : null)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("TOOLS_EXEC", variables, null, request.getMessages()));
-            }
-            
-            // Check for tool calls
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(message)
+                .variables(variables)
+                .includeTools(true)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.NONE)
+                .traceSuffix("TOOLS_EXEC")
+                .build());
+
+            ModelTextResponse response = outcome.getResponse();
+
             if (hasToolCalls(response)) {
-                // Extract tool calls and assistant message
                 List<ToolCall> toolCalls = extractToolCalls(response);
                 String assistantContent = extractResponseText(response);
-                
-                // ALWAYS add assistant response to context for building follow-up request
+
                 if (StringUtils.isNotBlank(assistantContent)) {
-                    context.addAssistantMessage(assistantContent);
+                    outcome.getContext().addAssistantMessage(assistantContent);
                 }
 
                 List<ToolExecutionResult> results = new ArrayList<>();
-
                 for (ToolCall toolCall : toolCalls) {
                     ToolExecutionResult result = executeToolCall(toolCall);
                     results.add(result);
@@ -352,10 +279,10 @@ public class LLMAgent implements Agent {
 
                 return AgentResponse.toolResults(results);
             }
-            
+
             // No tool calls, return regular response
             return AgentResponse.toolResults(Collections.emptyList());
-            
+
         } catch (Exception e) {
             log.error("Error in executeWithTools", e);
             throw new RuntimeException("Failed to execute with tools", e);
@@ -370,57 +297,22 @@ public class LLMAgent implements Agent {
      */
     public <T> AgentResponse<T> executeStructured(String userMessage, Class<T> targetClass) {
         try {
-            // Create response format for structured output
-            ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(userMessage)
+                .responseFormat(ResponseFormat.jsonSchema(targetClass))
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("STRUCTURED")
+                .build());
 
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message (extractor separates store vs API content if configured)
-            addUserMessageToContext(context, userMessage, null);
-
-            // Build request with structured output
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .messages(messages)
-                .responseFormat(responseFormat)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("STRUCTURED", null, null, request.getMessages()));
-            }
-            
-            // Extract cache and reasoning info
+            ModelTextResponse response = outcome.getResponse();
             CacheUsage cacheUsage = response != null && response.getUsage() != null
                     ? response.getUsage().getCacheUsage() : null;
             String reasoning = extractReasoningContent(response);
             Integer reasoningTokens = response != null && response.getUsage() != null
                     ? response.getUsage().getReasoningTokens() : null;
 
-            // Extract and parse response
-            String jsonResponse = extractResponseText(response);
-
-            // Save assistant response
-            if (StringUtils.isNotBlank(jsonResponse)) {
-                context.addAssistantMessage(jsonResponse);
-            }
-
-            T result = JsonUtils.fromJson(jsonResponse, targetClass);
+            T result = JsonUtils.fromJson(outcome.getResponseText(), targetClass);
 
             return AgentResponse.<T>builder()
                     .structuredData(result)
@@ -450,74 +342,22 @@ public class LLMAgent implements Agent {
     public <T> AgentResponse<T> executeStructuredWithPrompt(String promptId, Map<String, Object> variables, 
                                                            Class<T> targetClass, Language language) {
         try {
-            // Use injected PromptService or fall back to registry
-            PromptService effectivePromptService = promptService != null ? 
-                promptService : PromptServiceRegistry.getInstance();
-                
-            if (effectivePromptService == null) {
-                throw new IllegalStateException("PromptService not configured. " +
-                    "Please ensure PromptService is available in your application context " +
-                    "or register one via PromptServiceRegistry.register()");
-            }
-            
-            // Get prompt by ID
-            Optional<Prompt> promptOpt = effectivePromptService.getCurrentPrompt(promptId, language);
-            if (promptOpt.isEmpty()) {
-                throw new IllegalArgumentException("Prompt not found: " + promptId);
-            }
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .promptId(promptId)
+                .language(language)
+                .variables(variables)
+                .responseFormat(ResponseFormat.jsonSchema(targetClass))
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("STRUCTURED_PROMPT")
+                .build());
 
-            Prompt prompt = promptOpt.get();
-            
-            // Apply variables to prompt
-            String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);
-            
-            // Create response format for structured output
-            ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message - prefer prompt's system message
-            String promptSystemMessage = prompt.getSystemMessage();
-            if (StringUtils.isNotBlank(promptSystemMessage)) {
-                promptSystemMessage = PromptUtils.applyVariables(promptSystemMessage, variables);
-                context.addSystemMessage(promptSystemMessage);
-            } else if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(prompt))
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .responseFormat(responseFormat)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("STRUCTURED_PROMPT", variables, promptId, request.getMessages()));
-            }
-            
-            // Extract cache and reasoning info
+            ModelTextResponse response = outcome.getResponse();
             CacheUsage cacheUsage2 = response != null && response.getUsage() != null
                     ? response.getUsage().getCacheUsage() : null;
             String reasoning2 = extractReasoningContent(response);
 
-            // Extract and parse response
-            String jsonResponse = extractResponseText(response);
-
+            String jsonResponse = outcome.getResponseText();
             log.info("Raw JSON response from AI: {}", jsonResponse);
 
             T result = JsonUtils.fromJson(jsonResponse, targetClass);
@@ -536,7 +376,7 @@ public class LLMAgent implements Agent {
         }
     }
 
-    private double getTemperature(Prompt prompt) {
+    double getTemperature(Prompt prompt) {
         if (temperature != null) {
             return temperature;
         }
@@ -560,82 +400,24 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<String> executeWithPrompt(String promptId, Map<String, Object> variables, Language language) {
         try {
-            // Use injected PromptService or fall back to registry
-            PromptService effectivePromptService = promptService != null ? 
-                promptService : PromptServiceRegistry.getInstance();
-                
-            if (effectivePromptService == null) {
-                throw new IllegalStateException("PromptService not configured. " +
-                    "Please ensure PromptService is available in your application context " +
-                    "or register one via PromptServiceRegistry.register()");
-            }
-            
-            // Get prompt by ID
-            Optional<Prompt> promptOpt = effectivePromptService.getCurrentPrompt(promptId, language);
-            if (promptOpt.isEmpty()) {
-                throw new IllegalArgumentException("Prompt not found: " + promptId);
-            }
-            
-            Prompt prompt = promptOpt.get();
-            
-            // Apply variables to prompt
-            String processedMessage = PromptUtils.applyVariables(prompt.getMessage(), variables);
-            
-            // Use system message from prompt if available
-            String promptSystemMessage = prompt.getSystemMessage();
-            if (StringUtils.isNotBlank(promptSystemMessage)) {
-                promptSystemMessage = PromptUtils.applyVariables(promptSystemMessage, variables);
-            }
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message - prefer prompt's system message
-            if (StringUtils.isNotBlank(promptSystemMessage)) {
-                context.addSystemMessage(promptSystemMessage);
-            } else if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message (saves to store if in history mode)
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(prompt))
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.textToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceTextRequest(request, response,
-                    buildTraceContext("PROMPT", variables, promptId, request.getMessages()));
-            }
-            
-            // Extract response
-            String responseText = extractResponseText(response);
-            
-            // Save assistant response
-            if (StringUtils.isNotBlank(responseText)) {
-                context.addAssistantMessage(responseText);
-            }
-            
-            // Check if response contains images
-            List<ModelContentElement.ImageData> images = extractImages(response);
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .promptId(promptId)
+                .language(language)
+                .variables(variables)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("PROMPT")
+                .build());
+
+            String responseText = outcome.getResponseText();
+
+            List<ModelContentElement.ImageData> images = extractImages(outcome.getResponse());
             if (CollectionUtils.isNotEmpty(images)) {
                 return AgentResponse.multimodal(responseText, images);
             }
-            
+
             return AgentResponse.text(responseText);
-            
+
         } catch (Exception e) {
             log.error("Error in executeWithPrompt", e);
             throw new RuntimeException("Failed to execute with prompt", e);
@@ -654,36 +436,19 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<ModelContentElement.ImageData> executeImageGeneration(String prompt, Map<String, Object> variables) {
         try {
-            // Process prompt with variables if provided
-            String processedPrompt = prompt;
-            if (variables != null && !variables.isEmpty()) {
-                processedPrompt = processMessageWithVariables(prompt, variables);
-            }
-            
-            // Build image request using agent's imageModel field
-            ModelImageRequest request = ModelImageRequest.builder()
-                .prompt(processedPrompt)
-                .model(imageModel)  // Use the agent's imageModel field!
-                .build();
-            
-            // Execute request
-            ModelImageResponse response = modelClient.textToImage(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceImageRequest(request, response,
-                    buildTraceContext("IMAGE_GEN", variables, null, null));
-            }
-            
-            // Extract first image
+            ModelImageResponse response = pipeline().runImageGeneration(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(prompt)
+                .variables(variables)
+                .traceSuffix("IMAGE_GEN")
+                .build());
+
             if (response != null && response.getBytes() != null && !response.getBytes().isEmpty()) {
                 ModelContentElement.ImageData imageData = response.getBytes().get(0);
                 return AgentResponse.image(imageData);
             }
-            
+
             throw new RuntimeException("No image generated");
-            
+
         } catch (Exception e) {
             log.error("Error generating image", e);
             throw new RuntimeException("Failed to generate image", e);
@@ -716,78 +481,29 @@ public class LLMAgent implements Agent {
      */
     public AgentResponse<String> executeWithImages(String text, List<byte[]> imageDataList, Map<String, Object> variables) {
         try {
-            // Process text with variables if provided
-            String processedText = text;
-            if (variables != null && !variables.isEmpty()) {
-                processedText = processMessageWithVariables(text, variables);
-            }
-            
-            // Convert byte arrays to image data objects
             List<ModelContentElement.ImageData> imageDataObjects = imageDataList.stream()
                 .map(bytes -> new ModelContentElement.ImageData(bytes, "image/jpeg"))
                 .collect(Collectors.toList());
-            
-            // Build multimodal content
-            List<ModelContentElement> content = buildMultimodalContent(processedText, imageDataObjects);
-            
-            // Create multimodal message
-            ModelContentMessage userMessage = ModelContentMessage.builder()
-                .role(Role.user)
-                .content(content)
-                .build();
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add to context (saves to store if in history mode)
-            addUserMessageToContext(context, processedText, null); // Add processed text version
-            
-            // Get all messages from context (includes system message and history)
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            
-            // Add the multimodal message with image data
-            messages.add(userMessage);
-            
-            // Build request
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .build();
-            
-            // Execute request
-            ModelTextResponse response = modelClient.imageToText(request);
-            
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceImageToTextRequest(request, response,
-                    buildTraceContext("IMAGE", variables, null, request.getMessages()));
-            }
-            
-            // Extract response
-            String responseText = extractResponseText(response);
-            
-            // Save assistant response
-            if (StringUtils.isNotBlank(responseText)) {
-                context.addAssistantMessage(responseText);
-            }
-            
-            // Check if response contains images
-            List<ModelContentElement.ImageData> images = extractImages(response);
+
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(text)
+                .variables(variables)
+                .media(imageDataObjects)
+                .imageToText(true)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("IMAGE")
+                .build());
+
+            String responseText = outcome.getResponseText();
+
+            List<ModelContentElement.ImageData> images = extractImages(outcome.getResponse());
             if (CollectionUtils.isNotEmpty(images)) {
                 return AgentResponse.multimodal(responseText, images);
             }
-            
+
             return AgentResponse.text(responseText);
-            
+
         } catch (Exception e) {
             log.error("Error executing with images", e);
             throw new RuntimeException("Failed to execute with images", e);
@@ -835,73 +551,26 @@ public class LLMAgent implements Agent {
      */
     public <T> AgentResponse<T> executeStructuredWithMedia(String text, List<MediaContent> mediaContentList, Class<T> targetClass) {
         try {
-            // Create response format for structured output
-            ResponseFormat responseFormat = ResponseFormat.jsonSchema(targetClass);
-
-            // Convert media content to ModelContentElement.ImageData (used for all media types)
             List<ModelContentElement.ImageData> mediaDataObjects = mediaContentList.stream()
                 .map(media -> new ModelContentElement.ImageData(media.getData(), media.getMimeType()))
                 .collect(Collectors.toList());
 
-            // Build multimodal content
-            List<ModelContentElement> content = buildMultimodalContent(text, mediaDataObjects);
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(text)
+                .media(mediaDataObjects)
+                .imageToText(true)
+                .responseFormat(ResponseFormat.jsonSchema(targetClass))
+                .temperatureOverride(STRUCTURED_EXTRACTION_TEMPERATURE)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("MEDIA_STRUCTURED")
+                .build());
 
-            // Create multimodal message
-            ModelContentMessage userMessage = ModelContentMessage.builder()
-                .role(Role.user)
-                .content(content)
-                .build();
-
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-
-            // Add user message (saves to store if in history mode)
-            addUserMessageToContext(context, text, null);
-
-            // Get all messages from context (includes system message and history)
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-
-            // Add the multimodal message with media data
-            messages.add(userMessage);
-
-            // Build request with structured output
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(STRUCTURED_EXTRACTION_TEMPERATURE)
-                .messages(messages)
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .responseFormat(responseFormat)
-                .build();
-
-            // Execute request
-            ModelTextResponse response = modelClient.imageToText(request);
-
-            // Trace if provider is available
-            RequestTracingProvider provider = getTracingProvider();
-            if (provider != null) {
-                provider.traceImageToTextRequest(request, response,
-                    buildTraceContext("MEDIA_STRUCTURED", null, null, request.getMessages()));
-            }
-
-            // Extract cache info
+            ModelTextResponse response = outcome.getResponse();
             CacheUsage mediaCacheUsage = response != null && response.getUsage() != null
                     ? response.getUsage().getCacheUsage() : null;
 
-            // Extract and parse response
-            String jsonResponse = extractResponseText(response);
-
-            // Save assistant response
-            if (StringUtils.isNotBlank(jsonResponse)) {
-                context.addAssistantMessage(jsonResponse);
-            }
-
-            T result = JsonUtils.fromJson(jsonResponse, targetClass);
+            T result = JsonUtils.fromJson(outcome.getResponseText(), targetClass);
 
             return AgentResponse.<T>builder()
                     .structuredData(result)
@@ -999,8 +668,9 @@ public class LLMAgent implements Agent {
     /**
      * Create ConversationContext with message properties if set.
      */
-    private ConversationContext createConversationContext() {
-        ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId, getEffectiveMaxTokens());
+    ConversationContext createConversationContext() {
+        ConversationContext context = ConversationContext.from(chatStore, workflowId, chatId,
+                getEffectiveMaxTokens(), memoryMode);
         if (messageProperties != null && !messageProperties.isEmpty()) {
             context.setMessageProperties(messageProperties);
         }
@@ -1011,7 +681,7 @@ public class LLMAgent implements Agent {
      * Add user message to context, using storeContentExtractor if configured.
      * When extractor is set, the raw content goes to chatStore while full API content goes to messages.
      */
-    private void addUserMessageToContext(ConversationContext context, String apiContent,
+    void addUserMessageToContext(ConversationContext context, String apiContent,
                                          Map<String, Object> variables) {
         if (storeContentExtractor != null) {
             String storeContent = storeContentExtractor.extract(apiContent, variables);
@@ -1025,7 +695,7 @@ public class LLMAgent implements Agent {
      * Build a RequestContext for tracing with all available metadata.
      * Centralizes trace context creation to ensure no data is lost.
      */
-    private RequestTracingProvider.RequestContext buildTraceContext(
+    RequestTracingProvider.RequestContext buildTraceContext(
             String contextTypeSuffix,
             Map<String, Object> variables,
             String promptId,
@@ -1108,95 +778,75 @@ public class LLMAgent implements Agent {
         if (callback == null) {
             throw new IllegalArgumentException("Callback is required for streaming execution");
         }
-        
-        CompletableFuture<String> future = new CompletableFuture<>();
-        
         try {
-            // Process message with variables
-            String processedMessage = processMessageWithVariables(input, variables);
-            
-            // Create conversation context with token limit
-            ConversationContext context = createConversationContext();
-            
-            // Add system message if present
-            if (StringUtils.isNotBlank(systemMessage)) {
-                context.addSystemMessage(systemMessage);
-            }
-            
-            // Add user message (saves to store if in history mode)
-            addUserMessageToContext(context, processedMessage, variables);
-            
-            // Build request
-            List<ModelContentMessage> messages = convertToModelContentMessages(context.getMessagesForRequest());
-            ModelTextRequest request = ModelTextRequest.builder()
-                .model(getEffectiveModel())
-                .temperature(getTemperature(null))
-                .reasoningEffort(reasoningEffort)
-                .cachePolicy(cachePolicy)
-                .messages(messages)
-                .build();
-
-            // Get streaming response from model client
-            StreamingResponse<String> streamingResponse = modelClient.streamTextToText(request);
-            
-            // Create wrapper for memory and tracing
-            final StringBuilder fullResponse = new StringBuilder();
-            
-            // Subscribe immediately with the provided callback
-            streamingResponse.subscribe(new StreamingCallback<String>() {
-                @Override
-                public void onNext(String item) {
-                    fullResponse.append(item);
-                    callback.onNext(item);
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    log.error("Streaming error in LLMAgent", error);
-                    callback.onError(error);
-                    future.completeExceptionally(error);
-                }
-                
-                @Override
-                public void onComplete() {
-                    // Save complete response
-                    String finalResponse = fullResponse.toString();
-                    if (finalResponse.length() > 0) {
-                        context.addAssistantMessage(finalResponse);
-                    }
-                    
-                    // Trace if provider is available
-                    RequestTracingProvider provider = getTracingProvider();
-                    if (provider != null) {
-                        // Create a synthetic response for tracing
-                        ModelTextResponse syntheticResponse = ModelTextResponse.builder()
-                            .choices(Collections.singletonList(
-                                ResponseMessage.builder()
-                                    .message(ModelMessage.builder()
-                                        .role(Role.assistant)
-                                        .content(finalResponse)
-                                        .build())
-                                    .build()
-                            ))
-                            .build();
-                        provider.traceTextRequest(request, syntheticResponse,
-                            buildTraceContext("STREAM", variables, null, request.getMessages()));
-                    }
-                    
-                    callback.onComplete();
-                    future.complete(finalResponse);
-                }
-            });
-            
+            return pipeline().runStreaming(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(input)
+                .variables(variables)
+                .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("STREAM")
+                .build(), callback);
         } catch (Exception e) {
             log.error("Error in executeStreaming", e);
             callback.onError(new RuntimeException("Failed to execute streaming", e));
-            future.completeExceptionally(new RuntimeException("Failed to execute streaming", e));
+            CompletableFuture<String> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new RuntimeException("Failed to execute streaming", e));
+            return failed;
         }
-        
-        return future;
     }
     
+    /**
+     * The single internal execution path (plan, D2). Stateless — created per call.
+     */
+    AgentExecutionPipeline pipeline() {
+        return new AgentExecutionPipeline(this);
+    }
+
+    /**
+     * Execute a full agentic loop (plan, D1): the model reasons, requests tools,
+     * receives their results and continues until it finishes or a limit fires.
+     * Tool calls go through hooks (D6) and may suspend for human approval (D7).
+     *
+     * @return the loop result with stop reason, final text, tool results and usage
+     */
+    public AgentLoopResult executeAgentic(String message) {
+        return executeAgentic(message, Collections.emptyMap(), AgenticOptions.defaults());
+    }
+
+    public AgentLoopResult executeAgentic(String message, Map<String, Object> variables) {
+        return executeAgentic(message, variables, AgenticOptions.defaults());
+    }
+
+    public AgentLoopResult executeAgentic(String message, Map<String, Object> variables, AgenticOptions options) {
+        try {
+            AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
+                .userMessage(message)
+                .variables(variables)
+                .includeTools(true)
+                .mode(AgentExecutionPipeline.Mode.AGENTIC)
+                .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
+                .traceSuffix("AGENTIC")
+                .agenticOptions(options)
+                .build());
+            return outcome.getLoopResult();
+        } catch (Exception e) {
+            log.error("Error in executeAgentic", e);
+            throw new RuntimeException("Failed to execute agentic loop", e);
+        }
+    }
+
+    /**
+     * Resume an agentic loop previously suspended with StopReason.PENDING_APPROVAL.
+     */
+    public AgentLoopResult resumeAgentic(LoopState state, ApprovalDecision decision, AgenticOptions options) {
+        try {
+            return pipeline().resumeAgentic(state, decision, options);
+        } catch (Exception e) {
+            log.error("Error resuming agentic loop", e);
+            throw new RuntimeException("Failed to resume agentic loop", e);
+        }
+    }
+
     // Private helper methods
     
     private String processMessageWithVariables(String message, Map<String, Object> variables) {
@@ -1209,10 +859,12 @@ public class LLMAgent implements Agent {
     // Convert ModelMessage list to ModelContentMessage list
     private List<ModelContentMessage> convertToModelContentMessages(List<ModelMessage> modelMessages) {
         return modelMessages.stream()
-            .map(msg -> ModelContentMessage.create(
-                msg.getRole(), 
-                msg.getContent()
-            ))
+            .map(msg -> ModelContentMessage.builder()
+                .role(msg.getRole())
+                .content(List.of(ModelContentElement.create(msg.getContent() != null ? msg.getContent() : "")))
+                .toolCalls(msg.getToolCalls())
+                .toolCallId(msg.getToolCallId())
+                .build())
             .collect(Collectors.toList());
     }
     
@@ -1264,7 +916,7 @@ public class LLMAgent implements Agent {
     }
     
     
-    private List<ModelContentElement.ImageData> extractImages(ModelTextResponse response) {
+    List<ModelContentElement.ImageData> extractImages(ModelTextResponse response) {
         // For now, text-to-text responses don't contain images
         // This is a placeholder for future multimodal responses
         return Collections.emptyList();
@@ -1311,7 +963,7 @@ public class LLMAgent implements Agent {
         return content;
     }
     
-    private String extractReasoningContent(ModelTextResponse response) {
+    String extractReasoningContent(ModelTextResponse response) {
         if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
             return null;
         }
@@ -1322,7 +974,7 @@ public class LLMAgent implements Agent {
         return null;
     }
 
-    private String extractResponseText(ModelTextResponse response) {
+    String extractResponseText(ModelTextResponse response) {
         if (response == null || CollectionUtils.isEmpty(response.getChoices())) {
             return "";
         }
@@ -1343,7 +995,7 @@ public class LLMAgent implements Agent {
     /**
      * Get effective model (from agent config or client default).
      */
-    private String getEffectiveModel() {
+    String getEffectiveModel() {
         return StringUtils.isNotBlank(model) ? model : modelClient.getModel();
     }
 
@@ -1357,7 +1009,7 @@ public class LLMAgent implements Agent {
     /**
      * Get tracing provider - first check injected provider, then registry
      */
-    private RequestTracingProvider getTracingProvider() {
+    RequestTracingProvider getTracingProvider() {
         if (tracingProvider != null) {
             return tracingProvider;
         }
@@ -1408,12 +1060,22 @@ public class LLMAgent implements Agent {
         private CachePolicy cachePolicy;
         private StoreContentExtractor storeContentExtractor;
         private Map<String, String> messageProperties;
+        private ConversationContext.MemoryMode memoryMode;
 
         private List<ToolInfo> pendingTools = new ArrayList<>();
         
         public CustomLLMAgentBuilder() {
             // Set defaults
             this.autoExecuteTools = true;
+        }
+
+        /**
+         * Explicit history mode (plan, D2): CONVERSATIONAL / STATELESS instead of
+         * the implicit workflowId-based detection. Default: AUTO (legacy behavior).
+         */
+        public CustomLLMAgentBuilder memoryMode(ConversationContext.MemoryMode memoryMode) {
+            this.memoryMode = memoryMode;
+            return this;
         }
 
         public CustomLLMAgentBuilder reasoningEffort(ReasoningEffort reasoningEffort) {
@@ -1557,12 +1219,16 @@ public class LLMAgent implements Agent {
                 toolRegistry = new ToolRegistry();
             }
             
-            return new LLMAgent(modelClient, name, description, systemMessage,
+            LLMAgent agent = new LLMAgent(modelClient, name, description, systemMessage,
                     temperature, maxTokens, model, imageModel, agentId,
                     chatStore, chatId, promptService, toolRegistry,
                     tracingProvider, workflowId, workflowType, workflowStep,
                     autoExecuteTools, reasoningEffort, messageProperties, cachePolicy,
                     storeContentExtractor);
+            if (memoryMode != null) {
+                agent.setMemoryMode(memoryMode);
+            }
+            return agent;
         }
     }
 }

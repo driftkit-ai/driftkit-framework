@@ -247,7 +247,6 @@ public class ChatCompletionRequest {
 
     @Data
     @NoArgsConstructor
-    @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static abstract class Message {
         private String role;
@@ -255,8 +254,21 @@ public class ChatCompletionRequest {
         @JsonProperty("name")
         private String name;
 
+        /** Echo of assistant tool calls in a follow-up request (agentic loop). */
+        @JsonProperty("tool_calls")
+        private List<RequestToolCall> toolCalls;
+
+        /** Pairs a role=tool message with its originating call. */
+        @JsonProperty("tool_call_id")
+        private String toolCallId;
+
         @JsonIgnore
         public abstract String getMessage();
+
+        protected Message(String role, String name) {
+            this.role = role;
+            this.name = name;
+        }
 
         @Data
         @NoArgsConstructor
@@ -452,5 +464,28 @@ public class ChatCompletionRequest {
     public enum MessageType {
         image_url,
         text
+    }
+
+    /**
+     * Tool call echoed back to the API (agentic loop). Per the OpenAI wire format,
+     * {@code function.arguments} must be a JSON-encoded string.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class RequestToolCall {
+        private String id;
+        private String type;
+        private RequestFunctionCall function;
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class RequestFunctionCall {
+            private String name;
+            private String arguments; // JSON string
+        }
     }
 }

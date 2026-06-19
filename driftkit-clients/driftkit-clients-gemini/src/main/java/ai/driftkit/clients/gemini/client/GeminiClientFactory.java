@@ -38,6 +38,17 @@ public class GeminiClientFactory {
     public static GeminiApiClient createClient(String apiKey, String baseUrl,
                                                 Integer connectTimeoutSeconds,
                                                 Integer readTimeoutSeconds) {
+        RequestInterceptor apiKeyInterceptor = requestTemplate ->
+                requestTemplate.header("x-goog-api-key", apiKey);
+        return createClient(apiKeyInterceptor, baseUrl, connectTimeoutSeconds, readTimeoutSeconds);
+    }
+
+    /**
+     * Creates a Gemini API client with a custom auth interceptor (e.g. Vertex AI Bearer token).
+     */
+    public static GeminiApiClient createClient(RequestInterceptor authInterceptor, String baseUrl,
+                                                Integer connectTimeoutSeconds,
+                                                Integer readTimeoutSeconds) {
         int connectTimeout = (connectTimeoutSeconds != null && connectTimeoutSeconds > 0)
                 ? connectTimeoutSeconds : DEFAULT_CONNECT_TIMEOUT_SECONDS;
         int readTimeout = (readTimeoutSeconds != null && readTimeoutSeconds > 0)
@@ -49,17 +60,12 @@ public class GeminiClientFactory {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .setPropertyNamingStrategy(PropertyNamingStrategies.LOWER_CAMEL_CASE);
 
-        RequestInterceptor apiKeyInterceptor = requestTemplate -> {
-            // Gemini uses API key in header
-            requestTemplate.header("x-goog-api-key", apiKey);
-        };
-
         return Feign.builder()
                 .encoder(new JacksonEncoder(objectMapper))
                 .decoder(new JacksonDecoder(objectMapper))
                 .logger(new Slf4jLogger(GeminiApiClient.class))
                 .logLevel(feign.Logger.Level.BASIC)
-                .requestInterceptor(apiKeyInterceptor)
+                .requestInterceptor(authInterceptor)
                 .options(new Request.Options(connectTimeout * 1000, readTimeout * 1000))
                 .target(GeminiApiClient.class, baseUrl != null ? baseUrl : DEFAULT_BASE_URL);
     }
