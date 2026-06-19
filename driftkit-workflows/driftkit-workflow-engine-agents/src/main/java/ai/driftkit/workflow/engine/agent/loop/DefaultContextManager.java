@@ -33,6 +33,8 @@ import java.util.Map;
 @Slf4j
 public class DefaultContextManager implements ContextManager {
 
+    private static final int MAX_CONSECUTIVE_SUMMARY_FAILURES = 3;
+
     private final ModelClient modelClient;
     private final String summaryModel;
     private final long contextWindowTokens;
@@ -42,7 +44,6 @@ public class DefaultContextManager implements ContextManager {
     private final int minElisionChars;
 
     private int consecutiveSummaryFailures = 0;
-    private static final int MAX_CONSECUTIVE_SUMMARY_FAILURES = 3;
 
     @Builder
     public DefaultContextManager(ModelClient modelClient, String summaryModel,

@@ -54,6 +54,15 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
     private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
     private static final String VERTEX_LOCATION_GLOBAL = "global";
 
+    /**
+     * Lenient mapper for SSE stream chunks. Gemini adds fields over time (e.g.
+     * {@code thoughtSignature} on think-model parts) that the domain classes don't model;
+     * the Feign/unary decoder ignores unknown fields, so streaming must too — otherwise a
+     * chunk silently drops and its text is lost from the accumulated response.
+     */
+    private static final ObjectMapper STREAM_CHUNK_MAPPER =
+            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     private GeminiApiClient client;
     private VaultConfig config;
     private boolean vertexMode;
@@ -65,15 +74,6 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             .version(HttpClient.Version.HTTP_2)
             .connectTimeout(Duration.ofSeconds(30))
             .build();
-
-    /**
-     * Lenient mapper for SSE stream chunks. Gemini adds fields over time (e.g.
-     * {@code thoughtSignature} on think-model parts) that the domain classes don't model;
-     * the Feign/unary decoder ignores unknown fields, so streaming must too — otherwise a
-     * chunk silently drops and its text is lost from the accumulated response.
-     */
-    private static final ObjectMapper STREAM_CHUNK_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private static GeminiChatResponse parseStreamChunk(String data) throws IOException {
         return STREAM_CHUNK_MAPPER.readValue(data, GeminiChatResponse.class);

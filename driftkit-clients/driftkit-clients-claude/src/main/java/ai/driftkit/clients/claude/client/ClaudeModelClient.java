@@ -43,6 +43,11 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
     public static final String CLAUDE_PREFIX = ClaudeUtils.CLAUDE_PREFIX;
     public static final int MAX_TOKENS = 8192;
 
+    // Claude content-block types (Anthropic wire format).
+    private static final String BLOCK_TEXT = "text";
+    private static final String BLOCK_TOOL_USE = "tool_use";
+    private static final String BLOCK_TOOL_RESULT = "tool_result";
+
     private ClaudeApiClient client;
     private VaultConfig config;
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -107,11 +112,6 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         throw new UnsupportedCapabilityException("Claude does not support image generation");
     }
     
-    // Claude content-block types (Anthropic wire format).
-    private static final String BLOCK_TEXT = "text";
-    private static final String BLOCK_TOOL_USE = "tool_use";
-    private static final String BLOCK_TOOL_RESULT = "tool_result";
-
     private ModelTextResponse processPrompt(ModelTextRequest prompt) {
         String model = Optional.ofNullable(prompt.getModel())
                 .orElse(Optional.ofNullable(getModel())
