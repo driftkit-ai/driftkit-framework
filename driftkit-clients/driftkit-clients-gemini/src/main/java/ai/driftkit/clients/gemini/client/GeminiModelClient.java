@@ -52,6 +52,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
     public static final String GEMINI_PREFIX = "gemini";
 
     private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
+    private static final String VERTEX_BASE_URL = "https://aiplatform.googleapis.com";
     private static final String VERTEX_LOCATION_GLOBAL = "global";
 
     /**
@@ -66,6 +67,12 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
     private GeminiApiClient client;
     private VaultConfig config;
     private boolean vertexMode;
+    /**
+     * Vertex express: the Vertex host, but authenticated by API key instead of a service
+     * account, and with no project/location in the path. A third access type, not a variation
+     * of the other two — its URL and its auth each differ from both.
+     */
+    private boolean expressMode;
     private boolean regionalVertex;
     private GoogleCredentials vertexCredentials;
     private String vertexProject;
@@ -105,7 +112,21 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             }
         }
 
-        if (!vertexMode) {
+        if (!vertexMode && config.isVertexExpress()) {
+            // Express keys are issued in the Vertex console and are accepted ONLY on the Vertex
+            // host under /v1/publishers/... — the same key on generativelanguage.googleapis.com
+            // is rejected. Hence a separate mode rather than a baseUrl override.
+            this.expressMode = true;
+            this.client = GeminiClientFactory.createClient(
+                    config.getApiKey(),
+                    VERTEX_BASE_URL,
+                    config.getConnectTimeout(),
+                    config.getReadTimeout()
+            );
+            log.info("Gemini client initialized in Vertex express mode (API key, no project)");
+        }
+
+        if (!vertexMode && !expressMode) {
             this.client = GeminiClientFactory.createClient(
                     config.getApiKey(),
                     Optional.ofNullable(config.getBaseUrl()).orElse(null),
@@ -139,7 +160,10 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             if (regionalVertex) {
                 return "https://" + vertexLocation + "-aiplatform.googleapis.com";
             }
-            return "https://aiplatform.googleapis.com";
+            return VERTEX_BASE_URL;
+        }
+        if (expressMode) {
+            return VERTEX_BASE_URL;
         }
         return Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
     }
@@ -161,7 +185,11 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             if (regionalVertex) {
                 return "https://" + vertexLocation + "-aiplatform.googleapis.com/v1" + vertexPath;
             }
-            return "https://aiplatform.googleapis.com/v1beta1" + vertexPath;
+            return VERTEX_BASE_URL + "/v1beta1" + vertexPath;
+        }
+        if (expressMode) {
+            // v1 and publishers/, both mandatory: /v1beta/models/... on this host returns 404.
+            return VERTEX_BASE_URL + "/v1/publishers/google/models/" + model + ":" + action;
         }
         String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
         return baseUrl + "/v1beta/models/" + model + ":" + action;
@@ -290,6 +318,9 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
                 return client.vertexGenerateContent(vertexProject, vertexLocation, model, request);
             }
             return client.vertexBetaGenerateContent(vertexProject, vertexLocation, model, request);
+        }
+        if (expressMode) {
+            return client.expressGenerateContent(model, request);
         }
         return client.generateContent(model, request);
     }
@@ -709,7 +740,9 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             // responses from think-models). Text/structured calls go through
             // streamGenerateContent with chunk accumulation — no limit, same result.
             // Image generation (textToImage) stays on unary callGenerateContent.
-            GeminiChatResponse response = vertexMode
+            // Express shares the Vertex host and therefore the same server-side deadline —
+            // it must accumulate a stream too, not sit on a unary call.
+            GeminiChatResponse response = vertexMode || expressMode
                     ? streamGenerateContentAccumulating(model, request)
                     : callGenerateContent(model, request);
             return mapToModelTextResponse(response);

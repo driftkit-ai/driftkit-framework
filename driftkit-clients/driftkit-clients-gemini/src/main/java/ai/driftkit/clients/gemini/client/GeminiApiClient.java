@@ -47,6 +47,24 @@ public interface GeminiApiClient {
     @RequestLine("POST /v1beta1/projects/{project}/locations/{location}/publishers/google/models/{model}:countTokens")
     @Headers("Content-Type: application/json")
     TokenCountResponse vertexBetaCountTokens(@Param("project") String project, @Param("location") String location, @Param("model") String model, GeminiChatRequest request);
+
+    // --- Vertex express: API key instead of a service account -------------------------------
+    // Same host as Vertex, but no project/location in the path, and auth is the x-goog-api-key
+    // header rather than a bearer token. Verified against the live API on 2026-08-31:
+    // /v1/publishers/... answers 200, while /v1beta/models/... on the SAME host with the SAME
+    // key answers 404. Neither the path nor the version can be inferred from the other modes.
+
+    @RequestLine("POST /v1/publishers/google/models/{model}:generateContent")
+    @Headers("Content-Type: application/json")
+    GeminiChatResponse expressGenerateContent(@Param("model") String model, GeminiChatRequest request);
+
+    @RequestLine("POST /v1/publishers/google/models/{model}:streamGenerateContent")
+    @Headers("Content-Type: application/json")
+    GeminiChatResponse expressStreamGenerateContent(@Param("model") String model, GeminiChatRequest request);
+
+    @RequestLine("POST /v1/publishers/google/models/{model}:countTokens")
+    @Headers("Content-Type: application/json")
+    TokenCountResponse expressCountTokens(@Param("model") String model, GeminiChatRequest request);
     
     @Data
     @NoArgsConstructor

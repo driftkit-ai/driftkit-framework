@@ -128,5 +128,18 @@ public class EtlConfig {
          * Regional (e.g. "us-central1") uses {location}-aiplatform.googleapis.com.
          */
         private String vertexLocation;
+        /**
+         * Vertex express: authenticate to Vertex with an API key instead of a service account.
+         *
+         * <p>A third access type, not a variation of the other two. Express keys are issued in
+         * the Vertex console and are accepted ONLY on {@code aiplatform.googleapis.com} under
+         * {@code /v1/publishers/google/models/...}; the same key on
+         * {@code generativelanguage.googleapis.com} is rejected, and {@code /v1beta/models/...}
+         * on the Vertex host answers 404. Verified against the live API on 2026-08-31.
+         *
+         * <p>Set together with {@code apiKey} and WITHOUT {@code vertexProject}: a project makes
+         * the client take the service-account path, where the key is not used at all.
+         */
+        private boolean vertexExpress;
     }
 }
