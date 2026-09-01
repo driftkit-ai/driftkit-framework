@@ -8,6 +8,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -56,7 +58,7 @@ class LoopAgentStructuredOutputTest {
             .build();
             
         ModelTextResponse mockResponse = ModelTextResponse.builder()
-            .choices(java.util.List.of(
+            .choices(List.of(
                 ModelTextResponse.ResponseMessage.builder()
                     .message(ModelMessage.builder()
                         .content(JsonUtils.toJson(evalResult))

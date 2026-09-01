@@ -20,6 +20,7 @@ import ai.driftkit.common.tools.ToolCall;
 import ai.driftkit.common.tools.ToolInfo;
 import ai.driftkit.common.tools.ToolRegistry;
 import ai.driftkit.common.utils.JsonUtils;
+import ai.driftkit.common.utils.JsonSchemaGenerator;
 import ai.driftkit.common.utils.AIUtils;
 import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
@@ -87,6 +88,19 @@ public class LLMAgent implements Agent {
     // Explicit history mode (default AUTO keeps the legacy workflowId-based detection)
     private volatile ConversationContext.MemoryMode memoryMode;
 
+    /**
+     * How structured output ({@code executeStructured*}) is enforced.
+     * <ul>
+     *   <li>{@code STRICT_SCHEMA} (default) — send a strict {@code responseSchema} to the API.</li>
+     *   <li>{@code SCHEMA_IN_PROMPT} — do NOT send any schema to the API (avoids the known
+     *       gemini-2.5/3.x structured-output degeneration/repetition-loop bug); instead use loose
+     *       JSON mode ({@code json_object}) and push the JSON schema into the prompt as guidance.</li>
+     * </ul>
+     */
+    public enum StructuredOutputMode { STRICT_SCHEMA, SCHEMA_IN_PROMPT }
+
+    private volatile StructuredOutputMode structuredOutputMode = StructuredOutputMode.STRICT_SCHEMA;
+
     // Workflow context fields for tracing (mutable + volatile for hierarchical agent context injection)
     private volatile String workflowId;
     private volatile String workflowType;
@@ -135,6 +149,10 @@ public class LLMAgent implements Agent {
         this.workflowStep = workflowStep;
         this.messageProperties = messageProperties;
         this.memoryMode = ConversationContext.MemoryMode.AUTO;
+    }
+
+    public void setStructuredOutputMode(StructuredOutputMode mode) {
+        this.structuredOutputMode = mode != null ? mode : StructuredOutputMode.STRICT_SCHEMA;
     }
 
     /**
@@ -295,11 +313,35 @@ public class LLMAgent implements Agent {
     /**
      * Execute with structured output.
      */
+    // ── Structured-output mode helpers ──
+    // In SCHEMA_IN_PROMPT mode we send loose json_object (no schema → no gemini-3.x loop) and move
+    // the schema into the prompt; in STRICT_SCHEMA mode we keep the original strict responseSchema.
+    private ResponseFormat structuredResponseFormat(Class<?> targetClass) {
+        return structuredOutputMode == StructuredOutputMode.SCHEMA_IN_PROMPT
+                ? ResponseFormat.jsonObject()
+                : ResponseFormat.jsonSchema(targetClass);
+    }
+
+    private String structuredUserMessage(String userMessage, Class<?> targetClass) {
+        if (structuredOutputMode != StructuredOutputMode.SCHEMA_IN_PROMPT) {
+            return userMessage;
+        }
+        String schema;
+        try {
+            schema = JsonUtils.toJson(JsonSchemaGenerator.generateSchema(targetClass));
+        } catch (Exception e) {
+            log.warn("Could not serialize schema for {}: {}", targetClass.getSimpleName(), e.getMessage());
+            schema = "";
+        }
+        return userMessage + "\n\nReturn ONLY a single valid JSON object — no prose, no markdown "
+                + "fences, no \"STEP\" lines — conforming exactly to this JSON schema:\n" + schema;
+    }
+
     public <T> AgentResponse<T> executeStructured(String userMessage, Class<T> targetClass) {
         try {
             AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
-                .userMessage(userMessage)
-                .responseFormat(ResponseFormat.jsonSchema(targetClass))
+                .userMessage(structuredUserMessage(userMessage, targetClass))
+                .responseFormat(structuredResponseFormat(targetClass))
                 .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
                 .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
                 .traceSuffix("STRUCTURED")
@@ -556,10 +598,10 @@ public class LLMAgent implements Agent {
                 .collect(Collectors.toList());
 
             AgentExecutionPipeline.Outcome outcome = pipeline().run(AgentExecutionPipeline.ExecutionSpec.builder()
-                .userMessage(text)
+                .userMessage(structuredUserMessage(text, targetClass))
                 .media(mediaDataObjects)
                 .imageToText(true)
-                .responseFormat(ResponseFormat.jsonSchema(targetClass))
+                .responseFormat(structuredResponseFormat(targetClass))
                 .temperatureOverride(STRUCTURED_EXTRACTION_TEMPERATURE)
                 .mode(AgentExecutionPipeline.Mode.SINGLE_SHOT)
                 .persistence(AgentExecutionPipeline.Persistence.ASSISTANT_TEXT)
@@ -1057,6 +1099,7 @@ public class LLMAgent implements Agent {
         private String workflowStep;
         private boolean autoExecuteTools = true;
         private ReasoningEffort reasoningEffort;
+        private StructuredOutputMode structuredOutputMode;
         private CachePolicy cachePolicy;
         private StoreContentExtractor storeContentExtractor;
         private Map<String, String> messageProperties;
@@ -1080,6 +1123,11 @@ public class LLMAgent implements Agent {
 
         public CustomLLMAgentBuilder reasoningEffort(ReasoningEffort reasoningEffort) {
             this.reasoningEffort = reasoningEffort;
+            return this;
+        }
+
+        public CustomLLMAgentBuilder structuredOutputMode(StructuredOutputMode structuredOutputMode) {
+            this.structuredOutputMode = structuredOutputMode;
             return this;
         }
 
@@ -1227,6 +1275,9 @@ public class LLMAgent implements Agent {
                     storeContentExtractor);
             if (memoryMode != null) {
                 agent.setMemoryMode(memoryMode);
+            }
+            if (structuredOutputMode != null) {
+                agent.setStructuredOutputMode(structuredOutputMode);
             }
             return agent;
         }

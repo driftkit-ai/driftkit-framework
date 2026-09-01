@@ -50,7 +50,9 @@ public class ConversationContext {
     private final List<ModelMessage> messages = new ArrayList<>();
     
     private final boolean historyMode;
-    
+
+    private Map<String, String> messageProperties;
+
     /**
      * Create context from LLMAgent state
      */
@@ -172,8 +174,6 @@ public class ConversationContext {
     public void setMessageProperties(Map<String, String> properties) {
         this.messageProperties = properties;
     }
-
-    private Map<String, String> messageProperties;
 
     /**
      * Add assistant message to context

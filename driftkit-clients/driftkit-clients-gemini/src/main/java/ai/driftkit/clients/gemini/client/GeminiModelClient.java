@@ -119,7 +119,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             this.expressMode = true;
             this.client = GeminiClientFactory.createClient(
                     config.getApiKey(),
-                    VERTEX_BASE_URL,
+                    resolveBaseUrl(),
                     config.getConnectTimeout(),
                     config.getReadTimeout()
             );
@@ -163,7 +163,8 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
             return VERTEX_BASE_URL;
         }
         if (expressMode) {
-            return VERTEX_BASE_URL;
+            // Configurable: the host is an environment fact and may change without us.
+            return Optional.ofNullable(config.getBaseUrl()).orElse(VERTEX_BASE_URL);
         }
         return Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
     }
@@ -189,7 +190,7 @@ public class GeminiModelClient extends ModelClient implements ModelClientInit {
         }
         if (expressMode) {
             // v1 and publishers/, both mandatory: /v1beta/models/... on this host returns 404.
-            return VERTEX_BASE_URL + "/v1/publishers/google/models/" + model + ":" + action;
+            return resolveBaseUrl() + "/v1/publishers/google/models/" + model + ":" + action;
         }
         String baseUrl = Optional.ofNullable(config.getBaseUrl()).orElse(DEFAULT_BASE_URL);
         return baseUrl + "/v1beta/models/" + model + ":" + action;
