@@ -1,266 +1,98 @@
 # DriftKit Framework
 
-**Production-ready AI framework for Java** - Complete prompt lifecycle management from development to production
+A Java framework for LLM agents and workflows where prompt lifecycle management (versioning, testing, tracing) is built in rather than delegated to an external platform.
 
-## 🚀 Why choose DriftKit?
+[![Maven Central](https://img.shields.io/maven-central/v/ai.driftkit/driftkit-common?label=Maven%20Central)](https://central.sonatype.com/search?q=g:ai.driftkit)
+[![CI](https://github.com/driftkit-ai/driftkit-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/driftkit-ai/driftkit-framework/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![Java 21](https://img.shields.io/badge/Java-21-orange)
 
-### Framework comparison
+## Requirements
 
-| Feature | DriftKit                                                                         | Spring AI                       | LangChain4j                     | [Google ADK](https://github.com/google/adk-java) |
-|---------|----------------------------------------------------------------------------------|---------------------------------|---------------------------------|-------------------------------------------------|
-| **Text embedding** | ✅ Multiple providers                                                             | ✅ Multiple providers            | ✅ Multiple providers            | ❌                            |
-| **Vector storage** | ✅ In-memory, File, Pinecone, Spring AI (all providers)                           | ✅ In-memory, Chroma, PGVector etc | ✅ In-memory, Pinecone, Chroma etc | ❌                                               |
-| **Structured output** | ✅ Java Pojo/Json based                                                           | ✅                    | ✅                   | ✅                                               |
-| **Tool calling** | ✅ Type-safe with auto/manual-execution: function calling, tools, agents as tools | ✅               | ✅               | ✅                      |
-| **Prompt lifecycle management** | ✅ Dev→Test→Prod + Tracing                                                        | ❌                               | ❌                               | ❌                                               |
-| **Visual prompt IDE** | ✅ Full web platform                                                              | ❌ Code only                     | ❌ Code only                     | ❌                                               |
-| **Production prompt testing** | ✅ Test sets + evaluation                                                         | ❌                               | ❌                               | ❌                                               |
-| **Prompt versioning** | ✅ Built-in                                                                       | ❌ Manual                        | ❌ Manual                        | ❌                                               |
-| **A/B testing** | ✅ Native                                                                         | ❌                               | ❌                               | ❌                                               |
-| **Test automation** | ✅ Comprehensive                                                                  | ❌                               | ⚠️ Basic                        | ❌                                               |
-| **Multi-agent patterns** | ✅ Loop, Sequential, Hierarchical, Graph, Cross-graph calls                       | ❌                               | ⚠️ Limited                      | ✅ Built-in                                      |
-| **Workflow as graph** | ✅ Full graph with cross-workflow calls                                           | ❌                               | ⚠️ Chain only                   | ⚠️ Basic                                        |
-| **Simplified LLM SDK** | ✅ High-level Agent API                                                           | ⚠️ Low-level                    | ⚠️ Complex                      | ✅ Good                                          |
-| **Prompt caching** | ✅ Unified: Claude, OpenAI, DeepSeek                                              | ❌                               | ❌                               | ❌                                               |
-| **Cache observability** | ✅ Hit/write/miss per request                                                     | ❌                               | ❌                               | ❌                                               |
-| **Model hot-swap** | ✅ Config change only                                                             | ✅ Config change                 | ❌ Code rewrite                  | ⚠️ Limited                                      |
-| **Audio processing** | ✅ VAD + Transcription                                                            | ❌                               | ❌                               | ❌                                               |
-| **Text-to-speech** | ❌ Not supported                                                                  | ✅ Multiple providers            | ❌                               | ❌                                               |
-| **Spring AI integration** | ✅ Full bidirectional integration                                                 | Native                           | ❌                               | ❌                                               |
+- **Java 21**
+- **Maven** (no wrapper is included; 3.8+ is known to work)
+- **Spring Boot 3.3.x** for the `*-spring-boot-starter` modules. `driftkit-common`, `driftkit-clients-*` and `driftkit-workflow-engine-*` can be used without starting a Spring context, but `driftkit-workflow-engine-agents` still pulls Spring Boot, Spring Data MongoDB and Apache Tika onto the classpath transitively (through `driftkit-vector-spring-boot-starter`).
+- **MongoDB** for the Context Engineering platform (`driftkit-context-engineering-spring-boot-starter`). It stores traces, test sets, evaluation runs, audit log and environments in MongoDB; only the prompt store itself can be switched to `in-memory` or `filesystem`. PostgreSQL is not supported yet.
+- **Node.js is NOT required** to consume the published artifacts. Building the repository from source downloads Node automatically for the Vue frontend (see [Building from source](#building-from-source)).
+- License: Apache 2.0
 
-### 🎯 Unique features
+All modules are published to Maven Central under the `ai.driftkit` group. Current release: **0.9.0** (June 2026).
 
-1. **Complete prompt lifecycle platform** - The ONLY framework with full Dev→Test→Prod workflow
-   ![Dashboard — cost, tokens, latency metrics](driftkit-context-engineering/screens/dashboard.png)
-   ![Prompt Editor with folders, versioning, state machine](driftkit-context-engineering/screens/prompts.png)
-   - Prompt state machine: DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED
-   - Version control, A/B testing, and folder organization
-   - Test sets with multiple evaluation methods
-   - Cost tracking (USD), token usage, and latency percentiles
-   
-2. **Production tracing with cache metrics** - Real-time observability for every LLM call:
-   ![Traces — per-request cache hit/write/miss, tokens, latency](driftkit-context-engineering/screens/traces.png)
-   ![Trace Detail — cache metrics, system message, conversation context](driftkit-context-engineering/screens/traces-detail-cache.png)
-   ![Cache Hit Ratio — DeepSeek prefix cache and Claude prompt cache](driftkit-context-engineering/screens/traces-cache-metrics.png)
-   - Unified cache metrics across Claude (prompt cache), OpenAI (auto cache), DeepSeek (prefix cache)
-   - Per-request cache hit/write/miss token counts with hit ratio
-   - Hierarchical agent tracing (SequentialAgent, LoopAgent)
-   - Expandable conversation context and system message display
+## Quick start
 
-3. **Prompt Playground** - Side-by-side prompt comparison:
-   ![Playground — A/B prompt testing with shared variables](driftkit-context-engineering/screens/playground.png)
-   - Execute two prompts against the same variables
-   - Dataset sweep mode — run against entire test sets
-   - Pipeline playground — test prompt overrides in production pipelines
-
-3. **Workflow as maintainable graph** - Build complex agents with cross-workflow composition
-4. **Simplified LLM SDK** - High-level Agent API for quick prototyping and production
-5. **Hot-swap AI models** - Change models via config without code changes or recompilation
-6. **Type-safe AI integration** - Direct Java objects, no JSON parsing needed
-7. **Multi-agent orchestration** - Loop, Sequential, and Hierarchical patterns
-8. **Built-in audio processing** - VAD, transcription, and streaming capabilities
-9. **Spring AI integration** - Use DriftKit prompts with Spring AI ChatClient, full tracing support
-
-## 🏆 Business solutions
-
-### Customer support automation
-**Problem:** Support teams overwhelmed with repetitive inquiries, inconsistent responses, high costs  
-**Solution:** DriftKit automates 80% of common requests while maintaining brand voice
-
-**Technical Implementation:**
-- **driftkit-context-engineering**: Create and A/B test response templates for different customer scenarios
-- **driftkit-workflow-engine-core**: Intelligent routing - simple questions to AI, complex issues to specialists
-- **driftkit-vector**: Knowledge base search for accurate, up-to-date information
-- **driftkit-clients**: Multi-model support (GPT-4/Gemini 2.5 Pro/Claude Opus 4 for complex, GPT-4o-mini/Gemini 2.5 Flash/Claude Haiku for simple queries)
-- **driftkit-common**: Conversation memory to maintain context across multiple interactions
-
-**Business Impact:** 60% reduction in response time, 40% cost savings, 95% customer satisfaction
-
-### Financial document processing  
-**Problem:** Manual processing of contracts, invoices, compliance documents - slow, error-prone, expensive  
-**Solution:** Intelligent document analysis with 99%+ accuracy and structured data extraction
-
-**Technical Implementation:**
-- **driftkit-clients**: Multi-modal AI (GPT-4 Vision/Gemini 2.5/Claude with vision) for processing PDFs, images, scanned documents
-- **driftkit-embedding**: Document similarity for duplicate detection and categorization  
-- **driftkit-vector**: Store processed documents for quick retrieval and compliance auditing
-- **driftkit-workflow-engine-core**: Multi-step validation workflows with human-in-the-loop for critical decisions
-- **driftkit-common**: Structured output extraction directly into your ERP/accounting systems
-
-**Business Impact:** 90% faster processing, 95% error reduction, full compliance automation
-
-### E-commerce personalization engine
-**Problem:** Generic product recommendations, poor conversion rates, high customer acquisition costs  
-**Solution:** AI-powered product matching and hyper-personalized customer journeys
-
-**Technical Implementation:**
-- **driftkit-vector**: Product catalog embeddings for intelligent similarity matching
-- **driftkit-embedding**: Customer behavior analysis and preference modeling
-- **driftkit-context-engineering**: Dynamic product description templates for different customer segments
-- **driftkit-workflow-engine-core**: Real-time recommendation pipelines with A/B testing
-- **driftkit-clients**: Multi-model optimization (fast models like GPT-4o-mini/Gemini Flash/Claude Haiku for real-time, advanced models like GPT-4/Gemini Pro/Claude Opus for deep analysis)
-
-**Business Impact:** 35% increase in conversion rates, 50% higher average order value, 60% improved customer lifetime value
-
-### Content marketing at scale
-**Problem:** Consistent content creation across multiple channels, languages, and brand voices  
-**Solution:** Automated content generation maintaining brand consistency across all touchpoints
-
-**Technical Implementation:**
-- **driftkit-context-engineering**: Brand voice templates with automated testing against brand guidelines
-- **driftkit-workflow-engine-agents**: Multi-stage content pipelines using SequentialAgent pattern
-- **driftkit-vector**: Content similarity checking to avoid duplication across channels
-- **driftkit-embedding**: SEO keyword optimization and content clustering
-- **driftkit-clients**: Model selection by content type (creative writing with GPT-4/Claude vs technical documentation with Gemini)
-
-**Business Impact:** 10x content output, 80% cost reduction, consistent brand messaging across 50+ channels
-
-### HR and recruitment automation
-**Problem:** Resume screening bottlenecks, unconscious bias, poor candidate experience  
-**Solution:** Intelligent candidate matching with bias reduction and automated communications
-
-**Technical Implementation:**
-- **driftkit-common**: Resume parsing and structured data extraction (skills, experience, education)
-- **driftkit-embedding**: Candidate-job matching based on semantic understanding, not just keywords
-- **driftkit-vector**: Talent pool management and similar candidate discovery
-- **driftkit-workflow-engine-core**: Interview scheduling, personalized communications, feedback collection
-- **driftkit-context-engineering**: Personalized outreach templates optimized for response rates
-
-**Business Impact:** 70% faster hiring process, 40% improvement in hire quality, 90% candidate satisfaction
-
-### Intelligent banking assistant
-**Problem:** Banking customers need 24/7 support for complex transactions, account management, and financial advice - but current chatbots are limited to simple FAQ responses  
-**Solution:** Multi-step conversational AI that handles everything from balance inquiries to loan applications with seamless human handoff
-
-**Technical Implementation:**
-- **driftkit-workflow-engine**: Advanced conversational workflows with automatic message tracking and human-in-the-loop support
-- **driftkit-clients**: Dynamic model selection (GPT-4/Claude Opus for financial advice, GPT-4o-mini/Claude Haiku for simple queries) with structured outputs for transaction data
-- **driftkit-workflow-engine-agents**: Multi-agent orchestration for complex financial analysis - LoopAgent for iterative refinement of investment advice
-- **driftkit-vector**: Knowledge base for financial products, regulations, and personalized investment recommendations
-- **driftkit-context-engineering**: Compliance-tested prompt templates for different financial scenarios with A/B testing for conversion optimization
-- **driftkit-common**: Persistent session management with encrypted conversation history and document processing for uploaded statements
-- **Database Integration**: Direct connections to core banking systems, CRM, and fraud detection APIs
-- **Legacy System Integration**: REST/SOAP connectors to existing banking infrastructure with real-time transaction processing
-
-**Conversation Flow Examples:**
-- **Simple**: "What's my balance?" → Direct database query → Formatted response (2 seconds)
-- **Complex**: "Help me apply for a mortgage" → Identity verification → Document collection → Credit check → Pre-approval calculation → Loan officer scheduling (15-minute guided process)
-- **Emergency**: "My card was stolen" → Fraud detection → Card blocking → Replacement ordering → Temporary credit setup → Follow-up scheduling
-
-**Business Impact:** 85% reduction in call center volume, 60% faster loan processing, 24/7 availability, 40% increase in product cross-sell, 95% customer satisfaction for complex transactions
-
-## 🧩 Framework modules
-
-| Module | Purpose | Key Features |
-|--------|---------|--------------|
-| [**driftkit-common**](driftkit-common/README.md) | Core utilities | Chat memory, document processing, templates |
-| [**driftkit-clients**](driftkit-clients/README.md) | AI providers | OpenAI, Gemini, Claude, DeepSeek, Spring AI — unified cache metrics, reasoning/thinking mode |
-| [**driftkit-embedding**](driftkit-embedding/README.md) | Text embeddings | OpenAI, Cohere, Spring AI providers, local BERT models |
-| [**driftkit-vector**](driftkit-vector/README.md) | Vector search | In-memory, file-based, Pinecone, Spring AI |
-| [**driftkit-workflows**](driftkit-workflows/README.md) | AI Orchestration | Workflow engine, testing framework, multi-agent patterns, Spring Boot integration |
-| [**driftkit-context-engineering**](driftkit-context-engineering/README.md) | Prompt management | Web UI, versioning, A/B testing, Spring AI integration |
-| [**driftkit-audio**](driftkit-audio/README.md) | Audio processing | VAD, transcription, streaming |
-
-## 📦 Module structure
-
-```
-driftkit-framework/
-├── driftkit-common/                     # 🔧 Core utilities and shared domain objects
-├── driftkit-clients/                    # 🤖 AI model client abstractions and implementations
-│   ├── driftkit-clients-core/           # Core client interfaces
-│   ├── driftkit-clients-openai/         # OpenAI implementation
-│   ├── driftkit-clients-gemini/         # Google Gemini implementation
-│   ├── driftkit-clients-claude/         # Anthropic Claude implementation (prompt caching)
-│   ├── driftkit-clients-deepseek/      # DeepSeek implementation (prefix cache, thinking mode)
-│   ├── driftkit-clients-spring-ai/      # Spring AI models integration
-│   └── driftkit-clients-spring-boot-starter/
-├── driftkit-embedding/                  # 🧠 Text embedding services
-│   ├── driftkit-embedding-core/         # Core embedding interfaces
-│   ├── driftkit-embedding-spring-ai/    # Spring AI providers integration
-│   └── driftkit-embedding-spring-boot-starter/
-├── driftkit-vector/                     # 🔍 Vector storage and similarity search
-│   ├── driftkit-vector-core/            # Core vector abstractions
-│   ├── driftkit-vector-spring-boot-starter/
-│   ├── driftkit-vector-spring-ai/       # Spring AI vector stores integration
-│   └── driftkit-vector-spring-ai-starter/
-├── driftkit-workflows/                  # ⚙️ AI orchestration and chat workflows
-│   ├── driftkit-workflow-engine-core/   # Core engine with chat support
-│   ├── driftkit-workflow-engine-agents/ # Multi-agent patterns (Loop, Sequential, Hierarchical)
-│   ├── driftkit-workflow-test-framework/ # Comprehensive testing support
-│   └── driftkit-workflow-engine-spring-boot-starter/ # Spring Boot integration
-├── driftkit-context-engineering/        # 📝 Prompt management and engineering
-│   ├── driftkit-context-engineering-core/
-│   ├── driftkit-context-engineering-spring-boot-starter/
-│   ├── driftkit-context-engineering-spring-ai/  # Spring AI integration
-│   └── driftkit-context-engineering-spring-ai-starter/
-├── driftkit-workflow-examples/          # 🎯 Reference workflow implementations
-│   └── example-workflows/               # Sample workflows using new engine
-└── driftkit-audio/                      # 🎵 Audio processing and transcription
-    ├── driftkit-audio-core/             # Core audio processing
-    └── driftkit-audio-spring-boot-starter/
-```
-
-## 🛠️ Technology stack
-
-- **Java 21** - Modern Java with advanced language features
-- **Spring Boot 3.3.1** - Enterprise application framework with auto-configuration (optional - core modules work without Spring)
-- **MongoDB** - Document storage for persistence (optional - PostgreSQL support coming soon)
-- **Vue.js 3** - Modern frontend framework for prompt engineering UI
-- **Maven** - Build and dependency management
-- **Jackson** - JSON processing and serialization
-- **Feign** - Declarative HTTP client for API integrations
-
-## 🚀 Quick start
-
-### Add to your project
+### Option A — an agent without a Spring context
 
 ```xml
-<!-- Add complete framework -->
 <dependency>
     <groupId>ai.driftkit</groupId>
-    <artifactId>driftkit-framework</artifactId>
+    <artifactId>driftkit-workflow-engine-agents</artifactId>
     <version>0.9.0</version>
 </dependency>
-
-<!-- Or add specific modules -->
 <dependency>
     <groupId>ai.driftkit</groupId>
-    <artifactId>driftkit-workflow-engine-spring-boot-starter</artifactId>
+    <artifactId>driftkit-clients-openai</artifactId>   <!-- or driftkit-clients-gemini / -claude / -deepseek -->
     <version>0.9.0</version>
 </dependency>
-```
-
-### Run with minimal config
-
-```yaml
-# application.yml
-driftkit:
-  vault:
-    - name: "primary"
-      type: "openai"
-      apiKey: "${OPENAI_API_KEY}"
-      model: "gpt-4"
-    - name: "gemini"
-      type: "gemini"
-      apiKey: "${GEMINI_API_KEY}"
-      model: "gemini-2.5-flash"
-    - name: "claude"
-      type: "claude"
-      apiKey: "${CLAUDE_API_KEY}"
-      model: "claude-sonnet-4-20250514"
-
-# Spring AI integration (optional)
-driftkit:
-  spring-ai:
-    application-name: "my-app"
-    tracing:
-      enabled: true
-    chat-client:
-      enabled: true
 ```
 
 ```java
-// That's it! Start using DriftKit
+import ai.driftkit.clients.core.ModelClientFactory;
+import ai.driftkit.common.domain.client.ModelClient;
+import ai.driftkit.config.EtlConfig.VaultConfig;
+import ai.driftkit.workflow.engine.agent.LLMAgent;
+
+public class Main {
+    public static void main(String[] args) {
+        VaultConfig config = new VaultConfig();
+        config.setName("openai");                          // provider id: openai | gemini | claude | deepseek (see "Model clients")
+        config.setApiKey(System.getenv("OPENAI_API_KEY"));
+        config.setModel("gpt-4o");                         // any model id the provider accepts
+
+        ModelClient<?> client = ModelClientFactory.fromConfig(config);
+
+        LLMAgent agent = LLMAgent.builder()
+                .modelClient(client)
+                .systemMessage("You are a helpful assistant")
+                .build();
+
+        System.out.println(agent.executeText("Say hello in one sentence").getText());
+    }
+}
+```
+
+### Option B — Spring Boot with the prompt engineering UI
+
+```xml
+<dependency>
+    <groupId>ai.driftkit</groupId>
+    <artifactId>driftkit-context-engineering-spring-boot-starter</artifactId>
+    <version>0.9.0</version>
+</dependency>
+<dependency>
+    <groupId>ai.driftkit</groupId>
+    <artifactId>driftkit-clients-openai</artifactId>
+    <version>0.9.0</version>
+</dependency>
+```
+
+```yaml
+# application.yml
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/driftkit
+
+driftkit:
+  vault:
+    - name: openai                 # provider id: openai | gemini | claude | deepseek
+      api-key: ${OPENAI_API_KEY}
+      model: gpt-4o
+      tracing: true                # record every call in the Traces page
+  promptService:
+    name: mongodb                  # mongodb | filesystem | in-memory
+```
+
+```java
 @SpringBootApplication
 public class MyApp {
     public static void main(String[] args) {
@@ -269,546 +101,217 @@ public class MyApp {
 }
 ```
 
-Visit http://localhost:8080/prompt-engineering for the visual prompt editor!
+Start MongoDB, run the app and open **http://localhost:8080/prompt-engineering**. The UI shows a login form, but there is no built-in authentication: the username is only used for the audit log. Put the application behind your own security layer in production. `driftkit.promptService.name` is mandatory; the application refuses to start without it rather than silently using a non-persistent store.
 
-## 💻 Code examples
+Known limitation of the published 0.9.0: `driftkit-clients-spring-boot-starter` registered its auto-configuration only in `spring.factories`, which Spring Boot 3 ignores, so no `primaryModelClient` bean is created from `driftkit.vault` in 0.9.0. The platform itself still works because it reads the vault directly. Fixed in the repository for the next release.
 
-### 1. Type-safe AI integration
+Prompts, traces, test sets and evaluations are then available through the UI and through the REST API under `/data/v1.0/admin/`.
 
-```java
-// No JSON parsing needed - direct Java objects!
-LLMAgent agent = LLMAgent.builder()
-    .modelClient(modelClient)
-    .systemMessage("You are a helpful assistant")
-    .build();
+![Dashboard — cost, tokens, latency metrics](driftkit-context-engineering/screens/dashboard.png)
+![Prompt Editor with folders, versioning, state machine](driftkit-context-engineering/screens/prompts.png)
 
-// Type-safe tool calling
-@Tool(description = "Get weather for a city")
-public WeatherInfo getWeather(String city) {
-    return new WeatherInfo(city, 22.5, "Sunny");
-}
+## Where DriftKit fits
 
-// Automatic tool execution with typed results
-agent.registerTool("getWeather", this);
-var response = agent.executeWithTools("What's the weather in Paris?");
-WeatherInfo weather = response.getToolResults().get(0).getTypedResult(); // No JSON!
+Every framework in the table below can call a model, get structured output, call tools, compute embeddings and talk to a vector store. That is parity, not a differentiator, so those rows are omitted. What is left is where the projects actually differ (checked against Spring AI 2.0.x, LangChain4j 1.19.x and Google ADK for Java, September 2026):
 
-// Structured output extraction
-Person person = agent.executeStructured(
-    "Extract: John Doe, 30 years old, engineer", 
-    Person.class
-).getStructuredData();
+| | DriftKit | Spring AI | LangChain4j | Google ADK (Java) |
+|---|---|---|---|---|
+| Prompt lifecycle with state machine (DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED), versioning, audit log | ✅ | ❌ | ❌ | ❌ |
+| Visual prompt IDE: editor, traces, playground, dashboards | ✅ | ❌ | ❌ | ❌ (dev UI for agents, not prompts) |
+| Test sets + evaluation runs + scheduled regression detection, driven from the UI | ✅ | ⚠️ `Evaluator` API only (RelevancyEvaluator, FactCheckingEvaluator) | ⚠️ code-level test helpers only | ❌ |
+| Prompt cache usage normalised into one `CacheUsage` (hit / write / miss) across Claude, OpenAI, DeepSeek, shown per trace | ✅ | ⚠️ per provider, via native usage objects | ⚠️ per provider | ❌ |
+| Multi-agent patterns | ✅ Loop, Sequential, agent-as-tool | ❌ (no orchestration module) | ✅ `langchain4j-agentic` (sequential, parallel, loop, conditional, supervisor; marked experimental) | ✅ |
+| Audio: voice activity detection + transcription (AssemblyAI, Deepgram) | ✅ | ⚠️ transcription only (OpenAI) | ❌ | ❌ |
+| Use DriftKit prompts and tracing from Spring AI `ChatClient` | ✅ | native | ❌ | ❌ |
+| Text-to-speech | ❌ | ✅ | ❌ | ❌ |
+
+### When not to use DriftKit
+
+- You only need model calls, tool calling and RAG in code. Spring AI or LangChain4j are larger communities with broader provider coverage.
+- You cannot run MongoDB. The Context Engineering platform has no other persistent backend yet.
+- You need a framework with multiple maintainers and a release cadence you can plan around (see below).
+
+DriftKit makes sense when prompts live outside the code, are edited and tested by people other than the developers, and you want traces and cache metrics per prompt version without buying a separate observability product.
+
+### Project maturity (September 2026)
+
+- Version 0.9.x. The API is still evolving; 1.0 is not scheduled.
+- Releases: 0.9.0 (June 2026), 0.8.7 (January 2026). Releases are published to Maven Central, without GitHub Releases or a changelog.
+- One maintainer. Used in production in two applications built by the maintainer; no known external production users.
+- Documentation: this README plus per-module READMEs. There is no documentation site.
+- Pinned platform versions: Spring Boot 3.3.1, Spring AI 1.0.1. Newer Spring Boot/Spring AI versions have not been verified.
+
+## Modules
+
+| Module | Purpose | Notes |
+|--------|---------|-------|
+| [driftkit-common](driftkit-common/README.md) | Shared domain objects, `ModelClient` abstraction, `EtlConfig`, JSON utilities, document splitting, cost calculator | No Spring dependency |
+| [driftkit-clients](driftkit-clients/README.md) | Model clients: OpenAI, Gemini (API key or Vertex AI), Claude, DeepSeek, Spring AI adapter | Unified `CacheUsage`; reasoning effort mapped for OpenAI, Gemini, DeepSeek |
+| [driftkit-embedding](driftkit-embedding/README.md) | Embedding models: OpenAI, Cohere, local ONNX/BERT, Spring AI adapter | |
+| [driftkit-vector](driftkit-vector/README.md) | Vector stores: in-memory, file-based, Pinecone, Spring AI adapter; document parsing (Tika, HTML, images, YouTube subtitles) | No tests yet |
+| [driftkit-rag](driftkit-rag/README.md) | Fluent ingestion / retrieval pipelines: loaders, splitters, retrievers, rerankers | |
+| [driftkit-workflows](driftkit-workflows/README.md) | Workflow engine (`@Workflow`/`@Step`, `WorkflowBuilder`, suspend/resume, async steps), `LLMAgent`, `LoopAgent`, `SequentialAgent`, test framework | `driftkit-workflows-core` and `driftkit-workflows-spring-boot-starter` are the previous-generation engine kept for compatibility |
+| [driftkit-context-engineering](driftkit-context-engineering/README.md) | Prompt management platform: storage backends, template engine, Vue UI, test sets, traces, regression detection, Spring AI bridge | Requires MongoDB |
+| [driftkit-audio](driftkit-audio/README.md) | Audio conversion, VAD, batch and streaming transcription | Starter is opt-in: `audio.processing.enabled=true` plus a provider API key |
+| [driftkit-chat-assistant-framework](driftkit-chat-assistant-framework/README.md) | Annotation-driven chat assistant sessions on top of MongoDB | No tests yet |
+| [driftkit-workflows-examples](driftkit-workflows-examples/README.md) | Reference workflows (chat, reasoning, RAG search / modify, router) | Built on the previous-generation engine; no tests |
+
+### Module layout
+
+```
+driftkit-framework/
+├── driftkit-common/
+├── driftkit-clients/
+│   ├── driftkit-clients-core/                    # ModelClientFactory, tracing decorator
+│   ├── driftkit-clients-openai/
+│   ├── driftkit-clients-gemini/
+│   ├── driftkit-clients-claude/
+│   ├── driftkit-clients-deepseek/
+│   ├── driftkit-clients-spring-ai/               # Spring AI ChatModel as a DriftKit ModelClient
+│   ├── driftkit-clients-spring-ai-starter/
+│   └── driftkit-clients-spring-boot-starter/     # EtlConfig + primary ModelClient beans
+├── driftkit-embedding/
+│   ├── driftkit-embedding-core/
+│   ├── driftkit-embedding-spring-ai/
+│   ├── driftkit-embedding-spring-ai-starter/
+│   └── driftkit-embedding-spring-boot-starter/
+├── driftkit-vector/
+│   ├── driftkit-vector-core/
+│   ├── driftkit-vector-spring-ai/
+│   ├── driftkit-vector-spring-ai-starter/
+│   └── driftkit-vector-spring-boot-starter/      # REST API + document parsers
+├── driftkit-rag/
+│   ├── driftkit-rag-core/
+│   └── driftkit-rag-spring-boot-starter/
+├── driftkit-workflows/
+│   ├── driftkit-workflow-engine-core/            # current engine
+│   ├── driftkit-workflow-engine-agents/          # LLMAgent, LoopAgent, SequentialAgent, AgentAsTool
+│   ├── driftkit-workflow-engine-spring-boot-starter/
+│   ├── driftkit-workflow-test-framework/
+│   ├── driftkit-workflow-controllers/            # REST controllers for workflow operations
+│   ├── driftkit-workflows-core/                  # previous-generation engine
+│   └── driftkit-workflows-spring-boot-starter/   # previous-generation engine starter
+├── driftkit-context-engineering/
+│   ├── driftkit-context-engineering-core/        # PromptService, TemplateEngine, overrides, environments
+│   ├── driftkit-context-engineering-services/    # MongoDB prompt service, Spring adapter
+│   ├── driftkit-context-engineering-spring-boot-starter/   # REST API + Vue UI (/prompt-engineering)
+│   ├── driftkit-context-engineering-spring-ai/   # DriftKitChatClient, DriftKitPromptProvider
+│   └── driftkit-context-engineering-spring-ai-starter/
+├── driftkit-audio/
+│   ├── driftkit-audio-core/
+│   └── driftkit-audio-spring-boot-starter/
+├── driftkit-chat-assistant-framework/
+├── driftkit-workflows-examples/
+│   ├── driftkit-workflows-examples-core/
+│   └── driftkit-workflows-examples-spring-boot-starter/
+└── driftkit-bom/                                 # Bill of Materials (published from the next release)
 ```
 
-### 2. Visual prompt engineering
+## Code examples
 
-- **Web-based editor** with syntax highlighting
-- **Version control** and A/B testing
-- **Test sets** with automated evaluation
-- **Real-time preview** and variable detection
+All snippets below compile against 0.9.0 with imports from `ai.driftkit.workflow.engine.agent.*` (agents), `ai.driftkit.workflow.engine.core.*` / `ai.driftkit.workflow.engine.annotations.*` (workflow engine) and `ai.driftkit.common.*` (domain classes); checked exceptions are shown where the API declares them.
 
-### 3. Chat Workflows with Human-in-the-Loop
+### Tool calling and structured output
+
+```java
+import ai.driftkit.common.tools.Tool;
+
+public class WeatherTools {
+    @Tool(description = "Get weather for a city")
+    public WeatherInfo getWeather(String city) {
+        return new WeatherInfo(city, 22.5, "Sunny");
+    }
+}
+
+LLMAgent agent = LLMAgent.builder()
+        .modelClient(modelClient)
+        .systemMessage("You are a helpful assistant")
+        .build();
+
+// register a method of an object as a tool (tools are executed automatically by default)
+agent.registerTool("getWeather", new WeatherTools());
+
+AgentResponse<List<ToolExecutionResult>> response = agent.executeWithTools("What's the weather in Paris?");
+WeatherInfo weather = response.getToolResults().get(0).getTypedResult(WeatherInfo.class);
+
+// structured output straight into a POJO
+Person person = agent.executeStructured("Extract: John Doe, 30 years old, engineer", Person.class)
+        .getStructuredData();
+```
+
+Other `LLMAgent` entry points: `executeText`, `executeForToolCalls` (manual tool execution), `executeWithPrompt` (prompt template by id from a `PromptService`), `executeWithImages`, `executeStructuredWithImage/Video/PDF`, `executeStreaming`, `executeAgentic` (tool loop with optional human approval).
+
+### Multi-agent patterns
+
+```java
+// Loop: a worker produces, an evaluator decides when to stop
+LoopAgent travelLoop = LoopAgent.builder()
+        .worker(planner)                       // Agent
+        .evaluator(validator)                  // Agent returning CONTINUE / COMPLETE / REVISE / RETRY / FAILED
+        .stopCondition(LoopStatus.COMPLETE)
+        .maxIterations(5)
+        .build();
+String plan = travelLoop.execute("Plan my Paris trip");
+
+// Sequential: output of one agent is the input of the next
+SequentialAgent pipeline = SequentialAgent.builder()
+        .agent(researcher)
+        .agent(analyzer)
+        .agent(summarizer)
+        .build();
+String report = pipeline.execute("Quantum computing trends");
+
+// Agent as a tool of another agent
+LLMAgent orchestrator = LLMAgent.builder()
+        .modelClient(modelClient)
+        .systemMessage("Plan complete trips")
+        .addTool(AgentAsTool.create("searchFlights", "Find flights for the given route and dates", flightAgent))
+        .build();
+```
+
+There is no dedicated "hierarchical agent" class: hierarchy is built with `AgentAsTool`. Every `LLMAgent` in these examples needs a `modelClient`; the builder does not validate it and a missing client fails at execution time.
+
+### Workflow with human-in-the-loop
 
 ```java
 @Workflow(id = "customer-support", version = "1.0")
 public class CustomerSupportWorkflow {
-    
+
     @InitialStep
-    public StepResult<SupportMenu> greetCustomer(StartEvent event, WorkflowContext context) {
-        SupportMenu menu = new SupportMenu();
-        menu.setGreeting("Hello! How can I help you today?");
-        menu.setOptions(Arrays.asList("Account Help", "Technical Support", "Billing"));
-        
-        // Suspend workflow and wait for customer choice
+    public StepResult<SupportMenu> greet(String userMessage, WorkflowContext context) {
+        SupportMenu menu = new SupportMenu("Hello! How can I help you today?",
+                List.of("Account Help", "Technical Support", "Billing"));
+        // suspend and wait for a CustomerChoice from the user
         return StepResult.suspend(menu, CustomerChoice.class);
     }
-    
+
     @Step
     public StepResult<?> handleChoice(CustomerChoice choice, WorkflowContext context) {
         if ("Billing".equals(choice.getSelection())) {
-            // Complex case - collect more info
-            BillingForm form = new BillingForm();
-            form.setMessage("I can help with billing. Please provide details:");
-            return StepResult.suspend(form, BillingDetails.class);
+            return StepResult.suspend(new BillingForm("Please provide details:"), BillingDetails.class);
         }
-        
-        // Simple case - provide immediate help
-        HelpResponse response = generateHelp(choice.getSelection());
-        return StepResult.finish(response);
+        return StepResult.finish(generateHelp(choice.getSelection()));
     }
-    
+
     @Step
     public StepResult<Resolution> processBilling(BillingDetails details, WorkflowContext context) {
-        // Process billing issue
-        Resolution resolution = resolveBillingIssue(details);
-        return StepResult.finish(resolution);
+        return StepResult.finish(resolveBillingIssue(details));
     }
 }
 ```
 
-### 4. Spring AI Integration
-
 ```java
-// Use DriftKit prompts with Spring AI ChatClient
-@Component
-public class CustomerService {
-    private final DriftKitChatClient chatClient;
-    
-    public String analyzeSentiment(String review) {
-        // Use DriftKit prompt with full tracing
-        return chatClient.promptById("sentiment.analysis")
-            .withVariable("review", review)
-            .withLanguage(Language.ENGLISH)
-            .call()
-            .content();
-    }
-    
-    public ProductInfo extractProductInfo(String description) {
-        // Structured output with DriftKit prompt management
-        return chatClient.promptById("product.extraction")
-            .withVariable("description", description)
-            .call()
-            .entity(ProductInfo.class);
-    }
-}
+WorkflowEngine engine = new WorkflowEngine();          // or the auto-configured bean from the Spring Boot starter
+engine.register(new CustomerSupportWorkflow());
 
-// Or use Spring AI directly with DriftKit prompt provider
-@Component
-public class AIService {
-    private final ChatClient chatClient;
-    private final DriftKitPromptProvider promptProvider;
-    
-    public String generateContent(Map<String, Object> variables) {
-        // Get prompt configuration from DriftKit
-        var config = promptProvider.getPrompt("content.generation", Language.ENGLISH);
-        
-        // Use with Spring AI's fluent API
-        return chatClient.prompt()
-            .system(config.getSystemMessage())
-            .user(u -> u.text(config.getUserMessage()).params(variables))
-            .options(opt -> opt.temperature(config.getTemperature()))
-            .call()
-            .content();
-    }
-}
+WorkflowEngine.WorkflowExecution<?> run = engine.execute("customer-support", "hi");
+// ... later, when the user answers:
+engine.resume(run.getRunId(), new CustomerChoice("Billing"));
 ```
 
-## 🧩 Core Modules
+`StepResult` is a sealed interface with `continueWith`, `suspend`, `branch`, `async`, `finish` and `fail`. Steps can also be composed programmatically with `WorkflowBuilder.define(...)`. To call another workflow from a step, inject the `WorkflowEngine` and call `execute` on it; there is no special step result for that.
 
-### DriftKit Common
-**Foundation module providing shared utilities and domain objects**
-
-- **Chat Management** - Conversation handling with memory and context
-- **Document Processing** - Intelligent text splitting and tokenization
-- **Text Analysis** - Similarity calculations and NLP utilities
-- **Template Engine** - Variable substitution with control flow
-- **JSON Processing** - Robust parsing with error recovery
-- **Configuration** - Centralized configuration management
-
-**Key Classes:**
-- `Chat`, `Message`, `AITask` - Core domain objects
-- `TokenWindowChatMemory` - Token-based memory management
-- `DocumentSplitter` - Intelligent text chunking
-- `TemplateEngine` - Advanced template processing
-- `EtlConfig` - Configuration management
-
-### DriftKit Clients
-**Unified AI model client abstraction with multiple provider support**
-
-- **Provider Abstraction** - Consistent interface across AI models
-- **OpenAI Integration** - Complete OpenAI API support including GPT-4, O3-Mini
-- **Google Gemini Integration** - Full Gemini API support including 2.5 Pro/Flash/Lite models
-- **Anthropic Claude Integration** - Full Claude API support including Opus 4, Sonnet 4, Haiku 3.5
-- **Multi-modal Support** - Text-to-text, text-to-image, image-to-text
-- **Function Calling** - Tool use and structured output
-- **Structured Output** - JSON schema-based responses with strict mode support
-- **Request Tracing** - Performance monitoring and debugging
-
-**Supported Models:**
-- OpenAI: GPT-4, GPT-4o, GPT-4o-mini, o3-Mini, DALL-E
-- Google Gemini: 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, experimental models (TTS, native audio)
-- Anthropic Claude: Opus 4, Sonnet 4, Haiku 3.5 (multimodal with vision support)
-- Extensible architecture for custom providers
-
-**Key Features:**
-- Dynamic client discovery via ServiceLoader
-- Comprehensive parameter support (temperature, top_p, max_tokens, etc.)
-- Tool/function calling with JSON schema support
-- Built-in tracing and performance monitoring
-
-### DriftKit Embedding
-**Text embedding services with multiple backends**
-
-- **Provider Abstraction** - Unified interface for embedding models
-- **OpenAI Embeddings** - text-embedding-ada-002 and newer models
-- **Cohere Integration** - embed-english-v2.0 support
-- **Spring AI Integration** - Access all Spring AI embedding providers
-- **Local BERT Models** - ONNX-based local embedding generation
-- **Performance Optimization** - Caching and batch processing
-
-**Supported Providers:**
-- OpenAI (text-embedding-ada-002, text-embedding-3-small/large)
-- Cohere (embed-english-v2.0, embed-multilingual-v2.0)
-- Spring AI providers (OpenAI, Azure OpenAI, Ollama, and more)
-- Local BERT models via ONNX Runtime
-
-**Spring AI Integration:**
-- Unified access to all Spring AI embedding providers
-- Automatic configuration handling
-- Seamless conversion between Spring AI and DriftKit formats
-- Full error handling and validation
-
-**Key Features:**
-- Automatic model discovery and configuration
-- Batch processing for efficiency
-- Type-safe metadata management
-- Local model support for offline scenarios
-- Spring AI provider support for extended compatibility
-
-### DriftKit Vector
-**Vector storage and similarity search with multiple backends**
-
-- **Storage Backends** - In-memory, file-based, Pinecone, and Spring AI support
-- **Document Management** - Full CRUD operations with metadata
-- **Similarity Search** - Efficient k-nearest neighbor search
-- **Content Processing** - Multi-format document parsing
-- **REST API** - Complete web interface for vector operations
-- **Spring AI Integration** - Use any Spring AI vector store through DriftKit interface
-
-**Storage Options:**
-- **InMemoryVectorStore** - High-performance for development
-- **FileBasedVectorStore** - Persistent local storage
-- **PineconeVectorStore** - Cloud-based production storage
-- **Spring AI Vector Stores** - Qdrant, Weaviate, ChromaDB, PGVector, MongoDB Atlas, Redis, and more
-
-**Spring AI Integration Features:**
-- Seamless adapter between Spring AI and DriftKit interfaces
-- Auto-configuration for Spring Boot applications
-- Support for all Spring AI vector store implementations
-- Consistent API across different backends
-
-**Document Processing:**
-- PDF, Microsoft Office, OpenDocument formats
-- Images with AI-powered content extraction
-- YouTube transcript processing
-- HTML and plain text support
-
-### DriftKit Workflows
-**Comprehensive AI orchestration engine with native chat and human-in-the-loop support**
-
-- **Chat Workflows** - Multi-turn conversations with automatic message tracking
-- **Human-in-the-Loop** - Suspend/resume for data collection and approvals
-- **Annotation-driven** - Define workflows with @Workflow, @Step, @AsyncStep
-- **Fluent API** - Programmatic workflow construction with WorkflowBuilder
-- **Multi-Agent Patterns** - Loop, Sequential, and Hierarchical agent orchestration
-- **Async Processing** - Long-running operations with progress tracking
-- **Type-Safe Results** - StepResult types for suspend, continue, branch, async, finish
-
-#### LLMAgent SDK Features
-
-The LLMAgent provides a simplified, type-safe interface for AI interactions:
-
-**Key Features:**
-- **Unified execute*() methods** - Consistent API for all operations
-- **Type-safe responses** - `AgentResponse<T>` wrapper for typed results
-- **Tool calling** - Both manual and automatic execution modes
-- **Structured output** - JSON schema-based extraction with type safety
-- **Multi-modal support** - Text + images in single interface
-- **Memory management** - Conversation history with `ChatMemory`
-- **Prompt templates** - Integration with `PromptService`
-- **Error handling** - Comprehensive error management
-
-**API Methods:**
-- `executeText()` - Simple text chat
-- `executeForToolCalls()` - Get tool calls for manual execution
-- `executeWithTools()` - Automatic tool execution with typed results
-- `executeStructured()` - Type-safe structured output extraction
-- `executeWithPrompt()` - Use prompt templates by ID
-- `executeWithImages()` - Multi-modal text + image processing
-
-**Core Features:**
-- **Automatic Chat Tracking** - Messages saved to ChatStore without manual code
-- **Workflow Suspension** - Pause for human input with type-safe resumption
-- **Context Preservation** - State maintained across suspensions
-- **Progress Reporting** - Real-time updates for async operations
-- **Error Recovery** - Comprehensive error handling with retry policies
-
-### DriftKit Context Engineering
-**Production prompt lifecycle platform with visual IDE**
-
-- **Multi-storage Backends** - In-memory, filesystem, and MongoDB
-- **Template Processing** - Advanced variable substitution with control flow
-- **Prompt State Machine** - DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED
-- **Pipeline Registry** - Auto-registers workflows and agents for pipeline testing
-- **Prompt Overrides** - ThreadLocal-based prompt injection for A/B testing in production pipelines
-- **Environment Resolution** - dev/staging/production with thread-safe resolver
-- **Unified Cache Tracking** - CacheUsage metrics (hit/write/miss) across Claude, OpenAI, DeepSeek
-- **Cost Calculator** - Per-request USD cost estimates for all supported models
-- **Audit Log** - Track who changed what prompt, when, and why
-- **Regression Detection** - Automatic comparison of test runs to catch prompt regressions
-
-**Template Features:**
-- Variable substitution: `{{variable}}`
-- Conditional rendering: `{{#if condition}}...{{/if}}`
-- List iteration: `{{#list items as item}}...{{/list}}`
-- Dictionary integration: `dict:itemId-markers:`
-
-**Frontend (Vue 3 + PrimeVue):**
-- Dashboard with cost, tokens, latency percentiles, success/error stats
-- Prompt editor with folder organization, versioning, and lifecycle state
-- Traces page with cache hit/write/miss per request and hit ratio
-- Expandable trace details — system message, conversation context, variables
-- Playground — side-by-side A/B prompt comparison with shared variables
-- Dataset sweep — run prompts against entire test sets
-- Pipeline playground — test prompt overrides in production pipelines
-- Test sets and evaluation runs with automated regression detection
-- PrimeVue Toast notifications (no alert() dialogs)
-- SPA routing — page refresh works on any route
-
-### DriftKit Workflow Examples
-**Production-ready patterns for modern AI applications**
-
-**Chat & Conversational AI:**
-- **Customer Service Bot** - Multi-turn support with automatic message tracking
-- **Product Recommendation** - Conversational commerce with context awareness
-- **FAQ Assistant** - Intelligent routing with human escalation
-
-**Human-in-the-Loop:**
-- **Approval Workflows** - Document approval with suspension points
-- **Data Collection** - Multi-step forms with validation
-- **Review Processes** - Content moderation with human oversight
-
-**Multi-Agent Systems:**
-- **Research Pipeline** - Sequential agents for data gathering and analysis
-- **Content Creation** - LoopAgent for iterative refinement
-- **Complex Planning** - Hierarchical agents with specialized tools
-
-## 🛠️ Production Features
-
-### Built-in Capabilities
-- **Request tracing** and monitoring
-- **Token-based memory** management  
-- **Retry mechanisms** with backoff
-- **Connection pooling** and caching
-- **Graceful error handling**
-- **Structured logging**
-
-
-## 🎨 LLMAgent Use Cases & Real-World Scenarios
-
-### Loop Pattern - Iterative Refinement
-
-The LoopAgent executes a worker agent repeatedly until an evaluator agent determines the result meets specific criteria. Perfect for tasks requiring refinement or validation.
-
-**Example: Travel Planning with Requirements**
-```java
-// Worker generates, evaluator validates until perfect
-Agent planner = LLMAgent.builder()
-    .systemMessage("Create travel itinerary")
-    .build();
-
-Agent validator = LLMAgent.builder()
-    .systemMessage("Check if plan includes all requirements")
-    .build();
-
-LoopAgent travelLoop = LoopAgent.builder()
-    .worker(planner)
-    .evaluator(validator)
-    .stopCondition(LoopStatus.COMPLETE)
-    .maxIterations(5)
-    .build();
-
-String perfectPlan = travelLoop.execute("Plan my Paris trip");
-```
-
-### Sequential Pattern - Pipeline Processing
-
-```java
-SequentialAgent pipeline = SequentialAgent.builder()
-    .agent(researcher)    // Research topic
-    .agent(analyzer)      // Analyze findings  
-    .agent(summarizer)    // Create summary
-    .build();
-
-String report = pipeline.execute("Quantum computing trends");
-```
-
-### Hierarchical Pattern - Agent as Tool
-
-```java
-// Specialized agents become tools for orchestrator
-Agent flightAgent = LLMAgent.builder()
-    .systemMessage("Find flights")
-    .name("FlightSearch")
-    .build();
-
-Agent orchestrator = LLMAgent.builder()
-    .systemMessage("Plan complete trips")
-    .addTool(AgentAsTool.create("searchFlights", flightAgent))
-    .build();
-```
-
-
-
-## 🎨 Structured Output Support
-
-### Type-Safe JSON Schema Generation
-```java
-// Define your model with validation
-public class Person {
-    @NotNull private String name;
-    private Integer age;
-    private String email;
-}
-
-// Automatic schema generation
-ResponseFormat format = ResponseFormat.jsonSchema(Person.class);
-
-// Get typed response
-ModelTextResponse response = modelClient.textToText(
-    ModelTextRequest.builder()
-        .messages(messages)
-        .responseFormat(format)
-        .build()
-);
-
-Person person = JsonUtils.fromJson(
-    response.getChoices().get(0).getMessage().getContent(), 
-    Person.class
-);
-```
-
-### Strict Mode for Required Fields
-```java
-@JsonSchemaStrict  // All fields required
-public class StrictPerson {
-    private String name;
-    private int age;
-    private String email;
-}
-```
-
-## 🗺️ Roadmap
-
-### Ecosystem expansion
-- **Additional LLM providers** - Mistral AI, Grok
-- ~~DeepSeek~~ ✅ Done — full client with prefix cache metrics and thinking/reasoning mode
-- **PostgreSQL backend** - Enterprise-grade persistence for context-engineering module
-- **Extended vector storage** - Native support without Spring: Weaviate, Qdrant, Redis Vector, Elasticsearch
-
-### Developer experience  
-- ~~Frontend upgrade~~ ✅ Done — Vue 3 + PrimeVue + Vite, sidebar layout, 13 pages
-- **Comprehensive testing** - Full test coverage, performance benchmarks, integration tests
-- **Documentation website** - Interactive examples, API references, best practices guide
-- **Open-source demos** - Production-ready reference implementations
-
-### Advanced capabilities
-- ~~Prompt caching~~ ✅ Done — Unified CachePolicy/CacheControl/CacheUsage across Claude, OpenAI, DeepSeek
-- **Enhanced evaluations** - More metrics, custom evaluators, industry benchmarks
-- **Text-to-speech** - OpenAI TTS, ElevenLabs, local TTS models
-- **OpenTelemetry** - Full observability for model calls and agent workflows
-- **Docker deployment** - One-click containerized deployment
-
-**Want to contribute or have suggestions?** Open an issue on GitHub!
-
-## 🌿 Spring AI Integration
-
-DriftKit provides seamless integration with Spring AI, allowing you to leverage the entire Spring AI ecosystem while benefiting from DriftKit's advanced features.
-
-### Spring AI Support Across Modules
-
-#### 1. **DriftKit Clients - Spring AI Models**
-Access all Spring AI chat models through DriftKit's unified interface:
-
-```java
-// Use Spring AI models with DriftKit
-@Bean
-public ModelClient springAIModelClient(ChatModel chatModel) {
-    return new SpringAIModelClient(chatModel)
-        .withModel("gpt-4")
-        .withTemperature(0.7);
-}
-
-// Supports all Spring AI features
-- OpenAI, Azure OpenAI, Ollama, Anthropic, Google Gemini
-- Function/tool calling with FunctionToolCallback
-- Streaming responses
-- Full tracing integration
-```
-
-#### 2. **DriftKit Embedding - Spring AI Providers**
-Use any Spring AI embedding provider:
-
-```yaml
-driftkit:
-  embedding:
-    name: spring-ai
-    config:
-      provider: openai  # or azure-openai, ollama
-      model-name: text-embedding-3-small
-      api-key: ${OPENAI_API_KEY}
-```
-
-```java
-// Automatic Spring AI embedding model creation
-@Autowired
-private EmbeddingModel embeddingModel; // Works with any Spring AI provider
-```
-
-Supported providers:
-- OpenAI (text-embedding-3-small, text-embedding-3-large)
-- Azure OpenAI (with deployment configuration)
-- Ollama (local embeddings)
-- Any custom Spring AI embedding provider
-
-#### 3. **DriftKit Vector - Spring AI Vector Stores**
-Integrate with all Spring AI vector stores:
-
-```java
-// Use Spring AI vector stores with DriftKit
-@Bean
-public VectorStore springAIVectorStore(
-    org.springframework.ai.vectorstore.VectorStore springAIStore) {
-    return new SpringAIVectorStore(springAIStore);
-}
-```
-
-Supported backends:
-- Qdrant
-- Weaviate
-- ChromaDB
-- PGVector
-- MongoDB Atlas
-- Redis
-- Elasticsearch
-- Any Spring AI vector store implementation
-
-#### 4. **DriftKit Context Engineering - Spring AI ChatClient**
-Enhanced Spring AI ChatClient with DriftKit features:
-
-```java
-// Enhanced ChatClient with DriftKit integration
-@Autowired
-private DriftKitChatClient chatClient;
-
-// Use DriftKit prompts with Spring AI
-PromptConfig config = chatClient.promptProvider()
-    .prompt("customer-support")
-    .withVariable("customer", customerName)
-    .build();
-
-String response = chatClient.prompt(config).content();
-
-// Spring AI ChatClient with DriftKit advisors
-@Bean
-public ChatClient enhancedChatClient(SpringAIChatClientFactory factory) {
-    return factory.createSpringAIChatClient(); // Includes tracing, memory, logging
-}
-```
-
-### Spring Boot Auto-Configuration
-
-Add the starter for automatic configuration:
+### Spring AI: use DriftKit prompts from `ChatClient`
 
 ```xml
 <dependency>
@@ -818,88 +321,140 @@ Add the starter for automatic configuration:
 </dependency>
 ```
 
-Configuration options:
+```java
+@Component
+public class CustomerService {
+    private final DriftKitChatClient chatClient;      // auto-configured bean
+
+    public String analyzeSentiment(String review) {
+        return chatClient.promptById("sentiment.analysis")   // prompt managed in the DriftKit UI
+                .withVariable("review", review)
+                .withLanguage(Language.ENGLISH)
+                .call()
+                .content();                                   // traced like any DriftKit call
+    }
+
+    public ProductInfo extractProductInfo(String description) {
+        return chatClient.promptById("product.extraction")
+                .withVariable("description", description)
+                .call()
+                .entity(ProductInfo.class);
+    }
+}
+
+// or resolve the prompt yourself and use a plain Spring AI ChatClient
+@Component
+public class AIService {
+    private final ChatClient chatClient;
+    private final DriftKitPromptProvider promptProvider;
+
+    public String generate(Map<String, Object> variables) {
+        var config = promptProvider.getPrompt("content.generation", Language.ENGLISH);
+        return chatClient.prompt()
+                .system(config.getSystemMessage())
+                .user(u -> u.text(config.getUserMessage()).params(variables))
+                .options(opt -> opt.temperature(config.getTemperature()))
+                .call()
+                .content();
+    }
+}
+```
 
 ```yaml
 driftkit:
   spring-ai:
     application-name: "my-app"
     tracing:
-      enabled: true  # Enable DriftKit tracing for Spring AI
+      enabled: true          # default true
     memory:
-      enabled: true  # Add conversation memory
+      enabled: false         # conversation memory advisor
     logging:
-      enabled: true  # Add request/response logging
+      enabled: false         # request/response logging advisor
     chat-client:
-      enabled: true  # Create DriftKitChatClient bean
+      enabled: true          # DriftKitChatClient bean
     enhanced-chat-client:
-      enabled: false # Create enhanced ChatClient with all features
+      enabled: false         # plain ChatClient bean with the DriftKit advisors attached
     default-system-message: "You are a helpful assistant"
 ```
 
-### Key Benefits
+The other direction also works: a Spring AI `ChatModel` can be wrapped as a DriftKit `ModelClient` (`driftkit-clients-spring-ai`), a Spring AI `EmbeddingModel` as a DriftKit embedding model (`driftkit-embedding-spring-ai`) and any Spring AI `VectorStore` as a DriftKit vector store (`driftkit-vector-spring-ai`, `SpringAiVectorStoreAdapter`). Note that `SpringAIModelClient` does not stream; `streamTextToText` returns the full response as a single chunk.
 
-1. **Unified Interface** - Use Spring AI models with DriftKit's advanced features
-2. **Full Compatibility** - All Spring AI providers work out of the box
-3. **Enhanced Features** - Add tracing, memory, and monitoring to Spring AI
-4. **Type Safety** - Maintain type safety across the integration
-5. **Auto-Configuration** - Spring Boot starters for zero-config setup
-6. **Extensibility** - Easy to add new Spring AI providers
-
-### Migration from Spring AI
-
-Migrating from pure Spring AI to DriftKit is straightforward:
+### Structured output without an agent
 
 ```java
-// Before (Spring AI only)
-ChatClient chatClient = ChatClient.builder(chatModel).build();
-String response = chatClient.prompt()
-    .user("Hello")
-    .call()
-    .content();
+Person extract(ModelClient<?> modelClient, List<ModelContentMessage> messages) throws JsonProcessingException {
+    ResponseFormat format = ResponseFormat.jsonSchema(Person.class);   // schema generated from the class
 
-// After (DriftKit + Spring AI)
-DriftKitChatClient chatClient = factory.createChatClient();
-String response = chatClient.prompt()
-    .user("Hello") 
-    .call()
-    .content();
-// Plus: automatic tracing, memory, prompt management, etc.
+    ModelTextResponse response = modelClient.textToText(
+            ModelTextRequest.builder()
+                    .messages(messages)
+                    .responseFormat(format)
+                    .build());
+
+    // JsonUtils.fromJson declares Jackson's checked JsonProcessingException
+    return JsonUtils.fromJson(response.getChoices().get(0).getMessage().getContent(), Person.class);
+}
 ```
 
-## 📄 License
+Annotate a class with `@JsonSchemaStrict` to mark all of its fields as required and forbid additional properties in the generated schema.
 
-Apache License 2.0 - see [LICENSE](LICENSE) file for details.
+## Context Engineering platform
 
-```
-Copyright 2024 DriftKit Contributors
+![Traces — per-request cache hit/write/miss, tokens, latency](driftkit-context-engineering/screens/traces.png)
+![Trace Detail — cache metrics, system message, conversation context](driftkit-context-engineering/screens/traces-detail-cache.png)
+![Playground — side-by-side prompt comparison with shared variables](driftkit-context-engineering/screens/playground.png)
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+- **Prompt storage**: `in-memory`, `filesystem` (`promptsFilePath`), `mongodb`, selected with `driftkit.promptService.name`.
+- **State machine**: DRAFT → AUTO_TESTING → MANUAL_TESTING → CURRENT → REPLACED, with an audit log of who changed what.
+- **Templates**: `{{variable}}`, `{{#if condition}}...{{/if}}`, `{{#list items as item}}...{{/list}}`; dictionary values are injected with `dict-markers:<itemId>` / `dict-samples:<itemId>` variable values.
+- **Environments**: prompt versions per environment name (for example dev / staging / production). The active environment is a thread-local string your code sets through `PromptEnvironmentResolver`; nothing sets it automatically.
+- **Prompt overrides**: `PromptOverrideContext` (ThreadLocal) lets a pipeline test run substitute prompts without touching production traffic.
+- **Traces**: every model call with tokens, latency, estimated USD cost (`CostCalculator`) and cache hit / write / miss counts for Claude, OpenAI and DeepSeek.
+- **Test sets and evaluation runs**: run a prompt version against a dataset, compare with the previous run; `RegressionDetectionService` runs on a schedule (`driftkit.regression.cron`).
+- **Playground**: two prompts against the same variables, dataset sweeps and pipeline runs with prompt overrides. This is manual side-by-side comparison; there is no traffic splitting.
+- **Frontend**: Vue 3 + PrimeVue + Vite, 13 routes (dashboard, prompts, traces, test sets, evaluation runs, run results, pipelines, playground, chat, indexes, dictionaries, checklists, login).
 
-    http://www.apache.org/licenses/LICENSE-2.0
+## Model clients
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
+| Provider | Module | Text | Vision | Image generation | Streaming | Reasoning control | Cache metrics |
+|---|---|---|---|---|---|---|---|
+| OpenAI | `driftkit-clients-openai` | ✅ | ✅ | ✅ (DALL-E, gpt-image) | ✅ | `reasoning_effort` for o-series / gpt-5 | ✅ automatic cache |
+| Gemini | `driftkit-clients-gemini` | ✅ | ✅ | ✅ | ✅ | `thinkingBudget` | — |
+| Claude | `driftkit-clients-claude` | ✅ | ✅ | ❌ | ✅ | not mapped yet | ✅ `cache_control` (manual breakpoints or `CachePolicy.AUTO`) |
+| DeepSeek | `driftkit-clients-deepseek` | ✅ | ❌ | ❌ | ✅ | `thinking` | ✅ prefix cache |
+| Spring AI | `driftkit-clients-spring-ai` | ✅ | ✅ | ❌ | ❌ | — | — |
 
-## 🤝 Get Started Today
+Clients are discovered through `ServiceLoader`. A vault entry's `type` selects the provider (`openai`, `gemini`, `claude`, `deepseek`); when `type` is absent the `name` is used instead, and a name that contains the provider id (`primary-openai`) also works. On the published 0.9.0 only the `name` is honoured, so keep `name` equal to the provider id if you need to stay compatible with it.
+
+Model ids are plain strings passed through to the provider, so new models work without a framework release. `CostCalculator` prices the models listed in its table and prefix-matches unknown ids to the closest listed one (`gemini-2.5-flash-lite` is priced as `gemini-2.5-flash`), so the estimated cost for a new model variant is approximate; ids with no listed prefix report zero cost.
+
+## Building from source
 
 ```bash
-# Add to your pom.xml and start building!
-<dependency>
-    <groupId>ai.driftkit</groupId>
-    <artifactId>driftkit-framework</artifactId>
-    <version>0.9.0</version>
-</dependency>
+git clone https://github.com/driftkit-ai/driftkit-framework.git
+cd driftkit-framework
+mvn -B install                      # full build with tests (~2 min after dependencies are cached)
+mvn -B install -DskipTests          # without tests
+mvn -B install -Dskip.frontend=true # skip the Node/Vue build of the prompt engineering UI
 ```
 
-Visit http://localhost:8080/prompt-engineering and start building!
+The `driftkit-context-engineering-spring-boot-starter` build downloads Node v18 and runs `npm install` / `npm run build` through `frontend-maven-plugin`, so the first build needs network access. Unit tests do not need API keys.
 
----
+## Roadmap
 
-**DriftKit** - The most comprehensive AI framework for Java developers.
+- **PostgreSQL backend** for the Context Engineering platform (currently MongoDB only)
+- **Claude extended thinking** mapping for `ReasoningEffort` (OpenAI, Gemini and DeepSeek are mapped today)
+- **BOM** published to Maven Central (`driftkit-bom`, in the repository, ships with the next release)
+- **Additional providers**: Mistral AI, Grok
+- **Vector stores without Spring**: Weaviate, Qdrant, Redis, Elasticsearch
+- **Test coverage** for `driftkit-vector`, `driftkit-chat-assistant-framework` and `driftkit-workflows-examples`, which currently have none
+- **Documentation site**, CHANGELOG and GitHub Releases
+- **Text-to-speech**, **OpenTelemetry** export, Docker image for the platform
+
+Issues and pull requests: https://github.com/driftkit-ai/driftkit-framework/issues
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
+
+Copyright 2024–2026 DriftKit Contributors.

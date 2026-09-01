@@ -10,4 +10,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "audio.processing")
 public class AudioProcessingConfig extends CoreAudioConfig {
+
+    /**
+     * Switches the audio auto-configuration on. Off by default because the session manager
+     * creates the transcription engine at startup and requires a provider API key.
+     */
+    private boolean enabled = false;
 }

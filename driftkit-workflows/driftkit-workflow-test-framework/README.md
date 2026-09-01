@@ -1234,7 +1234,7 @@ For detailed API documentation and method signatures, refer to the Javadocs or e
 
 ### Getting Help
 
-- **Issues**: Report bugs or request features on our [GitHub Issues](https://github.com/driftkit/workflow-test-framework/issues)
+- **Issues**: Report bugs or request features on our [GitHub Issues](https://github.com/driftkit-ai/driftkit-framework/issues)
 - **Discussions**: Join our community discussions for questions and best practices
 - **Documentation**: Full documentation available at [docs.driftkit.ai](https://docs.driftkit.ai)
 

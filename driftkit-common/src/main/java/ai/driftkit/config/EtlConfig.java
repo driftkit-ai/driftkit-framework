@@ -25,8 +25,20 @@ public class EtlConfig {
     private YoutubeProxyConfig youtubeProxy;
     private List<VaultConfig> vault;
 
+    /**
+     * Finds a vault entry by its logical {@code name}; when no entry has that name, falls back to the
+     * first entry whose provider {@code type} matches, so lookups by provider id (e.g. "openai") keep
+     * working for configs that use logical names with an explicit type.
+     */
     public Optional<VaultConfig> getModelConfig(String name) {
-        return vault.stream().filter(e -> e.getName().equals(name)).findAny();
+        if (vault == null || name == null) {
+            return Optional.empty();
+        }
+        Optional<VaultConfig> byName = vault.stream().filter(e -> name.equals(e.getName())).findFirst();
+        if (byName.isPresent()) {
+            return byName;
+        }
+        return vault.stream().filter(e -> name.equalsIgnoreCase(e.getType())).findFirst();
     }
 
     @Data

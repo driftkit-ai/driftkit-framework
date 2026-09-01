@@ -36,6 +36,11 @@ public class PromptServiceSpringAdapter extends PromptService {
     public void init() {
         if (!initialized) {
             PromptServiceConfig promptServiceConfig = etlConfig.getPromptService();
+            if (promptServiceConfig == null || promptServiceConfig.getName() == null) {
+                // Fail closed: silently falling back to a non-persistent store would lose prompts in production.
+                throw new IllegalStateException("driftkit.promptService.name is not configured. "
+                        + "Set it to one of: mongodb | filesystem (config.promptsFilePath) | in-memory");
+            }
             PromptServiceBase actualPromptService = PromptServiceFactory.fromName(
                 promptServiceConfig.getName(), 
                 promptServiceConfig.getConfig()

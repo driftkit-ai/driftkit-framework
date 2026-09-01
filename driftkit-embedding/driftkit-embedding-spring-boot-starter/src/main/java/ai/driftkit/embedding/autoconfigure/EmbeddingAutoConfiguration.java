@@ -1,5 +1,6 @@
 package ai.driftkit.embedding.autoconfigure;
 
+import ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration;
 import ai.driftkit.config.EtlConfig;
 import ai.driftkit.config.EtlConfig.EmbeddingServiceConfig;
 import ai.driftkit.embedding.core.service.EmbeddingFactory;
@@ -18,20 +19,19 @@ import org.springframework.context.annotation.Bean;
  * from the EtlConfig.embedding configuration when available.
  */
 @Slf4j
-@AutoConfiguration
+@AutoConfiguration(after = EtlConfigAutoConfiguration.class)
 @ConditionalOnBean(EtlConfig.class)
 @ConditionalOnProperty(name = "driftkit.embedding.name")
 public class EmbeddingAutoConfiguration {
-    
+
     @Bean
     @ConditionalOnMissingBean(EmbeddingModel.class)
     public EmbeddingModel embeddingModel(EtlConfig config) {
         try {
             EmbeddingServiceConfig embeddingConfig = config.getEmbedding();
-            
+
             if (embeddingConfig == null) {
-                log.warn("No embedding configuration found in EtlConfig");
-                return null;
+                throw new IllegalStateException("driftkit.embedding is not bound although driftkit.embedding.name is set");
             }
             
             log.info("Initializing embedding service: {}", embeddingConfig.getName());

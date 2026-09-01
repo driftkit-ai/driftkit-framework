@@ -20,7 +20,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-embedding-spring-ai</artifactId>
-    <version>${driftkit.version}</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 

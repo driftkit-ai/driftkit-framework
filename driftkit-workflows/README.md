@@ -89,7 +89,7 @@ Zero-configuration Spring Boot integration:
 public class CustomerServiceBot {
     
     @InitialStep
-    public StepResult<Greeting> greetCustomer(StartEvent event, WorkflowContext context) {
+    public StepResult<Greeting> greetCustomer(String input, WorkflowContext context) {
         Greeting greeting = new Greeting();
         greeting.setMessage("Hello! I'm here to help. What can I do for you today?");
         greeting.setOptions(Arrays.asList(
@@ -205,7 +205,7 @@ The framework provides built-in context management:
 public class ContextAwareBot {
     
     @InitialStep
-    public StepResult<Question> askName(StartEvent event, WorkflowContext context) {
+    public StepResult<Question> askName(String input, WorkflowContext context) {
         Question q = new Question("What's your name?");
         return StepResult.suspend(q, UserName.class);
     }
@@ -242,7 +242,7 @@ Build complex conversational flows with branching:
 public class ProductRecommendationBot {
     
     @InitialStep
-    public StepResult<CategoryQuestion> askCategory(StartEvent event, WorkflowContext context) {
+    public StepResult<CategoryQuestion> askCategory(String input, WorkflowContext context) {
         CategoryQuestion question = new CategoryQuestion();
         question.setMessage("What type of product are you looking for?");
         question.setCategories(Arrays.asList("Electronics", "Clothing", "Home & Garden"));
@@ -343,7 +343,7 @@ public class ExpenseApprovalWorkflow {
 public class UserOnboardingWorkflow {
     
     @InitialStep
-    public StepResult<WelcomeScreen> welcome(StartEvent event, WorkflowContext context) {
+    public StepResult<WelcomeScreen> welcome(String input, WorkflowContext context) {
         WelcomeScreen welcome = new WelcomeScreen();
         welcome.setTitle("Welcome to Our Platform!");
         welcome.setMessage("Let's get you set up in just a few steps.");
@@ -735,7 +735,7 @@ class CustomerServiceBotTest {
             .willReturn(new Greeting("Hello! How can I help?"));
         
         // Execute workflow
-        var result = context.execute("customer-service-bot", new StartEvent());
+        var result = context.execute("customer-service-bot", "hello");
         
         // Verify execution
         context.assertThat()

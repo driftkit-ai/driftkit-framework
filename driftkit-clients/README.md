@@ -23,9 +23,10 @@ Configuration in `application.yml`:
 ```yaml
 driftkit:
   vault:
-    - name: "primary-openai"
+    - name: "primary-openai"   # logical name; the provider is taken from `type` (or from the name if it contains a provider id)
+      type: "openai"           # openai | gemini | claude | deepseek
       apiKey: "${OPENAI_API_KEY}"
-      model: "gpt-4"
+      model: "gpt-4o"
       temperature: 0.7
       maxTokens: 2000
     - name: "gemini"

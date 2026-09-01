@@ -23,7 +23,7 @@ Configuration in `application.yml`:
 ```yaml
 driftkit:
   embedding:
-    name: "openai"  # or "cohere", "local-bert"
+    name: "openai"  # or "cohere", "local"
     config:
       apiKey: "${OPENAI_API_KEY}"
       modelName: "text-embedding-ada-002"
@@ -151,7 +151,7 @@ Add the starter for automatic configuration:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-embedding-spring-ai-starter</artifactId>
-    <version>${driftkit.version}</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -344,7 +344,7 @@ Implementation of EmbeddingModel for local BERT models. Configures an AIOnnxBert
 ```yaml
 driftkit:
   embeddingServices:
-    - name: "local-bert"
+    - name: "local"
       type: "local"
       config:
         modelPath: "/path/to/bert-base-uncased.onnx"

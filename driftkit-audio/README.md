@@ -68,7 +68,7 @@ public class YourApplication {
 ```
 
 The module provides:
-- **Auto-configuration class**: `ai.driftkit.audio.AutoConfiguration`
+- **Auto-configuration class**: `ai.driftkit.audio.autoconfigure.AutoConfiguration`, active only when `audio.processing.enabled=true`
 - **Component scanning**: Automatically scans `ai.driftkit.audio` package
 - **Configuration properties**: `AudioProcessingConfig` with prefix `audio.processing`
 
@@ -83,6 +83,7 @@ Add to your `application.yml`:
 ```yaml
 audio:
   processing:
+    enabled: true            # the starter is inert unless enabled (the engine needs an API key at startup)
     engine: DEEPGRAM
     processing-mode: STREAMING
     sample-rate: 16000

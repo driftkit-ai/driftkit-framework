@@ -1,0 +1,2 @@
+ai.driftkit.clients.autoconfigure.EtlConfigAutoConfiguration
+ai.driftkit.clients.autoconfigure.ModelClientAutoConfiguration

@@ -11,7 +11,7 @@
 
     <name>DriftKit Parent</name>
     <description>Parent POM for DriftKit Framework - AI ETL and Workflow Processing Framework</description>
-    <url>https://github.com/driftkit-ai/driftkit</url>
+    <url>https://github.com/driftkit-ai/driftkit-framework</url>
     
     <licenses>
         <license>
@@ -31,9 +31,9 @@
     </developers>
     
     <scm>
-        <url>https://github.com/driftkit-ai/driftkit</url>
-        <connection>scm:git:git://github.com/driftkit-ai/driftkit.git</connection>
-        <developerConnection>scm:git:ssh://github.com:driftkit-ai/driftkit.git</developerConnection>
+        <url>https://github.com/driftkit-ai/driftkit-framework</url>
+        <connection>scm:git:https://github.com/driftkit-ai/driftkit-framework.git</connection>
+        <developerConnection>scm:git:git@github.com:driftkit-ai/driftkit-framework.git</developerConnection>
     </scm>
 
     <properties>
@@ -48,11 +48,6 @@
         <!-- AI/ML Libraries -->
         <djl.version>0.32.0</djl.version>
         <spring-ai.version>1.0.1</spring-ai.version>
-        
-        <!-- OpenAI -->
-        <openai.ai.token>${OPENAI_API_KEY}</openai.ai.token>
-        <openai.ai.baseurl>https://api.openai.com</openai.ai.baseurl>
-        <openai.ai.baseurl.v1>https://api.openai.com/v1</openai.ai.baseurl.v1>
         
         <!-- Jackson -->
         <jackson.version>2.17.2</jackson.version>
@@ -106,7 +101,7 @@
         <module>driftkit-workflows-examples</module>
         <module>driftkit-audio</module>
         <module>driftkit-rag</module>
-<!--        <module>driftkit-cli</module>-->
+        <module>driftkit-bom</module>
     </modules>
 
     <dependencyManagement>

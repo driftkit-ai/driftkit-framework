@@ -38,14 +38,14 @@
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-chat-assistant-framework</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
 ### Gradle Dependency
 
 ```gradle
-implementation 'ai.driftkit:driftkit-chat-assistant-framework:1.0-SNAPSHOT'
+implementation 'ai.driftkit:driftkit-chat-assistant-framework:0.9.0'
 ```
 
 ## Spring Boot Initialization
@@ -544,7 +544,7 @@ public class WorkflowHealthIndicator implements HealthIndicator {
             
             return Health.up()
                 .withDetail("registered-workflows", workflowCount)
-                .withDetail("framework-version", "1.0-SNAPSHOT")
+                .withDetail("framework-version", "0.9.0")
                 .build();
         } catch (Exception e) {
             return Health.down()
@@ -945,8 +945,8 @@ This project is part of the DriftKit framework and is licensed under the terms s
 ## 🆘 Support
 
 - **Documentation**: [DriftKit Documentation](https://driftkit.ai/docs)
-- **Issues**: [GitHub Issues](https://github.com/driftkit/framework/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/driftkit/framework/discussions)
+- **Issues**: [GitHub Issues](https://github.com/driftkit-ai/driftkit-framework/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/driftkit-ai/driftkit-framework/discussions)
 - **Email**: support@driftkit.ai
 
 ## 🔗 Related Projects

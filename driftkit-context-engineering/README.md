@@ -341,7 +341,7 @@ public class DictionaryItem {
     private List<String> samples;    // Example content
     
     // Dictionary integration in templates
-    // Usage: dict:itemId-markers: or dict:itemId-samples:
+    // Usage: dict-markers:<itemId> or dict-samples:<itemId>
 }
 ```
 
@@ -574,7 +574,7 @@ public class EmailTemplateService {
             We're excited to announce {{productName}}!
             
             Key Features:
-            dict:product-features-markers:
+            dict-markers:product-features
             
             {{#if recipient.isPremiumCustomer}}
             As a valued premium customer, you get:

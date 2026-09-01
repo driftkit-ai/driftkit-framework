@@ -10,51 +10,39 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
 import java.util.List;
 
 /**
  * Auto-configuration for model client services.
- * 
- * This configuration automatically creates ModelClient beans
- * from the EtlConfig.vault configurations when available.
+ * <p>
+ * Creates a single {@code primaryModelClient} bean from the first {@code driftkit.vault[]} entry.
+ * Skipped entirely when the application already defines a {@link ModelClient} bean (for example the
+ * Spring AI adapter from {@code driftkit-clients-spring-ai-starter}).
  */
 @Slf4j
-@AutoConfiguration
+@AutoConfiguration(after = EtlConfigAutoConfiguration.class)
 @ConditionalOnBean(EtlConfig.class)
 @ConditionalOnProperty(name = "driftkit.vault[0].name")
 public class ModelClientAutoConfiguration {
-    
+
     @Bean("primaryModelClient")
-    @ConditionalOnMissingBean(name = "primaryModelClient")
-    public ModelClient primaryModelClient(EtlConfig config) {
-        try {
-            List<VaultConfig> vaultConfigs = config.getVault();
-            
-            if (vaultConfigs == null || vaultConfigs.isEmpty()) {
-                log.warn("No vault configurations found in EtlConfig");
-                return null;
-            }
-            
-            // Use the first vault config as primary
-            VaultConfig primaryConfig = vaultConfigs.get(0);
-            log.info("Initializing primary model client: {}", primaryConfig.getName());
-            
-            ModelClient modelClient = ModelClientFactory.fromConfig(primaryConfig);
-            
-            log.info("Successfully initialized primary model client: {}", primaryConfig.getName());
-            return modelClient;
-            
-        } catch (Exception e) {
-            log.error("Failed to initialize primary model client from configuration", e);
-            throw new RuntimeException("Failed to initialize primary model client", e);
-        }
-    }
-    
-    @Bean
+    @Primary
     @ConditionalOnMissingBean(ModelClient.class)
-    public ModelClient modelClient(EtlConfig config) {
-        // Fallback to primary model client
-        return primaryModelClient(config);
+    public ModelClient<?> primaryModelClient(EtlConfig config) {
+        List<VaultConfig> vaultConfigs = config.getVault();
+        if (vaultConfigs == null || vaultConfigs.isEmpty()) {
+            throw new IllegalStateException("driftkit.vault is empty although driftkit.vault[0].name is set");
+        }
+
+        // Use the first vault config as primary
+        VaultConfig primaryConfig = vaultConfigs.get(0);
+        log.info("Initializing primary model client from vault entry '{}'", primaryConfig.getName());
+
+        ModelClient<?> modelClient = ModelClientFactory.fromConfig(primaryConfig);
+
+        log.info("Successfully initialized primary model client: {}", modelClient.getClass().getSimpleName());
+        return modelClient;
     }
 }

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # frontend-maven-plugin installs Node into ~/.m2 (cached above); node_modules is cached here
+      - name: Cache frontend node_modules
+        uses: actions/cache@v4
+        with:
+          path: driftkit-context-engineering/driftkit-context-engineering-spring-boot-starter/src/main/frontend/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('driftkit-context-engineering/driftkit-context-engineering-spring-boot-starter/src/main/frontend/package-lock.json', 'driftkit-context-engineering/driftkit-context-engineering-spring-boot-starter/src/main/frontend/package.json') }}
+
+      # Builds every module (the context-engineering starter also builds the Vue frontend
+      # via frontend-maven-plugin) and runs the unit tests. No API keys or databases are needed.
+      - name: Build and test
+        run: mvn -B -ntp verify

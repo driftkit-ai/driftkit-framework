@@ -183,7 +183,7 @@ RetrievalPipeline pipeline = RetrievalPipeline.builder()
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-rag-core</artifactId>
-    <version>${driftkit.version}</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -192,7 +192,7 @@ For Spring Boot applications:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-rag-spring-boot-starter</artifactId>
-    <version>${driftkit.version}</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 

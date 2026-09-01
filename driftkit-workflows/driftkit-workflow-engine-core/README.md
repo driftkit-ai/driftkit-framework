@@ -51,7 +51,7 @@ Workflows can be defined using annotations or the fluent API:
 public class CustomerOnboardingWorkflow {
     
     @InitialStep
-    public StepResult<WelcomeMessage> startOnboarding(StartEvent event, WorkflowContext context) {
+    public StepResult<WelcomeMessage> startOnboarding(String input, WorkflowContext context) {
         WelcomeMessage welcome = new WelcomeMessage();
         welcome.setText("Welcome! Let's get you started.");
         welcome.setNextSteps(Arrays.asList("Personal Info", "Preferences", "Verification"));
@@ -156,7 +156,7 @@ return StepResult.fail("Error message");
 public class FeedbackWorkflow {
     
     @InitialStep
-    public StepResult<FeedbackRequest> requestFeedback(StartEvent event, WorkflowContext context) {
+    public StepResult<FeedbackRequest> requestFeedback(String input, WorkflowContext context) {
         FeedbackRequest request = new FeedbackRequest();
         request.setQuestion("How was your experience?");
         request.setOptions(Arrays.asList("Excellent", "Good", "Fair", "Poor"));
@@ -188,7 +188,7 @@ public class FeedbackWorkflow {
 public class MultiStepFormWorkflow {
     
     @InitialStep
-    public StepResult<PersonalInfoForm> collectPersonalInfo(StartEvent event, WorkflowContext context) {
+    public StepResult<PersonalInfoForm> collectPersonalInfo(String input, WorkflowContext context) {
         PersonalInfoForm form = new PersonalInfoForm();
         form.setTitle("Step 1: Personal Information");
         form.setFields(Arrays.asList("name", "email", "phone"));
@@ -275,7 +275,7 @@ engine.execute("support-chat", new ChatInput("Start"), "chat-123");
 public class SupportAssistantWorkflow {
     
     @InitialStep
-    public StepResult<MenuOptions> presentMenu(StartEvent event, WorkflowContext context) {
+    public StepResult<MenuOptions> presentMenu(String input, WorkflowContext context) {
         MenuOptions menu = new MenuOptions();
         menu.setGreeting("Welcome to support! What can I help you with?");
         menu.setOptions(Arrays.asList(
@@ -474,7 +474,7 @@ public class CustomerInfo {
 public class SimpleChatWorkflow {
     
     @InitialStep
-    public StepResult<WelcomeMessage> start(StartEvent event, WorkflowContext context) {
+    public StepResult<WelcomeMessage> start(String input, WorkflowContext context) {
         WelcomeMessage welcome = new WelcomeMessage();
         welcome.setText("Hello! What's your name?");
         
@@ -560,20 +560,25 @@ public StepResult<PaymentResult> processPayment(PaymentRequest request, Workflow
 }
 ```
 
-### Cross-Workflow Calls
+### Calling Another Workflow
+
+There is no dedicated `StepResult` for cross-workflow calls. To run another workflow from a step, inject the
+`WorkflowEngine` and call it directly; the result is then returned like any other step output:
 
 ```java
-@Step
-public StepResult<?> callOtherWorkflow(DataEvent data, WorkflowContext context) {
-    // Prepare input for other workflow
-    OtherWorkflowInput input = new OtherWorkflowInput(data.getValue());
-    
-    // Call external workflow
-    return StepResult.external(
-        "other-workflow-id",
-        input,
-        "processExternalResult"  // Next step after external workflow completes
-    );
+@Workflow(id = "order-workflow")
+public class OrderWorkflow {
+    private final WorkflowEngine engine;
+
+    public OrderWorkflow(WorkflowEngine engine) {
+        this.engine = engine;
+    }
+
+    @Step
+    public StepResult<PricingResult> price(OrderData data, WorkflowContext context) throws Exception {
+        WorkflowExecution<PricingResult> execution = engine.execute("pricing-workflow", data.toPricingInput());
+        return StepResult.continueWith(execution.get());
+    }
 }
 ```
 

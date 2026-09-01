@@ -20,6 +20,8 @@
         <frontend.directory>src/main/frontend</frontend.directory>
         <node.version>v18.16.0</node.version>
         <npm.version>9.5.1</npm.version>
+        <!-- Pass -Dskip.frontend=true to skip the Node/Vue build (e.g. backend-only builds or offline environments) -->
+        <skip.frontend>false</skip.frontend>
     </properties>
 
     <dependencies>
@@ -143,6 +145,7 @@
                 <version>1.12.1</version>
                 <configuration>
                     <workingDirectory>${frontend.directory}</workingDirectory>
+                    <skip>${skip.frontend}</skip>
                 </configuration>
                 <executions>
                     <execution>
@@ -197,6 +200,8 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
+                            <!-- execution-level skip only: the default-resources execution must always run -->
+                            <skip>${skip.frontend}</skip>
                             <outputDirectory>${project.build.outputDirectory}/static/prompt-engineering</outputDirectory>
                             <resources>
                                 <resource>
