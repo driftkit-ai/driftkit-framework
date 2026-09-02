@@ -78,15 +78,25 @@ public class ModelClientFactory {
         });
     }
 
+    /**
+     * Same as {@link #fromConfig(VaultConfig)} but, when tracing is enabled, the returned
+     * {@link TraceableModelClient} counts tokens with the given tokenizer. A cached traceable client
+     * created without a tokenizer is re-wrapped around its delegate so the tokenizer is not lost.
+     */
     @SuppressWarnings("unchecked")
     public static <T> ModelClient<T> fromConfig(VaultConfig config, TextTokenizer tokenizer) {
         ModelClient<T> baseClient = fromConfig(config);
 
-        if (config.isTracing() && !(baseClient instanceof TraceableModelClient)) {
-            return new TraceableModelClient<>(baseClient, tokenizer);
+        if (!config.isTracing() || tokenizer == null) {
+            return baseClient;
         }
-
-        return baseClient;
+        if (baseClient instanceof TraceableModelClient<T> traceable) {
+            if (traceable.getTokenizer() == tokenizer) {
+                return traceable;
+            }
+            return new TraceableModelClient<>(traceable.getDelegate(), tokenizer);
+        }
+        return new TraceableModelClient<>(baseClient, tokenizer);
     }
 
     public static <T> TraceableModelClient<T> createTraceable(ModelClient<T> delegate, TextTokenizer tokenizer) {

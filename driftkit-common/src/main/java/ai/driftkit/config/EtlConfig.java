@@ -108,6 +108,7 @@ public class EtlConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class VaultConfig {
+        @ToString.Exclude
         private String apiKey;
         private String name;
         private String type;

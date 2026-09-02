@@ -1,6 +1,6 @@
 package ai.driftkit.context.spring.controller;
 
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.vector.spring.domain.ParsedContent;
 import ai.driftkit.vector.spring.parser.UnifiedParser.ByteArrayParserInput;
 import ai.driftkit.vector.spring.parser.UnifiedParser.YoutubeIdParserInput;

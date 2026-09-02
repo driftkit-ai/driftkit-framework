@@ -11,7 +11,7 @@ A Java framework for LLM agents and workflows where prompt lifecycle management 
 
 - **Java 21**
 - **Maven** (no wrapper is included; 3.8+ is known to work)
-- **Spring Boot 3.3.x** for the `*-spring-boot-starter` modules. `driftkit-common`, `driftkit-clients-*` and `driftkit-workflow-engine-*` can be used without starting a Spring context, but `driftkit-workflow-engine-agents` still pulls Spring Boot, Spring Data MongoDB and Apache Tika onto the classpath transitively (through `driftkit-vector-spring-boot-starter`).
+- **Spring Boot 3.3.x** for the `*-spring-boot-starter` modules. `driftkit-common`, `driftkit-clients-*`, `driftkit-vector-core` and `driftkit-workflow-engine-*` do not start a Spring context and can be used from plain Java. On the published 0.9.0, `driftkit-workflow-engine-agents` still pulls Spring Boot, Spring Data MongoDB and Apache Tika onto the classpath transitively; that dependency is removed in the repository for the next release.
 - **MongoDB** for the Context Engineering platform (`driftkit-context-engineering-spring-boot-starter`). It stores traces, test sets, evaluation runs, audit log and environments in MongoDB; only the prompt store itself can be switched to `in-memory` or `filesystem`. PostgreSQL is not supported yet.
 - **Node.js is NOT required** to consume the published artifacts. Building the repository from source downloads Node automatically for the Vue frontend (see [Building from source](#building-from-source)).
 - License: Apache 2.0
@@ -377,7 +377,7 @@ driftkit:
     default-system-message: "You are a helpful assistant"
 ```
 
-The other direction also works: a Spring AI `ChatModel` can be wrapped as a DriftKit `ModelClient` (`driftkit-clients-spring-ai`), a Spring AI `EmbeddingModel` as a DriftKit embedding model (`driftkit-embedding-spring-ai`) and any Spring AI `VectorStore` as a DriftKit vector store (`driftkit-vector-spring-ai`, `SpringAiVectorStoreAdapter`). Note that `SpringAIModelClient` does not stream; `streamTextToText` returns the full response as a single chunk.
+The other direction also works: a Spring AI `ChatModel` can be wrapped as a DriftKit `ModelClient` (`driftkit-clients-spring-ai`), a Spring AI `EmbeddingModel` as a DriftKit embedding model (`driftkit-embedding-spring-ai`) and any Spring AI `VectorStore` as a DriftKit vector store (`driftkit-vector-spring-ai`, `SpringAiVectorStoreAdapter`). On the published 0.9.0 `SpringAIModelClient.streamTextToText` returns the full response as one chunk; real token streaming through `ChatModel.stream` is in the repository for the next release.
 
 ### Structured output without an agent
 
@@ -422,7 +422,7 @@ Annotate a class with `@JsonSchemaStrict` to mark all of its fields as required 
 | Gemini | `driftkit-clients-gemini` | ✅ | ✅ | ✅ | ✅ | `thinkingBudget` | — |
 | Claude | `driftkit-clients-claude` | ✅ | ✅ | ❌ | ✅ | not mapped yet | ✅ `cache_control` (manual breakpoints or `CachePolicy.AUTO`) |
 | DeepSeek | `driftkit-clients-deepseek` | ✅ | ❌ | ❌ | ✅ | `thinking` | ✅ prefix cache |
-| Spring AI | `driftkit-clients-spring-ai` | ✅ | ✅ | ❌ | ❌ | — | — |
+| Spring AI | `driftkit-clients-spring-ai` | ✅ | ✅ | ❌ | ✅ (next release; single chunk on 0.9.0) | — | — |
 
 Clients are discovered through `ServiceLoader`. A vault entry's `type` selects the provider (`openai`, `gemini`, `claude`, `deepseek`); when `type` is absent the `name` is used instead, and a name that contains the provider id (`primary-openai`) also works. On the published 0.9.0 only the `name` is honoured, so keep `name` equal to the provider id if you need to stay compatible with it.
 

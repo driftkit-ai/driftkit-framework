@@ -9,7 +9,7 @@ import ai.driftkit.common.domain.client.ModelContentMessage.ModelContentElement.
 import ai.driftkit.common.domain.client.ModelTextRequest;
 import ai.driftkit.common.domain.client.ModelTextResponse;
 import ai.driftkit.common.domain.client.Role;
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.vector.spring.domain.ParsedContent;
 import ai.driftkit.vector.spring.parser.TextContentParser.ParseResult;
 import ai.driftkit.vector.spring.parser.YoutubeSubtitleParser.*;

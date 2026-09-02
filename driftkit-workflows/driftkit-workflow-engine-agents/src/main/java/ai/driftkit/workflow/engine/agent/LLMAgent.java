@@ -26,7 +26,7 @@ import ai.driftkit.common.domain.Prompt;
 import ai.driftkit.context.core.registry.PromptServiceRegistry;
 import ai.driftkit.context.core.service.PromptService;
 import ai.driftkit.context.core.util.PromptUtils;
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.workflow.engine.agent.loop.AgentLoopResult;
 import ai.driftkit.workflow.engine.agent.loop.AgenticOptions;
 import ai.driftkit.workflow.engine.agent.loop.ApprovalDecision;

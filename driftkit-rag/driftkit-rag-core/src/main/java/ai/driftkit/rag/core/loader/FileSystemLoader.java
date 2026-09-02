@@ -3,7 +3,7 @@ package ai.driftkit.rag.core.loader;
 import ai.driftkit.rag.core.domain.LoadedDocument;
 import ai.driftkit.vector.spring.parser.UnifiedParser;
 import ai.driftkit.vector.spring.parser.UnifiedParser.ByteArrayParserInput;
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.vector.spring.domain.ParsedContent;
 import lombok.Builder;
 import lombok.NonNull;

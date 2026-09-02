@@ -1,6 +1,6 @@
 package ai.driftkit.vector.spring.controller;
 
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.vector.spring.domain.Index;
 import ai.driftkit.vector.spring.domain.IndexTask;
 import ai.driftkit.vector.spring.domain.IndexTask.TaskStatus;

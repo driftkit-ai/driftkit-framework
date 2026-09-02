@@ -1,2 +1,0 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-ai.driftkit.context.springai.autoconfigure.DriftKitSpringAIAutoConfiguration

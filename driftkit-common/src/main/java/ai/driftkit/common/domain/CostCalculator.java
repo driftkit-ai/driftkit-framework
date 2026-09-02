@@ -70,11 +70,14 @@ public class CostCalculator {
         // Try exact match first
         if (MODEL_PRICING.containsKey(lower)) return MODEL_PRICING.get(lower);
 
-        // Try prefix match
-        for (Map.Entry<String, double[]> entry : MODEL_PRICING.entrySet()) {
-            if (lower.startsWith(entry.getKey())) return entry.getValue();
+        // Longest matching prefix wins, so "gpt-4o-mini-2024-07-18" resolves to "gpt-4o-mini", never to
+        // "gpt-4o" or "gpt-4" (MODEL_PRICING is an unordered map; iteration order must not decide).
+        String bestKey = null;
+        for (String key : MODEL_PRICING.keySet()) {
+            if (lower.startsWith(key) && (bestKey == null || key.length() > bestKey.length())) {
+                bestKey = key;
+            }
         }
-
-        return null;
+        return bestKey == null ? null : MODEL_PRICING.get(bestKey);
     }
 }

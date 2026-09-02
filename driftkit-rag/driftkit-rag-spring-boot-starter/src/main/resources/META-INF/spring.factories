@@ -1,2 +1,0 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-ai.driftkit.rag.spring.autoconfigure.RagAutoConfiguration

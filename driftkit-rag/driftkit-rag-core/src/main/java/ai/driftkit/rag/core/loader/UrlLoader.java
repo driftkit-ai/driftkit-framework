@@ -5,7 +5,7 @@ import ai.driftkit.vector.spring.parser.UnifiedParser;
 import ai.driftkit.vector.spring.parser.UnifiedParser.ByteArrayParserInput;
 import ai.driftkit.vector.spring.parser.UnifiedParser.StringParserInput;
 import ai.driftkit.vector.spring.parser.UnifiedParser.ParserInput;
-import ai.driftkit.vector.spring.domain.ContentType;
+import ai.driftkit.vector.core.domain.ContentType;
 import ai.driftkit.vector.spring.domain.ParsedContent;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import lombok.Builder;

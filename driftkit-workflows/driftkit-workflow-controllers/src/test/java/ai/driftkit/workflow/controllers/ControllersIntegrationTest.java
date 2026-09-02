@@ -38,12 +38,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * - MongoDB MUST be running on localhost:27017
  * - All repositories, services and controllers MUST be created
  * 
- * To run this test:
- * 1. Start MongoDB: docker run -d -p 27017:27017 mongo:latest
- * 2. Run test: mvn test -Dtest=ControllersIntegrationTest -DfailIfNoTests=false
- * 
- * This test is disabled by default to not break CI/CD pipelines.
- * Enable it manually when you need to verify MongoDB integration.
+ * MongoDB is optional: Spring Data connects lazily and none of the assertions below touch the
+ * database, so the class runs in CI without a MongoDB service. To exercise the persistence paths
+ * start one locally (docker run -d -p 27017:27017 mongo:7) before running the test.
  */
 @SpringBootTest(
     classes = {test.app.TestApplication.class, TestApplicationConfiguration.class},

@@ -1,4 +1,4 @@
-package ai.driftkit.vector.spring.domain;
+package ai.driftkit.vector.core.domain;
 
 public enum ContentType {
     PNG("image/png"),

@@ -6,6 +6,8 @@ import ai.driftkit.workflows.core.agent.RequestTracingProvider;
 import ai.driftkit.workflows.core.agent.RequestTracingRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -84,7 +86,15 @@ public class DriftKitSpringAIAutoConfiguration {
             .enableTracing(properties.getTracing().isEnabled())
             .enableMemory(properties.getMemory().isEnabled())
             .enableLogging(properties.getLogging().isEnabled());
-        
+
+        if (properties.getMemory().isEnabled()) {
+            // honour driftkit.spring-ai.memory.max-messages (the factory default is a fixed window)
+            builder.chatMemory(MessageWindowChatMemory.builder()
+                .chatMemoryRepository(new InMemoryChatMemoryRepository())
+                .maxMessages(properties.getMemory().getMaxMessages())
+                .build());
+        }
+
         // Set tracing provider if available
         RequestTracingProvider tracingProvider = RequestTracingRegistry.getInstance();
         if (tracingProvider != null) {

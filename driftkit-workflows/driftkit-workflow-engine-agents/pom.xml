@@ -32,7 +32,7 @@
         <!-- DriftKit Vector (for ContentType enum) -->
         <dependency>
             <groupId>ai.driftkit</groupId>
-            <artifactId>driftkit-vector-spring-boot-starter</artifactId>
+            <artifactId>driftkit-vector-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 

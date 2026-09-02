@@ -1,7 +1,10 @@
 package ai.driftkit.clients.springai;
 
 import ai.driftkit.common.domain.client.*;
+import ai.driftkit.common.domain.streaming.StreamingCallback;
+import ai.driftkit.common.domain.streaming.StreamingResponse;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.Disposable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -19,6 +22,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -126,7 +130,65 @@ public class SpringAIModelClient extends ModelClient<Object> {
             throw new RuntimeException("Failed to execute Spring AI model with images", e);
         }
     }
-    
+
+    /**
+     * Real token streaming through {@link ChatModel#stream(Prompt)}: every non-empty text chunk
+     * of the reactive stream is delivered to the callback as it arrives.
+     */
+    @Override
+    public StreamingResponse<String> streamTextToText(ModelTextRequest request) throws UnsupportedCapabilityException {
+        List<Message> messages = convertToSpringAIMessages(request.getMessages());
+        ChatOptions options = buildChatOptions(request);
+        Prompt prompt = new Prompt(messages, options);
+
+        return new StreamingResponse<>() {
+            private final AtomicBoolean active = new AtomicBoolean(false);
+            private volatile Disposable subscription;
+
+            @Override
+            public void subscribe(StreamingCallback<String> callback) {
+                if (!active.compareAndSet(false, true)) {
+                    callback.onError(new IllegalStateException("Stream already subscribed"));
+                    return;
+                }
+                subscription = chatModel.stream(prompt)
+                        .mapNotNull(SpringAIModelClient::chunkText)
+                        .filter(text -> !text.isEmpty())
+                        .subscribe(
+                                callback::onNext,
+                                error -> {
+                                    active.set(false);
+                                    callback.onError(error);
+                                },
+                                () -> {
+                                    active.set(false);
+                                    callback.onComplete();
+                                });
+            }
+
+            @Override
+            public void cancel() {
+                Disposable current = subscription;
+                if (current != null) {
+                    current.dispose();
+                }
+                active.set(false);
+            }
+
+            @Override
+            public boolean isActive() {
+                return active.get();
+            }
+        };
+    }
+
+    private static String chunkText(ChatResponse chunk) {
+        if (chunk == null || chunk.getResult() == null || chunk.getResult().getOutput() == null) {
+            return null;
+        }
+        return chunk.getResult().getOutput().getText();
+    }
+
     // Conversion methods
     
     private List<Message> convertToSpringAIMessages(List<ModelContentMessage> driftKitMessages) {
