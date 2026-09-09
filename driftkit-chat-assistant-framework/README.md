@@ -38,14 +38,14 @@
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-chat-assistant-framework</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 
 ### Gradle Dependency
 
 ```gradle
-implementation 'ai.driftkit:driftkit-chat-assistant-framework:0.9.0'
+implementation 'ai.driftkit:driftkit-chat-assistant-framework:0.9.1'
 ```
 
 ## Spring Boot Initialization
@@ -544,7 +544,7 @@ public class WorkflowHealthIndicator implements HealthIndicator {
             
             return Health.up()
                 .withDetail("registered-workflows", workflowCount)
-                .withDetail("framework-version", "0.9.0")
+                .withDetail("framework-version", "0.9.1")
                 .build();
         } catch (Exception e) {
             return Health.down()

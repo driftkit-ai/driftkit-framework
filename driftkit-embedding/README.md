@@ -151,7 +151,7 @@ Add the starter for automatic configuration:
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-embedding-spring-ai-starter</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 

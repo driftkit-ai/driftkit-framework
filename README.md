@@ -11,12 +11,12 @@ A Java framework for LLM agents and workflows where prompt lifecycle management 
 
 - **Java 21**
 - **Maven** (no wrapper is included; 3.8+ is known to work)
-- **Spring Boot 3.3.x** for the `*-spring-boot-starter` modules. `driftkit-common`, `driftkit-clients-*`, `driftkit-vector-core` and `driftkit-workflow-engine-*` do not start a Spring context and can be used from plain Java. On the published 0.9.0, `driftkit-workflow-engine-agents` still pulls Spring Boot, Spring Data MongoDB and Apache Tika onto the classpath transitively; that dependency is removed in the repository for the next release.
+- **Spring Boot 3.3.x** for the `*-spring-boot-starter` modules. `driftkit-common`, `driftkit-clients-*`, `driftkit-vector-core` and `driftkit-workflow-engine-*` do not start a Spring context and can be used from plain Java. Since 0.9.1 `driftkit-workflow-engine-agents` no longer drags Spring Boot, Spring Data MongoDB and Apache Tika onto the classpath transitively; on 0.9.0 it did.
 - **MongoDB** for the Context Engineering platform (`driftkit-context-engineering-spring-boot-starter`). It stores traces, test sets, evaluation runs, audit log and environments in MongoDB; only the prompt store itself can be switched to `in-memory` or `filesystem`. PostgreSQL is not supported yet.
 - **Node.js is NOT required** to consume the published artifacts. Building the repository from source downloads Node automatically for the Vue frontend (see [Building from source](#building-from-source)).
 - License: Apache 2.0
 
-All modules are published to Maven Central under the `ai.driftkit` group. Current release: **0.9.0** (June 2026).
+All modules are published to Maven Central under the `ai.driftkit` group. Current release: **0.9.1** (September 2026).
 
 ## Quick start
 
@@ -26,12 +26,12 @@ All modules are published to Maven Central under the `ai.driftkit` group. Curren
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-engine-agents</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-clients-openai</artifactId>   <!-- or driftkit-clients-gemini / -claude / -deepseek -->
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 
@@ -66,12 +66,12 @@ public class Main {
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-boot-starter</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-clients-openai</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 
@@ -103,7 +103,7 @@ public class MyApp {
 
 Start MongoDB, run the app and open **http://localhost:8080/prompt-engineering**. The UI shows a login form, but there is no built-in authentication: the username is only used for the audit log. Put the application behind your own security layer in production. `driftkit.promptService.name` is mandatory; the application refuses to start without it rather than silently using a non-persistent store.
 
-Known limitation of the published 0.9.0: `driftkit-clients-spring-boot-starter` registered its auto-configuration only in `spring.factories`, which Spring Boot 3 ignores, so no `primaryModelClient` bean is created from `driftkit.vault` in 0.9.0. The platform itself still works because it reads the vault directly. Fixed in the repository for the next release.
+Fixed in 0.9.1: `driftkit-clients-spring-boot-starter` used to register its auto-configuration only in `spring.factories`, which Spring Boot 3 ignores, so on 0.9.0 no `primaryModelClient` bean is created from `driftkit.vault` at all. From 0.9.1 it registers through `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` and the bean appears as documented — which also means an application that relied on it being absent must now exclude `ModelClientAutoConfiguration` explicitly. (The platform itself worked either way, because it reads the vault directly.)
 
 Prompts, traces, test sets and evaluations are then available through the UI and through the REST API under `/data/v1.0/admin/`.
 
@@ -136,7 +136,7 @@ DriftKit makes sense when prompts live outside the code, are edited and tested b
 ### Project maturity (September 2026)
 
 - Version 0.9.x. The API is still evolving; 1.0 is not scheduled.
-- Releases: 0.9.0 (June 2026), 0.8.7 (January 2026). Releases are published to Maven Central, without GitHub Releases or a changelog.
+- Releases: 0.9.1 (September 2026), 0.9.0 (June 2026), 0.8.7 (January 2026). Releases are published to Maven Central, without GitHub Releases or a changelog.
 - One maintainer. Used in production in two applications built by the maintainer; no known external production users.
 - Documentation: this README plus per-module READMEs. There is no documentation site.
 - Pinned platform versions: Spring Boot 3.3.1, Spring AI 1.0.1. Newer Spring Boot/Spring AI versions have not been verified.
@@ -209,7 +209,7 @@ driftkit-framework/
 
 ## Code examples
 
-All snippets below compile against 0.9.0 with imports from `ai.driftkit.workflow.engine.agent.*` (agents), `ai.driftkit.workflow.engine.core.*` / `ai.driftkit.workflow.engine.annotations.*` (workflow engine) and `ai.driftkit.common.*` (domain classes); checked exceptions are shown where the API declares them.
+All snippets below compile against 0.9.1 with imports from `ai.driftkit.workflow.engine.agent.*` (agents), `ai.driftkit.workflow.engine.core.*` / `ai.driftkit.workflow.engine.annotations.*` (workflow engine) and `ai.driftkit.common.*` (domain classes); checked exceptions are shown where the API declares them.
 
 ### Tool calling and structured output
 
@@ -317,7 +317,7 @@ engine.resume(run.getRunId(), new CustomerChoice("Billing"));
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-ai-starter</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 
@@ -377,7 +377,7 @@ driftkit:
     default-system-message: "You are a helpful assistant"
 ```
 
-The other direction also works: a Spring AI `ChatModel` can be wrapped as a DriftKit `ModelClient` (`driftkit-clients-spring-ai`), a Spring AI `EmbeddingModel` as a DriftKit embedding model (`driftkit-embedding-spring-ai`) and any Spring AI `VectorStore` as a DriftKit vector store (`driftkit-vector-spring-ai`, `SpringAiVectorStoreAdapter`). On the published 0.9.0 `SpringAIModelClient.streamTextToText` returns the full response as one chunk; real token streaming through `ChatModel.stream` is in the repository for the next release.
+The other direction also works: a Spring AI `ChatModel` can be wrapped as a DriftKit `ModelClient` (`driftkit-clients-spring-ai`), a Spring AI `EmbeddingModel` as a DriftKit embedding model (`driftkit-embedding-spring-ai`) and any Spring AI `VectorStore` as a DriftKit vector store (`driftkit-vector-spring-ai`, `SpringAiVectorStoreAdapter`). Since 0.9.1 `SpringAIModelClient.streamTextToText` streams real tokens through `ChatModel.stream`; on 0.9.0 it returned the full response as a single chunk.
 
 ### Structured output without an agent
 
@@ -422,9 +422,9 @@ Annotate a class with `@JsonSchemaStrict` to mark all of its fields as required 
 | Gemini | `driftkit-clients-gemini` | ✅ | ✅ | ✅ | ✅ | `thinkingBudget` | — |
 | Claude | `driftkit-clients-claude` | ✅ | ✅ | ❌ | ✅ | not mapped yet | ✅ `cache_control` (manual breakpoints or `CachePolicy.AUTO`) |
 | DeepSeek | `driftkit-clients-deepseek` | ✅ | ❌ | ❌ | ✅ | `thinking` | ✅ prefix cache |
-| Spring AI | `driftkit-clients-spring-ai` | ✅ | ✅ | ❌ | ✅ (next release; single chunk on 0.9.0) | — | — |
+| Spring AI | `driftkit-clients-spring-ai` | ✅ | ✅ | ❌ | ✅ (single chunk on 0.9.0) | — | — |
 
-Clients are discovered through `ServiceLoader`. A vault entry's `type` selects the provider (`openai`, `gemini`, `claude`, `deepseek`); when `type` is absent the `name` is used instead, and a name that contains the provider id (`primary-openai`) also works. On the published 0.9.0 only the `name` is honoured, so keep `name` equal to the provider id if you need to stay compatible with it.
+Clients are discovered through `ServiceLoader`. A vault entry's `type` selects the provider (`openai`, `gemini`, `claude`, `deepseek`); when `type` is absent the `name` is used instead, and a name that contains the provider id (`primary-openai`) also works. On 0.9.0 only the `name` was honoured, so keep `name` equal to the provider id if you need to stay compatible with that release.
 
 Model ids are plain strings passed through to the provider, so new models work without a framework release. `CostCalculator` prices the models listed in its table and prefix-matches unknown ids to the closest listed one (`gemini-2.5-flash-lite` is priced as `gemini-2.5-flash`), so the estimated cost for a new model variant is approximate; ids with no listed prefix report zero cost.
 
