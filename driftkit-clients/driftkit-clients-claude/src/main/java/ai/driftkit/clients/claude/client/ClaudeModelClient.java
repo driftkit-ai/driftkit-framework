@@ -373,6 +373,12 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 cacheUsage = CacheUsage.builder()
                         .cacheHitTokens(cu.getCacheReadInputTokens())
                         .cacheWriteTokens(cu.getCacheCreationInputTokens())
+                        // Claude's "input_tokens" is what remained AFTER the last cache
+                        // breakpoint, i.e. exactly the tokens that missed the cache.
+                        // Without this, CacheUsage.getHitRatio() computes hit/(hit+0) and
+                        // degenerates to 1.0 or 0.0 — it reports "was there any hit at all",
+                        // not the token share, which is what callers assume it means.
+                        .cacheMissTokens(cu.getInputTokens())
                         .build();
             }
 
