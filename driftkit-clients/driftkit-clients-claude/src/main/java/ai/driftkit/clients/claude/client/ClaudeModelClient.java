@@ -37,6 +37,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ClaudeModelClient extends ModelClient implements ModelClientInit {
     
     public static final String CLAUDE_DEFAULT = ClaudeUtils.CLAUDE_SONNET_4;
+
+    /**
+     * Models that reject the {@code temperature} parameter.
+     *
+     * <p>Claude 5 answers it with {@code 400 invalid_request_error}:
+     * "`temperature` is deprecated for this model". The client used to send temperature
+     * unconditionally, so every call to such a model failed and callers fell back to another
+     * model; from the outside that looked like "the new model behaves badly" while it had
+     * never answered at all.
+     */
+    private static final java.util.regex.Pattern TEMPERATURE_UNSUPPORTED =
+            java.util.regex.Pattern.compile("^claude-(sonnet|opus|haiku|fable)-([5-9]|\\d{2,}).*");
+
+    static boolean supportsTemperature(String model) {
+        return model == null || !TEMPERATURE_UNSUPPORTED.matcher(model).matches();
+    }
     public static final String CLAUDE_SMART_DEFAULT = ClaudeUtils.CLAUDE_OPUS_4;
     public static final String CLAUDE_MINI_DEFAULT = ClaudeUtils.CLAUDE_HAIKU_3_5;
     
@@ -200,10 +216,19 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
                 .model(model)
                 .messages(messages)
                 .maxTokens(maxTokens)
-                .temperature(Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()))
                 .topP(getTopP())
                 .stopSequences(getStop())
                 .system(systemPrompt);
+
+        // Claude 5 rejects temperature altogether:
+        //   400 invalid_request_error "`temperature` is deprecated for this model."
+        // The request field is @JsonInclude(NON_NULL), so a value that is never set is simply
+        // not serialised. It cannot be nulled out in the client configuration instead:
+        // LLMAgent.getTemperature() returns a primitive and would NPE.
+        if (supportsTemperature(model)) {
+            requestBuilder.temperature(
+                    Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()));
+        }
 
         // Apply structured outputs and tools configuration
         applyStructuredOutputsAndTools(requestBuilder, prompt);
@@ -627,11 +652,16 @@ public class ClaudeModelClient extends ModelClient implements ModelClientInit {
         }
         
         // Build request
+        String requestModel = Optional.ofNullable(prompt.getModel()).orElse(getModel());
         ClaudeMessageRequest.ClaudeMessageRequestBuilder builder = ClaudeMessageRequest.builder()
-                .model(Optional.ofNullable(prompt.getModel()).orElse(getModel()))
+                .model(requestModel)
                 .messages(messages)
-                .maxTokens(MAX_TOKENS)
-                .temperature(Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()));
+                .maxTokens(MAX_TOKENS);
+
+        // See the comment in processPrompt: Claude 5 rejects temperature.
+        if (supportsTemperature(requestModel)) {
+            builder.temperature(Optional.ofNullable(prompt.getTemperature()).orElse(getTemperature()));
+        }
 
         if (systemMessage != null) {
             builder.system(systemMessage);
