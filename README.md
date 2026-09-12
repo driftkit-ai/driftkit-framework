@@ -16,7 +16,7 @@ A Java framework for LLM agents and workflows where prompt lifecycle management 
 - **Node.js is NOT required** to consume the published artifacts. Building the repository from source downloads Node automatically for the Vue frontend (see [Building from source](#building-from-source)).
 - License: Apache 2.0
 
-All modules are published to Maven Central under the `ai.driftkit` group. Current release: **0.9.1** (September 2026).
+All modules are published to Maven Central under the `ai.driftkit` group. Current release: **0.9.2** (September 2026).
 
 ## Quick start
 
@@ -26,12 +26,12 @@ All modules are published to Maven Central under the `ai.driftkit` group. Curren
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-workflow-engine-agents</artifactId>
-    <version>0.9.1</version>
+    <version>0.9.2</version>
 </dependency>
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-clients-openai</artifactId>   <!-- or driftkit-clients-gemini / -claude / -deepseek -->
-    <version>0.9.1</version>
+    <version>0.9.2</version>
 </dependency>
 ```
 
@@ -66,12 +66,12 @@ public class Main {
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-boot-starter</artifactId>
-    <version>0.9.1</version>
+    <version>0.9.2</version>
 </dependency>
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-clients-openai</artifactId>
-    <version>0.9.1</version>
+    <version>0.9.2</version>
 </dependency>
 ```
 
@@ -110,6 +110,26 @@ Prompts, traces, test sets and evaluations are then available through the UI and
 ![Dashboard — cost, tokens, latency metrics](driftkit-context-engineering/screens/dashboard.png)
 ![Prompt Editor with folders, versioning, state machine](driftkit-context-engineering/screens/prompts.png)
 
+### Managing versions with the BOM
+
+Import `driftkit-bom` once and drop the `<version>` from every DriftKit dependency:
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>ai.driftkit</groupId>
+            <artifactId>driftkit-bom</artifactId>
+            <version>0.9.2</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+The BOM lists every library module (not the `driftkit-workflows-examples-*` samples) and has no parent, so importing it does not change your Spring Boot, Spring Cloud or Spring AI versions.
+
 ## Where DriftKit fits
 
 Every framework in the table below can call a model, get structured output, call tools, compute embeddings and talk to a vector store. That is parity, not a differentiator, so those rows are omitted. What is left is where the projects actually differ (checked against Spring AI 2.0.x, LangChain4j 1.19.x and Google ADK for Java, September 2026):
@@ -136,7 +156,7 @@ DriftKit makes sense when prompts live outside the code, are edited and tested b
 ### Project maturity (September 2026)
 
 - Version 0.9.x. The API is still evolving; 1.0 is not scheduled.
-- Releases: 0.9.1 (September 2026), 0.9.0 (June 2026), 0.8.7 (January 2026). Releases are published to Maven Central, without GitHub Releases or a changelog.
+- Releases: 0.9.2 and 0.9.1 (September 2026), 0.9.0 (June 2026), 0.8.7 (January 2026). Releases are published to Maven Central, without GitHub Releases or a changelog.
 - One maintainer. Used in production in two applications built by the maintainer; no known external production users.
 - Documentation: this README plus per-module READMEs. There is no documentation site.
 - Pinned platform versions: Spring Boot 3.3.1, Spring AI 1.0.1. Newer Spring Boot/Spring AI versions have not been verified.
@@ -204,12 +224,12 @@ driftkit-framework/
 ├── driftkit-workflows-examples/
 │   ├── driftkit-workflows-examples-core/
 │   └── driftkit-workflows-examples-spring-boot-starter/
-└── driftkit-bom/                                 # Bill of Materials (published from the next release)
+└── driftkit-bom/                                 # Bill of Materials (since 0.9.1)
 ```
 
 ## Code examples
 
-All snippets below compile against 0.9.1 with imports from `ai.driftkit.workflow.engine.agent.*` (agents), `ai.driftkit.workflow.engine.core.*` / `ai.driftkit.workflow.engine.annotations.*` (workflow engine) and `ai.driftkit.common.*` (domain classes); checked exceptions are shown where the API declares them.
+All snippets below compile against 0.9.2 with imports from `ai.driftkit.workflow.engine.agent.*` (agents), `ai.driftkit.workflow.engine.core.*` / `ai.driftkit.workflow.engine.annotations.*` (workflow engine) and `ai.driftkit.common.*` (domain classes); checked exceptions are shown where the API declares them.
 
 ### Tool calling and structured output
 
@@ -317,7 +337,7 @@ engine.resume(run.getRunId(), new CustomerChoice("Billing"));
 <dependency>
     <groupId>ai.driftkit</groupId>
     <artifactId>driftkit-context-engineering-spring-ai-starter</artifactId>
-    <version>0.9.1</version>
+    <version>0.9.2</version>
 </dependency>
 ```
 
@@ -444,7 +464,6 @@ The `driftkit-context-engineering-spring-boot-starter` build downloads Node v18 
 
 - **PostgreSQL backend** for the Context Engineering platform (currently MongoDB only)
 - **Claude extended thinking** mapping for `ReasoningEffort` (OpenAI, Gemini and DeepSeek are mapped today)
-- **BOM** published to Maven Central (`driftkit-bom`, in the repository, ships with the next release)
 - **Additional providers**: Mistral AI, Grok
 - **Vector stores without Spring**: Weaviate, Qdrant, Redis, Elasticsearch
 - **Test coverage** for `driftkit-vector`, `driftkit-chat-assistant-framework` and `driftkit-workflows-examples`, which currently have none
