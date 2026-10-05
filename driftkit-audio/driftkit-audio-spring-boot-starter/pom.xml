@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-audio</artifactId>
-        <version>0.9.2</version>
+        <version>0.9.3-SNAPSHOT</version>
     </parent>
 
     <artifactId>driftkit-audio-spring-boot-starter</artifactId>

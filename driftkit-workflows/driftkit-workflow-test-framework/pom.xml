@@ -8,7 +8,7 @@
     <parent>
         <groupId>ai.driftkit</groupId>
         <artifactId>driftkit-workflows</artifactId>
-        <version>0.9.2</version>
+        <version>0.9.3-SNAPSHOT</version>
     </parent>
 
     <artifactId>driftkit-workflow-test-framework</artifactId>
