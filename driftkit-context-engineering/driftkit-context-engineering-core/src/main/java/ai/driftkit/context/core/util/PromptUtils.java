@@ -12,8 +12,16 @@ import java.util.Map;
 public class PromptUtils {
     
     public static String applyVariables(String message, Map<String, Object> variables) {
+        return applyVariables(message, variables, false);
+    }
+
+    /**
+     * @param escapeXml escape {@code &}, {@code <}, {@code >} in substituted values - use it for
+     *                  tag-structured prompts, where a value must never open or close a tag
+     */
+    public static String applyVariables(String message, Map<String, Object> variables, boolean escapeXml) {
         if (variables != null) {
-            message = TemplateEngine.renderTemplate(message, variables);
+            message = TemplateEngine.renderTemplate(message, variables, escapeXml);
         }
         return message;
     }

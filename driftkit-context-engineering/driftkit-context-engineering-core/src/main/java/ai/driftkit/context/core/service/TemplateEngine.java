@@ -27,8 +27,35 @@ public class TemplateEngine {
     // **************** AST Node Definitions ****************
 
     interface TemplateNode {
-        String render(Map<String, Object> variables);
+        default String render(Map<String, Object> variables) {
+            return render(variables, false);
+        }
+        // escapeXml: substituted VALUES get &, <, > escaped; template text is never touched.
+        String render(Map<String, Object> variables, boolean escapeXml);
         boolean isStatic();
+    }
+
+    private static String renderAll(List<TemplateNode> nodes, Map<String, Object> variables, boolean escapeXml) {
+        StringBuilder sb = new StringBuilder();
+        for (TemplateNode node : nodes) {
+            sb.append(node.render(variables, escapeXml));
+        }
+        return sb.toString();
+    }
+
+    // Escape a substituted value so it cannot open or close markup tags of the template.
+    static String escapeXml(String value) {
+        StringBuilder sb = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '&': sb.append("&amp;"); break;
+                case '<': sb.append("&lt;"); break;
+                case '>': sb.append("&gt;"); break;
+                default: sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     // Represents literal text.
@@ -38,7 +65,7 @@ public class TemplateEngine {
             this.text = text;
         }
         @Override
-        public String render(Map<String, Object> variables) {
+        public String render(Map<String, Object> variables, boolean escapeXml) {
             return text;
         }
         @Override
@@ -54,13 +81,15 @@ public class TemplateEngine {
             this.key = key;
         }
         @Override
-        public String render(Map<String, Object> variables) {
+        public String render(Map<String, Object> variables, boolean escapeXml) {
             // If the key contains {{ }}, treat it as a nested template
             if (key.contains("{{") && key.contains("}}")) {
-                return renderTemplate(key, variables);
+                return renderTemplate(key, variables, escapeXml);
             }
             Object value = resolveValue(key, variables);
-            return value != null ? value.toString() : "";
+            if (value == null) return "";
+            String text = value.toString();
+            return escapeXml ? escapeXml(text) : text;
         }
         @Override
         public boolean isStatic() {
@@ -68,30 +97,29 @@ public class TemplateEngine {
         }
     }
 
-    // Represents an if-block.
+    // Represents an if-block with an optional {{else}} branch.
     static class IfNode implements TemplateNode {
         private final String condition;
         private final List<TemplateNode> children;
+        private final List<TemplateNode> elseChildren;
         // For memoization if the block is static.
         private String memoized;
         public IfNode(String condition, List<TemplateNode> children) {
+            this(condition, children, List.of());
+        }
+        public IfNode(String condition, List<TemplateNode> children, List<TemplateNode> elseChildren) {
             this.condition = condition;
             this.children = children;
+            this.elseChildren = elseChildren == null ? List.of() : elseChildren;
             this.memoized = null;
         }
         @Override
-        public String render(Map<String, Object> variables) {
+        public String render(Map<String, Object> variables, boolean escapeXml) {
             if (isStatic() && memoized != null) {
                 return memoized;
             }
             boolean result = evaluateCondition(condition, variables);
-            StringBuilder sb = new StringBuilder();
-            if (result) {
-                for (TemplateNode child : children) {
-                    sb.append(child.render(variables));
-                }
-            }
-            String output = sb.toString();
+            String output = renderAll(result ? children : elseChildren, variables, escapeXml);
             if (isStatic()) {
                 memoized = output;
             }
@@ -107,11 +135,16 @@ public class TemplateEngine {
                     return false;
                 }
             }
+            for (TemplateNode node : elseChildren) {
+                if (!node.isStatic()) {
+                    return false;
+                }
+            }
             return condStatic;
         }
     }
 
-    // Represents a list block.
+    // Represents a list block: {{list items as item}} and {{#each items}} (item is {{this}}).
     static class ListNode implements TemplateNode {
         private final String collectionKey;
         private final String itemName;
@@ -122,17 +155,17 @@ public class TemplateEngine {
             this.children = children;
         }
         @Override
-        public String render(Map<String, Object> variables) {
+        public String render(Map<String, Object> variables, boolean escapeXml) {
             StringBuilder sb = new StringBuilder();
             Object collectionObj = resolveValue(collectionKey, variables);
             Iterable<?> iterable = toIterable(collectionObj);
             if (iterable != null) {
+                int index = 0;
                 for (Object item : iterable) {
                     Map<String, Object> tempVars = new HashMap<>(variables);
                     tempVars.put(itemName, item);
-                    for (TemplateNode child : children) {
-                        sb.append(child.render(tempVars));
-                    }
+                    tempVars.put("@index", index++);
+                    sb.append(renderAll(children, tempVars, escapeXml));
                 }
             }
             return sb.toString();
@@ -149,12 +182,8 @@ public class TemplateEngine {
         public Template(List<TemplateNode> nodes) {
             this.nodes = nodes;
         }
-        public String render(Map<String, Object> variables) {
-            StringBuilder sb = new StringBuilder();
-            for (TemplateNode node : nodes) {
-                sb.append(node.render(variables));
-            }
-            return sb.toString();
+        public String render(Map<String, Object> variables, boolean escapeXml) {
+            return renderAll(nodes, variables, escapeXml);
         }
     }
 
@@ -162,12 +191,21 @@ public class TemplateEngine {
 
     // Public method to render a template string with variables using caching.
     public static String renderTemplate(String template, Map<String, Object> variables) {
+        return renderTemplate(template, variables, false);
+    }
+
+    /**
+     * Renders the template; with {@code escapeXml} every substituted value gets {@code &}, {@code <},
+     * {@code >} escaped, so a value can never open or close a markup tag of a tag-structured prompt.
+     * The template text itself is never escaped.
+     */
+    public static String renderTemplate(String template, Map<String, Object> variables, boolean escapeXml) {
         Template parsedTemplate = templateCache.get(template);
         if (parsedTemplate == null) {
             parsedTemplate = parseTemplate(template);
             templateCache.put(template, parsedTemplate);
         }
-        return parsedTemplate.render(variables);
+        return parsedTemplate.render(variables == null ? Map.of() : variables, escapeXml);
     }
 
     // Parse the template into an AST.
@@ -180,9 +218,15 @@ public class TemplateEngine {
     private static class ParseResult {
         List<TemplateNode> nodes;
         int nextIndex;
+        // true when parsing stopped at {{else}} of the enclosing if-block (not at its {{/if}})
+        boolean stoppedAtElse;
         ParseResult(List<TemplateNode> nodes, int nextIndex) {
+            this(nodes, nextIndex, false);
+        }
+        ParseResult(List<TemplateNode> nodes, int nextIndex, boolean stoppedAtElse) {
             this.nodes = nodes;
             this.nextIndex = nextIndex;
+            this.stoppedAtElse = stoppedAtElse;
         }
     }
 
@@ -231,11 +275,32 @@ public class TemplateEngine {
             String tagContent = template.substring(open + 2, close).trim();
             index = close + 2;
             if (tagContent.startsWith("if ") || tagContent.startsWith("#if ")) {
-                String condition = tagContent.startsWith("#if ") ? 
+                String condition = tagContent.startsWith("#if ") ?
                     tagContent.substring(4).trim() : tagContent.substring(3).trim();
                 ParseResult inner = parseNodes(template, index, "/if");
-                nodes.add(new IfNode(condition, inner.nodes));
+                List<TemplateNode> elseNodes = List.of();
+                if (inner.stoppedAtElse) {
+                    ParseResult elseBranch = parseNodes(template, inner.nextIndex, "/if");
+                    elseNodes = elseBranch.nodes;
+                    inner = new ParseResult(inner.nodes, elseBranch.nextIndex);
+                }
+                nodes.add(new IfNode(condition, inner.nodes, elseNodes));
                 index = inner.nextIndex;
+            } else if (tagContent.equals("else") || tagContent.equals("#else")) {
+                if ("/if".equals(endTag)) {
+                    return new ParseResult(nodes, index, true);
+                }
+                // Orphaned else (outside an if-block, or a second else) - ignore it
+            } else if (tagContent.startsWith("#each ") || tagContent.startsWith("each ")) {
+                String collectionKey = tagContent.substring(tagContent.indexOf(' ') + 1).trim();
+                ParseResult inner = parseNodes(template, index, "/each");
+                nodes.add(new ListNode(collectionKey, "this", inner.nodes));
+                index = inner.nextIndex;
+            } else if (tagContent.equals("/each") || tagContent.equals("#/each")) {
+                if ("/each".equals(endTag)) {
+                    return new ParseResult(nodes, index);
+                }
+                // Orphaned /each tag - ignore it
             } else if (tagContent.equals("/if") || tagContent.equals("#/if")) {
                 if (endTag != null && endTag.equals("/if")) {
                     return new ParseResult(nodes, index);
@@ -369,7 +434,10 @@ public class TemplateEngine {
                         break;
                     }
                 } else {
-                    Object value = resolveValue(clause, variables);
+                    // literal true/false: isStatic() treats them as constants, so must the evaluation
+                    Object value = clause.equalsIgnoreCase("true") ? Boolean.TRUE
+                            : clause.equalsIgnoreCase("false") ? Boolean.FALSE
+                            : resolveValue(clause, variables);
                     if (!isTruthy(value)) {
                         allAndTrue = false;
                         break;
@@ -390,7 +458,11 @@ public class TemplateEngine {
         if (value instanceof Collection) return !((Collection<?>) value).isEmpty();
         if (value instanceof Map) return !((Map<?, ?>) value).isEmpty();
         if (value.getClass().isArray()) return Array.getLength(value) > 0;
-        if (value instanceof String) return !((String) value).trim().isEmpty();
+        if (value instanceof String) {
+            // "false" is a value a caller writes for "no" - it must not render the block
+            String s = ((String) value).trim();
+            return !s.isEmpty() && !s.equalsIgnoreCase("false");
+        }
         return true;
     }
 

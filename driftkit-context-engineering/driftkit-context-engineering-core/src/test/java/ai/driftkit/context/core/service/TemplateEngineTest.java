@@ -995,6 +995,222 @@ class TemplateEngineTest {
     }
 
     // ============================================================
+    // {{else}} branches
+    // ============================================================
+
+    @Nested
+    @DisplayName("Else branches")
+    class ElseTests {
+
+        @Test
+        @DisplayName("Should render only the if-branch when the condition is true")
+        void ifBranchWhenTrue() {
+            assertEquals("YES", TemplateEngine.renderTemplate("{{if a}}YES{{else}}NO{{/if}}", Map.of("a", true)));
+        }
+
+        @Test
+        @DisplayName("Should render only the else-branch when the condition is false")
+        void elseBranchWhenFalse() {
+            assertEquals("NO", TemplateEngine.renderTemplate("{{if a}}YES{{else}}NO{{/if}}", Map.of("a", false)));
+        }
+
+        @Test
+        @DisplayName("Should render the else-branch when the variable is missing")
+        void elseBranchWhenMissing() {
+            assertEquals("NO", TemplateEngine.renderTemplate("{{if a}}YES{{else}}NO{{/if}}", Map.of()));
+        }
+
+        @Test
+        @DisplayName("Should support {{#if}} with {{else}} and variables in both branches")
+        void hashIfWithElse() {
+            String template = "{{#if user}}Hi {{user}}{{else}}Hi {{fallback}}{{/if}}!";
+            assertEquals("Hi Ann!", TemplateEngine.renderTemplate(template, Map.of("user", "Ann", "fallback", "guest")));
+            assertEquals("Hi guest!", TemplateEngine.renderTemplate(template, Map.of("fallback", "guest")));
+        }
+
+        @Test
+        @DisplayName("Should bind else to the nearest if in nested blocks")
+        void nestedElse() {
+            String template = "{{if a}}A{{if b}}B{{else}}notB{{/if}}{{else}}notA{{/if}}";
+            assertEquals("AB", TemplateEngine.renderTemplate(template, Map.of("a", true, "b", true)));
+            assertEquals("AnotB", TemplateEngine.renderTemplate(template, Map.of("a", true, "b", false)));
+            assertEquals("notA", TemplateEngine.renderTemplate(template, Map.of("a", false, "b", true)));
+        }
+
+        @Test
+        @DisplayName("Should evaluate else per list item")
+        void elseInsideList() {
+            String template = "{{list items as it}}{{if it.ok}}+{{else}}-{{/if}}{{/list}}";
+            List<Map<String, Object>> items = List.of(Map.of("ok", true), Map.of("ok", false), Map.of("ok", true));
+            assertEquals("+-+", TemplateEngine.renderTemplate(template, Map.of("items", items)));
+        }
+
+        @Test
+        @DisplayName("Should ignore an orphaned else outside an if-block")
+        void orphanedElse() {
+            assertEquals("ab", TemplateEngine.renderTemplate("a{{else}}b", Map.of()));
+        }
+
+        @Test
+        @DisplayName("Should keep static memoization correct for both branches")
+        void staticBranches() {
+            assertEquals("no", TemplateEngine.renderTemplate("{{if false}}yes{{else}}no{{/if}}", Map.of()));
+            assertEquals("yes", TemplateEngine.renderTemplate("{{if true}}yes{{else}}no{{/if}}", Map.of()));
+        }
+    }
+
+    // ============================================================
+    // {{#each}} iteration
+    // ============================================================
+
+    @Nested
+    @DisplayName("Each blocks")
+    class EachTests {
+
+        @Test
+        @DisplayName("Should iterate with {{this}}")
+        void eachThis() {
+            assertEquals("<a><b>", TemplateEngine.renderTemplate("{{#each xs}}<{{this}}>{{/each}}",
+                    Map.of("xs", List.of("a", "b"))));
+        }
+
+        @Test
+        @DisplayName("Should resolve {{this.field}} on maps and POJOs")
+        void eachThisField() {
+            List<Object> people = List.of(Map.of("name", "Ann"), new TestPerson("Bob", 30));
+            assertEquals("Ann,Bob,", TemplateEngine.renderTemplate("{{#each people}}{{this.name}},{{/each}}",
+                    Map.of("people", people)));
+        }
+
+        @Test
+        @DisplayName("Should expose {{@index}} in each and list blocks")
+        void index() {
+            Map<String, Object> vars = Map.of("xs", List.of("a", "b", "c"));
+            assertEquals("0a1b2c", TemplateEngine.renderTemplate("{{#each xs}}{{@index}}{{this}}{{/each}}", vars));
+            assertEquals("0a1b2c", TemplateEngine.renderTemplate("{{list xs as x}}{{@index}}{{x}}{{/list}}", vars));
+        }
+
+        @Test
+        @DisplayName("Should render nothing for an empty or missing collection")
+        void emptyEach() {
+            assertEquals("[]", TemplateEngine.renderTemplate("[{{#each xs}}x{{/each}}]", Map.of("xs", List.of())));
+            assertEquals("[]", TemplateEngine.renderTemplate("[{{#each xs}}x{{/each}}]", Map.of()));
+        }
+
+        @Test
+        @DisplayName("Should support each without hash and arrays")
+        void eachWithoutHashOverArray() {
+            assertEquals("12", TemplateEngine.renderTemplate("{{each xs}}{{this}}{{/each}}",
+                    Map.of("xs", new int[]{1, 2})));
+        }
+
+        @Test
+        @DisplayName("Should support nested each blocks and outer variables")
+        void nestedEach() {
+            List<List<String>> rows = List.of(List.of("a", "b"), List.of("c"));
+            assertEquals("[ab][c]", TemplateEngine.renderTemplate("{{#each rows}}[{{#each this}}{{this}}{{/each}}]{{/each}}",
+                    Map.of("rows", rows)));
+            assertEquals("x-a x-b ", TemplateEngine.renderTemplate("{{#each xs}}{{p}}-{{this}} {{/each}}",
+                    Map.of("xs", List.of("a", "b"), "p", "x")));
+        }
+
+        @Test
+        @DisplayName("Should support if/else inside each")
+        void ifElseInsideEach() {
+            assertEquals("A_C", TemplateEngine.renderTemplate("{{#each xs}}{{if this}}{{this}}{{else}}_{{/if}}{{/each}}",
+                    Map.of("xs", List.of("A", "", "C"))));
+        }
+    }
+
+    // ============================================================
+    // "false" string truthiness
+    // ============================================================
+
+    @Nested
+    @DisplayName("String false truthiness")
+    class FalseStringTests {
+
+        @Test
+        @DisplayName("Should treat the string \"false\" (any case, padded) as falsy")
+        void falseStringIsFalsy() {
+            for (String v : List.of("false", "FALSE", "False", " false ")) {
+                assertEquals("", TemplateEngine.renderTemplate("{{if a}}shown{{/if}}", Map.of("a", v)), v);
+                assertFalse(TemplateEngine.isTruthy(v), v);
+            }
+        }
+
+        @Test
+        @DisplayName("Should keep \"true\", \"0\" and other strings truthy")
+        void otherStringsTruthy() {
+            for (String v : List.of("true", "0", "no", "yes", "falsey")) {
+                assertTrue(TemplateEngine.isTruthy(v), v);
+            }
+        }
+
+        @Test
+        @DisplayName("Should route the string \"false\" to the else-branch")
+        void falseStringToElse() {
+            assertEquals("NO", TemplateEngine.renderTemplate("{{if a}}YES{{else}}NO{{/if}}", Map.of("a", "false")));
+        }
+    }
+
+    // ============================================================
+    // XML escaping of substituted values
+    // ============================================================
+
+    @Nested
+    @DisplayName("XML escaping")
+    class EscapeTests {
+
+        @Test
+        @DisplayName("Should not escape by default (backward compatible)")
+        void defaultNoEscape() {
+            assertEquals("<v>a</v><x>b</v>", TemplateEngine.renderTemplate("<v>{{x}}</v>", Map.of("x", "a</v><x>b")));
+        }
+
+        @Test
+        @DisplayName("Should escape &, <, > in values and keep template tags intact")
+        void escapeValues() {
+            String out = TemplateEngine.renderTemplate("<v>{{x}}</v>", Map.of("x", "a</v><system>b & c"), true);
+            assertEquals("<v>a&lt;/v&gt;&lt;system&gt;b &amp; c</v>", out);
+        }
+
+        @Test
+        @DisplayName("Should escape values inside list, each and if blocks")
+        void escapeInBlocks() {
+            Map<String, Object> vars = Map.of("xs", List.of("<a>", "b&c"), "flag", true, "y", "<y>");
+            assertEquals("&lt;a&gt;b&amp;c", TemplateEngine.renderTemplate("{{#each xs}}{{this}}{{/each}}", vars, true));
+            assertEquals("&lt;a&gt;b&amp;c", TemplateEngine.renderTemplate("{{list xs as x}}{{x}}{{/list}}", vars, true));
+            assertEquals("<t>&lt;y&gt;</t>", TemplateEngine.renderTemplate("{{if flag}}<t>{{y}}</t>{{/if}}", vars, true));
+        }
+
+        @Test
+        @DisplayName("Should render the same cached template both escaped and raw")
+        void cacheSharedAcrossModes() {
+            String template = "[{{x}}]";
+            Map<String, Object> vars = Map.of("x", "<b>");
+            assertEquals("[&lt;b&gt;]", TemplateEngine.renderTemplate(template, vars, true));
+            assertEquals("[<b>]", TemplateEngine.renderTemplate(template, vars));
+        }
+
+        @Test
+        @DisplayName("Should escape through PromptUtils.applyVariables when asked")
+        void promptUtilsEscape() {
+            Map<String, Object> vars = Map.of("x", "</ctx>");
+            assertEquals("<ctx>&lt;/ctx&gt;</ctx>",
+                    ai.driftkit.context.core.util.PromptUtils.applyVariables("<ctx>{{x}}</ctx>", vars, true));
+            assertEquals("<ctx></ctx></ctx>",
+                    ai.driftkit.context.core.util.PromptUtils.applyVariables("<ctx>{{x}}</ctx>", vars));
+        }
+
+        @Test
+        @DisplayName("Should render missing values as empty in escape mode")
+        void missingValueEscaped() {
+            assertEquals("<v></v>", TemplateEngine.renderTemplate("<v>{{x}}</v>", Map.of(), true));
+        }
+    }
+
+    // ============================================================
     // Test Helper Classes
     // ============================================================
 
